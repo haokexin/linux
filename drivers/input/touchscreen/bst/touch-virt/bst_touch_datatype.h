@@ -1,26 +1,46 @@
-/* SPDX-License-Identifier: GPL-2.0 OR BSD-3-Clause
+/* SPDX-License-Identifier: GPL-2.0 OR Apache 2.0
  *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2 of the License, or
- * (at your option) any later version.
+ * Copyright (c) 2024 Black Sesame Technologies
  *
- * This program is also distributed under the terms of the BSD 3-Clause
+ * This program is also distributed under the terms of the Apache 2.0
  * License.
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
- * Copyright (C) 2023 Black Sesame Technologies. Inc.
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 
-/* This file is auto generated for message box v1.1.0.
+/* This file is auto generated for message box v2.0.0.
  * All manual modifications will be LOST by next generation.
  * It is recommended NOT modify it.
- * Generator Version: francaidl 797e374 msgbx_ipc c468e33
  */
 
 #ifndef BST_TOUCH_DATATYPE_H
 #define BST_TOUCH_DATATYPE_H
 
+#ifdef IPC_RTE_KERNEL
+#include <bst/ipc_app_common.h>
+#else
 #include "ipc_app_common.h"
+#endif
+
+#if __has_include(<inttypes.h>)
+  #include <inttypes.h>
+#else
+#ifndef PRId32
+#define PRId32 "d"
+#endif
+#ifndef PRIu8
+#define PRIu8 "u"
+#endif
+#endif
 
 #ifdef __cplusplus
 extern "C" {
@@ -44,11 +64,11 @@ enum _bst_touch_MacroEnum_t {
 	BST_TOUCH_MAX_SCREEN = 5,
 	BST_TOUCH_MAX_CLIENT = 10,
 	BST_TOUCH_MAX_POINT_NUM = 10,
-	BST_TOUCH_SCREENID_0 = 1126236160,
-	BST_TOUCH_SCREENID_1 = 1126236161,
-	BST_TOUCH_SCREENID_2 = 1126236162,
-	BST_TOUCH_SCREENID_3 = 1126236163,
-	BST_TOUCH_SCREENID_4 = 1126236164,
+	BST_TOUCH_SCREENID_LVDS0 = 9,
+	BST_TOUCH_SCREENID_LVDS1 = 10,
+	BST_TOUCH_SCREENID_DSI0 = 7,
+	BST_TOUCH_SCREENID_DSI1 = 8,
+	BST_TOUCH_SCREENID_EDP = 6,
 	BST_TOUCH_VENDOR_ID_SYNA = 1,
 	BST_TOUCH_VENDOR_ID_HIMAX = 2,
 	BST_TOUCH_PRODUCT_ID_SYNA_DEF = 1,
@@ -291,7 +311,6 @@ static inline int32_t deserialize_bst_touch_UInt8Array32(
 							des_buf_t *buf,
 							bst_touch_UInt8Array32_t **out)
 {
-	int32_t ret = 0;
 	uint32_t size = 32 * sizeof(uint8_t);
 
 	if (!out || !buf)
@@ -301,7 +320,7 @@ static inline int32_t deserialize_bst_touch_UInt8Array32(
 	if (!*out)
 		return -1;
 
-	return ret >= 0 ? 0 : -1;
+	return 0;
 }
 
 /**
@@ -496,7 +515,6 @@ static inline int32_t deserialize_bst_touch_point_dataArray10(
 							des_buf_t *buf,
 							bst_touch_point_dataArray10_t **out)
 {
-	int32_t ret = 0;
 	uint32_t size = 10 * sizeof(bst_touch_point_data_t);
 
 	if (!out || !buf)
@@ -506,7 +524,7 @@ static inline int32_t deserialize_bst_touch_point_dataArray10(
 	if (!*out)
 		return -1;
 
-	return ret >= 0 ? 0 : -1;
+	return 0;
 }
 
 /**

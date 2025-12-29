@@ -5,14 +5,18 @@
 
 #include "bst_gtc_common.h"
 #include <linux/arm-smccc.h>
+#include <linux/time64.h>
 
 #define BST_GTC_INIT_DEFAULT 0
 
 static int user_pid = 0;
 struct workqueue_struct *gtc_wq;
 struct work_struct gtc_work;
+static struct gtc_freq gtc_freq_info;
 extern struct time_sync_parm record;
 extern int bstgtc_log;
+struct bst_gtc *pbst_gtc;
+static u32 gtc_freq_val[8] = {25000000, 1200000000, 312500000, 125000000, 500000000, 62500000, 125000000, 200000000};
 
 int gtc_user_msg_handler(struct sk_buff *skb, struct genl_info *info);
 int gtc_send_msg_to_user(struct time_sync_parm *msg, int len);
@@ -123,6 +127,7 @@ void gtc_syncbits_sel(void __iomem *ioaddr, u32 value)
 void gtc_latch_clear(void __iomem *ioaddr, u32 value)
 {
 	writel(value, ioaddr + GTC_LATCH_CLR);
+    wmb();
 }
 
 /*
@@ -132,7 +137,16 @@ void gtc_latch_clear(void __iomem *ioaddr, u32 value)
  */
 void gtc_intr_mask(void __iomem *ioaddr, u32 value)
 {
-	writel(value, ioaddr + GTC_INTR_MASK);
+	u32 data;
+
+	data = readl(ioaddr + GTC_INTR_MASK);
+	if (value) {
+		data &= (~0x1);
+		writel(data, ioaddr + GTC_INTR_MASK);
+	} else {
+		data |= 0x1;
+		writel(data, ioaddr + GTC_INTR_MASK);	
+	}
 }
 
 /*
@@ -193,7 +207,8 @@ void bstgtc_tsgen_config(bool enable, u32 hicnt, u32 lwcnt)
  */
 int gtc_mux_config(void __iomem *ioaddr, u32 value)
 {
-    u32 default_value = 0x0, reg_value = value;
+    u32 reg_value = value;
+    //u32 default_value = 0x0;
     int i;
 
     if (reg_value > BST_MAX_SYNC) {
@@ -210,9 +225,9 @@ int gtc_mux_config(void __iomem *ioaddr, u32 value)
     *	28:21: isp_sync_out[3:0]
     */
     for (i = 0; i < ARRAY_SIZE(gtc_mux_pin); i++) {
-        if(BIT(reg_value) & gtc_mux_pin[i].dis_bits)
+        /*if(BIT(reg_value) & gtc_mux_pin[i].dis_bits)
             writel(default_value, ioaddr + gtc_mux_pin[i].reg_off);
-        else
+        else*/
             writel(reg_value, ioaddr + gtc_mux_pin[i].reg_off);
     }
 
@@ -345,11 +360,50 @@ static void bst_gtc_work(struct work_struct *gtc_work)
 
     ret = gtc_send_msg_to_user(&record, sizeof(record));
     if (ret) {
-        printk(KERN_DEBUG "%s gtc send msg fail, ret = %d\n", __func__, ret);
+        if (bstgtc_log)
+            printk(KERN_DEBUG "%s gtc send msg fail, ret = %d\n", __func__, ret);
     }
 
     return;
 }
+
+ktime_t bst_gtc_cnt_to_sys_mono(u64 gtc_cnt)
+{
+    u64 hicnt1, lwcnt1, hicnt2, lwcnt2;
+    u64 cur_cnt, diff_ns, cur_ns;
+    unsigned long flags;
+
+    spin_lock_irqsave(&pbst_gtc->ctm_lock, flags);
+    cur_ns = ktime_get_ns();
+    lwcnt1 = readl(pbst_gtc->addr + GTC_CNTREG20_LO);
+    hicnt1 = readl(pbst_gtc->addr + GTC_CNTREG20_HI);
+    lwcnt2 = readl(pbst_gtc->addr + GTC_CNTREG20_LO);
+    hicnt2 = readl(pbst_gtc->addr + GTC_CNTREG20_HI);
+    spin_unlock_irqrestore(&pbst_gtc->ctm_lock, flags);
+
+    if (hicnt1 == hicnt2) {
+        cur_cnt = (hicnt2 << 32) | lwcnt2;
+    } else {
+        cur_cnt = (hicnt1 << 32) | lwcnt1;
+    }
+
+    if (cur_cnt < gtc_cnt) {
+        diff_ns = (gtc_cnt - cur_cnt) * pbst_gtc->freq_ns; // 1/200m*(10^9)
+        if (bstgtc_log) {
+            printk(KERN_DEBUG "%s gtc_cnt %llu cur_cnt %llu freq %d diff_ns %llu\n",
+                __func__, gtc_cnt, cur_cnt, pbst_gtc->freq_ns, diff_ns);
+        }
+        return ns_to_ktime(cur_ns + diff_ns);
+    } else {
+        diff_ns = (cur_cnt - gtc_cnt) * pbst_gtc->freq_ns;
+        if (bstgtc_log) {
+            printk(KERN_DEBUG "%s gtc_cnt %llu cur_cnt %llu freq %d diff_ns %llu\n",
+                __func__, gtc_cnt, cur_cnt, pbst_gtc->freq_ns, diff_ns);
+        }
+        return ns_to_ktime(cur_ns - diff_ns);
+    }    
+}
+EXPORT_SYMBOL(bst_gtc_cnt_to_sys_mono);
 
 /*
  * bstgtc_soc_interrupt - read gtc latch counter, used to update system time/...
@@ -362,12 +416,15 @@ static irqreturn_t bstgtc_soc_interrupt(int irq, void *dev_id)
     unsigned int status;
     struct bst_gtc *gtc_res = (struct bst_gtc *)dev_id;
     void *ioaddr = gtc_res->addr;
+    unsigned long flags;
 
-    record.gtc_lwcnt = readl(ioaddr + GTC_CNTREG2_LO);
-    record.gtc_hicnt = readl(ioaddr + GTC_CNTREG2_HI);
-
+    spin_lock_irqsave(&gtc_res->mono_lock, flags);
     record.latch_gtc_lwcnt = readl(ioaddr + GTC_INTR_LATCH_DATA0);
     record.latch_gtc_hicnt = readl(ioaddr + GTC_INTR_LATCH_DATA1);
+    record.gtc_lwcnt = readl(ioaddr + GTC_CNTREG2_LO);
+    record.gtc_hicnt = readl(ioaddr + GTC_CNTREG2_HI);
+    spin_unlock_irqrestore(&gtc_res->mono_lock, flags);
+
     status = readl(ioaddr + 0x218);
     if (bstgtc_log) {
         printk(KERN_DEBUG "Hit gtc_sync_int[%d]:current hicnt= %d lwcnt= %d hilatch= %d lwlatch= %d int 0x%x\n",
@@ -442,30 +499,49 @@ static int bstgtc_get_platform_resources(struct platform_device *pdev,
         goto end;
     }
     gtc_res->addr = devm_ioremap_resource(&pdev->dev, res);
-    printk(KERN_DEBUG "%s: paddr start = 0x%llx, end = 0x%llx, vaddr = 0x%llx",
+    printk(KERN_DEBUG "%s: paddr start = 0x%llx, end = 0x%llx, vaddr = 0x%llx\n",
                 __func__, res->start, res->end, (u64)gtc_res->addr);
     //}
-
+#if defined(CONFIG_BST_C1200_ADAS)
 	gtc_res->gtc_irq = platform_get_irq_byname(pdev, "gtc_irq");
 	if (gtc_res->gtc_irq < 0) {
         ret = -EPROBE_DEFER;
         printk(KERN_ERR "%s: gtc_irq get fail\n", __func__);
         goto end;
 	}
-    printk(KERN_DEBUG "%s: irq = %d", __func__, gtc_res->gtc_irq);
-
+    printk(KERN_DEBUG "%s: irq = %d\n", __func__, gtc_res->gtc_irq);
+#endif
     of_property_read_u32(pdev->dev.of_node, "mux_idx", &gtc_res->mux_idx);
-    printk(KERN_DEBUG "%s: mux_idx = %d", __func__, gtc_res->mux_idx);
+    printk(KERN_DEBUG "%s: mux_idx = %d\n", __func__, gtc_res->mux_idx);
     if ((gtc_res->mux_idx) > BST_MAX_SYNC)
 	    gtc_res->mux_idx = BST_SOC_XGMAC_SYNC0;
 
     of_property_read_u32(pdev->dev.of_node, "gtc_syncbit_sel", &gtc_res->gtc_syncbit);
-    printk(KERN_DEBUG "%s: gtc_syncbit = %d", __func__, gtc_res->gtc_syncbit);
+    printk(KERN_DEBUG "%s: gtc_syncbit = %d\n", __func__, gtc_res->gtc_syncbit);
     if ((gtc_res->gtc_syncbit) > BST_GTC_MAX_SYNCBIT)
 	    gtc_res->gtc_syncbit = 0;
 
 end:
     return ret;
+}
+
+int bst_gtc_get_freq(struct gtc_freq *freq_info)
+{
+    int ret;
+    u32 val;
+
+    ret = scmi_read(TOP_CRM_BASE_ADDR+GTC_REFCLK_DIV_PARA, &val);
+    if (ret < 0)
+        return -EINVAL;
+
+    freq_info->clk_div = ((val >> 24) & 0xf); 
+
+    ret = scmi_read(TOP_CRM_BASE_ADDR+GTC_REFCLK_MUX_CTRL, &val);
+    if (ret < 0)
+       return -EINVAL;
+    freq_info->clk_freq = ((val >> 5) & 0xf);
+
+    return 0;
 }
 
 /*
@@ -475,9 +551,8 @@ end:
 static int bst_gtc_probe(struct platform_device *pdev)
 {
     int ret = 0;
-    struct bst_gtc *pbst_gtc;
 
-    printk(KERN_DEBUG "BST_GTC driver initializing ...");
+    printk(KERN_DEBUG "BST_GTC driver initializing ...\n");
 
     pbst_gtc = devm_kzalloc(&pdev->dev, sizeof(*pbst_gtc), GFP_KERNEL);
     if (pbst_gtc == NULL) {
@@ -504,7 +579,7 @@ static int bst_gtc_probe(struct platform_device *pdev)
     /* register gtc misc dev */
     ret = bst_gtc_miscdev_init(pbst_gtc);
     if (ret < 0) {
-        printk(KERN_ERR "bst_gtc_miscdev_init failed, ret %d", ret);
+        printk(KERN_ERR "bst_gtc_miscdev_init failed, ret %d\n", ret);
         goto fail;
     }
 
@@ -532,8 +607,20 @@ static int bst_gtc_probe(struct platform_device *pdev)
         goto fail; 
     }
 
+    spin_lock_init(&pbst_gtc->mono_lock);
+    spin_lock_init(&pbst_gtc->ctm_lock);
+    ret = bst_gtc_get_freq(&gtc_freq_info);
+    if (!ret) {
+        if ((gtc_freq_info.clk_freq < 8) && (gtc_freq_info.clk_div))
+            pbst_gtc->freq_ns = (1000000000 / (gtc_freq_val[gtc_freq_info.clk_freq] / gtc_freq_info.clk_div));
+    } else {
+        gtc_freq_info.clk_freq = 1;
+        gtc_freq_info.clk_div = 6;
+        pbst_gtc->freq_ns = 5;
+    }
+
     if (ret == 0) {
-        printk(KERN_DEBUG "BST_GTC probe completed!");
+        printk(KERN_DEBUG "BST_GTC probe completed!\n");
         return 0;
     }
 
@@ -551,14 +638,15 @@ static int bst_gtc_remove(struct platform_device *pdev)
     int ret = 0;
     struct bst_gtc *pbst_gtc = platform_get_drvdata(pdev);
 
-    printk(KERN_DEBUG "%s: BST_GTC remove start", __func__);
+    printk(KERN_ERR "%s: BST_GTC remove start\n", __func__);
 
     /* unregister gtc dev */
     bst_gtc_miscdev_exit(pbst_gtc);
-
+#if defined(CONFIG_BST_C1200_ADAS)
     /* free gtc irq */
     if (pbst_gtc->gtc_irq)
         free_irq(pbst_gtc->gtc_irq, pbst_gtc);
+#endif
 #if BST_GTC_INIT_DEFAULT
     /* disable tsgen */
     bstgtc_tsgen_config(false, 0, 0);
@@ -570,16 +658,20 @@ static int bst_gtc_remove(struct platform_device *pdev)
 #endif
     /* free gtc resources */
     devm_kfree(&pdev->dev, pbst_gtc);
-
+    pbst_gtc = NULL;
     /* unregister gtc genl family */
     genl_unregister_family(&gtc_genl_family);
 
     /* destroy gtc workqueue */
     destroy_workqueue(gtc_wq);
 
-    printk(KERN_DEBUG "%s: BST_GTC remove completed", __func__);
+    printk(KERN_ERR "%s: BST_GTC remove completed\n", __func__);
 
     return ret;
+}
+static void bst_gtc_shutdown(struct platform_device *pdev)
+{
+    bst_gtc_remove(pdev);
 }
 
 static const struct of_device_id bst_gtc_of_match[] = {
@@ -590,6 +682,7 @@ static const struct of_device_id bst_gtc_of_match[] = {
 static struct platform_driver bst_gtc_driver = {
     .probe   = bst_gtc_probe,
     .remove  = bst_gtc_remove,
+    .shutdown = bst_gtc_shutdown,
     .driver  = {
         .name = BST_GTC_DRIVER_NAME,
         .of_match_table = of_match_ptr(bst_gtc_of_match),

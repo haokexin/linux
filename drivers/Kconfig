@@ -125,6 +125,8 @@ source "drivers/rtc/Kconfig"
 
 source "drivers/dma/Kconfig"
 
+source "drivers/bst_timer/Kconfig"
+
 source "drivers/dma-buf/Kconfig"
 
 source "drivers/dca/Kconfig"
@@ -243,7 +245,7 @@ source "drivers/hte/Kconfig"
 
 source "drivers/bst_ipc_msgbx/Kconfig"
 
-source "drivers/bst_coreip/Kconfig"
+source "drivers/bst_health_monitor/Kconfig"      
 
 source "drivers/bst_ipc/Kconfig"
 
@@ -251,12 +253,16 @@ source "drivers/bstn/Kconfig"
 
 source "drivers/bst_lwnn/Kconfig"
 
-source "drivers/bst_cv/Kconfig"
-
 source "drivers/xrp/Kconfig"
 
 source "drivers/bst_gtc/Kconfig"
 
 source "drivers/bst_sqbuffer/Kconfig"
+
+source "drivers/bst_stl/Kconfig"
+
+source "drivers/bst_eeprom/Kconfig"
+
+source "drivers/bst_fusa_inject/Kconfig"
 
 endmenu

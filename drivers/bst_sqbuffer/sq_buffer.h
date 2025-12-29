@@ -9,7 +9,7 @@
 
 #include <linux/types.h>
 
-#define SQ_BUFFER_NUM_MAX 16
+#define SQ_BUFFER_NUM_MAX 64
 #define SQ_BUFFER_CONSUMER_MAX 16
 
 typedef struct SQE {
@@ -34,7 +34,8 @@ typedef struct SQ_Buffer {
     free_SQ free_sq;
     data_SQ data_sq[SQ_BUFFER_CONSUMER_MAX];
     uint64_t buffers_phy_addr64[SQ_BUFFER_NUM_MAX];
-} SQ_Buffer;
+    uint32_t magic;
+} __attribute__((aligned(4))) SQ_Buffer;
 
 typedef struct sqe_t {
     int32_t *index;
@@ -44,8 +45,19 @@ typedef struct sqe_t {
 
 typedef struct sq_buffer_proxy_t {
     sqe_proxy_t sqe[SQ_BUFFER_NUM_MAX];
-    SQ_Buffer *sq;
 } sq_buffer_proxy_t;
+
+
+/**
+ * @brief Init sq buffer
+ * @param sq Pointer to the SQ_Buffer
+ * @param buffer buffer array in smmu address
+ * @param buffer_size Buffer's size
+ * @param buffer_num Buffer's number
+ * @return 0 if successful, -1 if failed
+ */
+int SQ_Buffer_Init(SQ_Buffer *sq, uint32_t *buffer,
+        uint32_t buffer_size, uint32_t buffer_num);
 
 /**
  * @brief Get a SQE from the consumer proxy structure
@@ -63,5 +75,36 @@ sqe_proxy_t *sq_buffer_consume_get(uint8_t consumer_id);
  * @return 0 if successful, -1 if failed
  */
 int sq_buffer_consume_put(sqe_proxy_t *sqe);
+
+/**
+ * @brief Get a free SQE from the producer proxy structure
+ * @return Return the pointer to a free SQE proxy structure, if there is no
+ * free SQE, return NULL
+ */
+sqe_proxy_t *sq_buffer_produce_get(void);
+
+/**
+ * @brief Put SQE back into the producer proxy structure and set the consumer mask
+ * @param sqe Pointer to the SQE proxy structure
+ * @param consumer_mask consumer mask
+ * @return 0 if successful, -1 if failed
+ */
+int sq_buffer_produce_put(sqe_proxy_t *sqe,
+                          uint16_t consumer_mask);
+
+
+/**
+ * @brief Get the base physical address of the SQ_Buffer
+ * @return The base physical address of the SQ_Buffer
+ */
+uint64_t sq_buffer_get_base_paddr(void);
+
+/**
+ * @brief Get the base virtual address of the SQ_Buffer
+ * @return The base virtual address of the SQ_Buffer
+ */
+uint64_t sq_buffer_get_base_vaddr(void);
+
+int sq_buffer_consume_datanum(uint8_t consumer_id);
 
 #endif  // SQ_BUFFER_H

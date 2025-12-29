@@ -6,6 +6,8 @@
 #ifndef __BST_HASH_H__
 #define __BST_HASH_H__
 
+#define HASH_DMA_FUNCTION
+
 #define HFE_CTRL 0x00		   // 1 哈希控制寄存器 RW 0x0
 #define HFE_CFG 0x04		   // 9 哈希配置寄存器 RW 0x0
 #define HFE_RISR 0x10		   // 2 哈希中断源寄存器 W0C 0x0
@@ -20,8 +22,10 @@
 #define HFE_VERSION 0xFC	   // 24 版本寄存器 RO 0xXXE4_0010
 #define HFE_IN 0x100		   // – 0x1C4 32[3] 哈希值输入寄存器 WO 0x0
 #define HFE_OUT 0x200		   // – 0x2C4 32[3] 哈希值输出寄存器 RO 0x0DMA 寄存器
-#define HFE_DMA_CH_SADDR 0x490 // – 0x494 32 DMA 源地址寄存器 RW 0x0
-#define HFE_DMA_CH_DADDR 0x498 // – 0x49C 32 DMA 目的地址寄存器 RW 0x0
+#define HFE_DMA_L_SADDR 0x490  // – 0x490 32 DMA 源地址Low寄存器 RW 0x0
+#define HFE_DMA_H_SADDR 0x494  // – 0x494 32 DMA 源地址High寄存器 RW 0x0
+#define HFE_DMA_L_DADDR 0x498  // – 0x498 32 DMA 目的地址Low寄存器 RW 0x0
+#define HFE_DMA_H_DADDR 0x49C  // – 0x49C 32 DMA 目的地址High寄存器 RW 0x0
 #define HFE_DMA_RLEN 0x4A0	   // 32 DMA 读数据长度寄存 RW 0x0
 #define HFE_DMA_WLEN 0x4A4	   // 32 DMA 写数据长度寄存器RW 0x0
 #define HFE_DMA_AWCC 0x4A8	   // 32 DMA 写通道控制信息寄存器RW 0x0
@@ -69,6 +73,9 @@ enum HASH_RET_CODE {
 	HASH_ERROR,
 };
 
+//hash callback function type
+typedef void (*HASH_CALLBACK)(void);
+
 // to calculate hash or hmac
 enum HFE_MODE {
 	HASH_MODE,
@@ -91,14 +98,18 @@ struct bst_hash_ctx {
 	uint32_t total[HASH_TOTAL_LEN_MAX_WORD_LEN];  // total byte length of the whole message
 	enum BST_HASH_ALG hash_alg;					  // current hash algorithm
 	enum HFE_MODE hfe_mode;						  // the input message is for hash algorithm or for hmac algorithm
-	uint8_t block_byte_len;
+	uint32_t block_byte_len;
 	uint8_t iterator_word_len;
-	uint8_t digest_byte_len;
+	uint32_t digest_byte_len;
 	struct hash_status status; // hash update status, .busy=1 means doing閿涳拷=0 means idle
 	uint8_t first_update_flag; // whether first time to update message(1:yes, 0:no)
 	uint8_t finish_flag;	   // whether the whole message has been inputted(1:yes, 0:no)
 	void __iomem *base;
+	uint8_t inited; // whether inited 0: not inited 1: inited
 	/* for hmac*/
+	struct mutex key_lock;
+	uint8_t *keySrc;
+	uint32_t keySrc_len;
 	uint32_t key[HASH_BLOCK_MAX_WORD_LEN];
 	uint32_t key_len;
 	uint32_t key_len_flag;
@@ -106,12 +117,44 @@ struct bst_hash_ctx {
 
 #ifdef HASH_DMA_FUNCTION
 // HASH DMA context
-struct bst_hash_dma_ctx {
-	HASH_ALG hash_alg;							 // current hash algorithm
-	uint32_t total[HASH_TOTAL_LEN_MAX_WORD_LEN]; // total byte length of the whole message
-	uint8_t block_word_len;
-	HASH_CALLBACK callback;
+struct dma_alloc_addr {
+	uint8_t *virt_in;
+	uint8_t *virt_out;
+	dma_addr_t phys_in;
+	dma_addr_t phys_out;
+	uint32_t alloc_size[2];
 };
+
+struct bst_hash_dma_ctx {
+	uint8_t hash_buffer[HASH_BLOCK_MAX_BYTE_LEN]; // block buffer
+	uint32_t total[HASH_TOTAL_LEN_MAX_WORD_LEN]; // total byte length of the whole message
+	enum BST_HASH_ALG hash_alg;					  // current hash algorithm
+	enum HFE_MODE hfe_mode;						  // the input message is for hash algorithm or for hmac algorithm
+	uint32_t block_byte_len;
+	uint8_t block_word_len;
+	uint8_t iterator_word_len;
+	uint32_t digest_byte_len;
+	struct hash_status status;
+	uint8_t first_update_flag; // whether first time to update message(1:yes, 0:no)
+	uint8_t finish_flag;	   // whether the whole message has been inputted(1:yes, 0:no)
+	uint32_t msg_bytes;
+	HASH_CALLBACK callback;
+	uint32_t *remainder_msg;
+	uint32_t remainder_bytes;
+	uint32_t block_words;
+	struct dma_alloc_addr dma_addr;
+	void __iomem *base;
+	uint8_t inited; // whether inited 0: not inited 1: inited
+	/* for hmac*/
+	struct mutex key_lock;
+	uint8_t *keySrc;
+	uint32_t keySrc_len;
+	uint32_t key[HASH_BLOCK_MAX_WORD_LEN];
+	uint32_t key_len;
+	uint32_t key_len_flag;
+};
+
+extern void uint32_clear(uint32_t *a, uint32_t word_len);
 
 #endif
 

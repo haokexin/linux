@@ -1,4 +1,5 @@
-/* SPDX-License-Identifier: GPL-2.0+
+// SPDX-License-Identifier: GPL-2.0+
+/*
  *
  * Copyright (c) 2024 Black Sesame Technologies
  */
@@ -47,23 +48,25 @@ static ssize_t bst_lwnn_print_level_attr_show(struct kobject *object,
 {
 	switch (bst_lwnn_print_level) {
 	case BST_LWNN_DEBUG_PRINT:
-		return sprintf(buf,
-			       "Current BST_LWNN Print Level: BST_LWNN_DEBUG_PRINT(2)\nSet 0 to BST_LWNN_NO_PIRNT or 1 to BST_LWNN_LOG_PRINT\n");
+		return sprintf(
+			buf,
+			"Current BST_LWNN Print Level: BST_LWNN_DEBUG_PRINT(2)\nSet 0 to BST_LWNN_NO_PIRNT or 1 to BST_LWNN_LOG_PRINT\n");
 	case BST_LWNN_LOG_PRINT:
-		return sprintf(buf,
-			       "Current BST_LWNN Print Level: BST_LWNN_LOG_PRINT(1)\nSet 0 to BST_LWNN_NO_PIRNT or 2 to BST_LWNN_DEBUG_PRINT\n");
+		return sprintf(
+			buf,
+			"Current BST_LWNN Print Level: BST_LWNN_LOG_PRINT(1)\nSet 0 to BST_LWNN_NO_PIRNT or 2 to BST_LWNN_DEBUG_PRINT\n");
 	case BST_LWNN_NO_PRINT:
-		return sprintf(buf,
-			       "Current BST_LWNN Print Level: BST_LWNN_NO_PRINT(0)\nSet 1 to BST_LWNN_LOG_PIRNT or 2 to BST_LWNN_DEBUG_PRINT\n");
-	default:{
-			struct bst_lwnn *pbst_lwnn;
+		return sprintf(
+			buf,
+			"Current BST_LWNN Print Level: BST_LWNN_NO_PRINT(0)\nSet 1 to BST_LWNN_LOG_PIRNT or 2 to BST_LWNN_DEBUG_PRINT\n");
+	default: {
+		struct bst_lwnn *pbst_lwnn;
 
-			pbst_lwnn =
-			    container_of((void *)object, struct bst_lwnn, kobj);
-			BST_LWNN_DEV_ERR(&pbst_lwnn->pdev->dev,
-					 "fatal error! invalid print level");
-			return 0;
-		}
+		pbst_lwnn = container_of((void *)object, struct bst_lwnn, kobj);
+		BST_LWNN_DEV_ERR(&pbst_lwnn->pdev->dev,
+				 "fatal error! invalid print level");
+		return 0;
+	}
 	}
 }
 
@@ -84,8 +87,8 @@ static ssize_t bst_lwnn_print_level_attr_store(struct kobject *object,
 	int ret;
 
 	ret = kstrtoint(buf, 0, &new_print_level);
-	if (ret < 0 || new_print_level < 0
-	    || new_print_level > BST_LWNN_DEBUG_PRINT) {
+	if (ret < 0 || new_print_level < 0 ||
+	    new_print_level > BST_LWNN_DEBUG_PRINT) {
 		struct bst_lwnn *pbst_lwnn;
 
 		pbst_lwnn = container_of((void *)object, struct bst_lwnn, kobj);
@@ -97,19 +100,16 @@ static ssize_t bst_lwnn_print_level_attr_store(struct kobject *object,
 	return count;
 }
 
-static struct kobj_attribute bst_lwnn_refcnt_attr = __ATTR(bst_lwnn_refcnt,
-							   0664,
-							   bst_lwnn_refcnt_attr_show,
-							   NULL);
+static struct kobj_attribute bst_lwnn_refcnt_attr =
+	__ATTR(bst_lwnn_refcnt, 0664, bst_lwnn_refcnt_attr_show, NULL);
 
 static struct kobj_attribute bst_lwnn_print_level_attr =
-__ATTR(bst_lwnn_print_level,
-       0664, bst_lwnn_print_level_attr_show, bst_lwnn_print_level_attr_store);
+	__ATTR(bst_lwnn_print_level, 0664, bst_lwnn_print_level_attr_show,
+	       bst_lwnn_print_level_attr_store);
 
 static struct attribute *bst_lwnn_kobj_attrs[] = {
-	&bst_lwnn_refcnt_attr.attr,
-	&bst_lwnn_print_level_attr.attr,
-	NULL,			/* need to NULL terminate the list of attributes */
+	&bst_lwnn_refcnt_attr.attr, &bst_lwnn_print_level_attr.attr,
+	NULL, /* need to NULL terminate the list of attributes */
 };
 
 static struct attribute_group bst_lwnn_kobj_attr_group = {
@@ -136,9 +136,8 @@ int bst_lwnn_sysfile_init(struct bst_lwnn *pbst_lwnn)
 {
 	int ret;
 
-	ret =
-	    kobject_init_and_add(&pbst_lwnn->kobj, &dynamic_kobj_ktype,
-				 kernel_kobj, BST_LWNN_DRIVER_NAME);
+	ret = kobject_init_and_add(&pbst_lwnn->kobj, &dynamic_kobj_ktype,
+				   kernel_kobj, BST_LWNN_DRIVER_NAME);
 	if (ret < 0) {
 		BST_LWNN_DEV_ERR(&pbst_lwnn->pdev->dev,
 				 "failed to create bst_lwnn kobject");
@@ -147,8 +146,9 @@ int bst_lwnn_sysfile_init(struct bst_lwnn *pbst_lwnn)
 
 	ret = sysfs_create_group(&pbst_lwnn->kobj, &bst_lwnn_kobj_attr_group);
 	if (ret < 0) {
-		BST_LWNN_DEV_ERR(&pbst_lwnn->pdev->dev,
-				 "failed to create bst_lwnn kobject attribute group");
+		BST_LWNN_DEV_ERR(
+			&pbst_lwnn->pdev->dev,
+			"failed to create bst_lwnn kobject attribute group");
 		kobject_put(&pbst_lwnn->kobj);
 	}
 	return ret;

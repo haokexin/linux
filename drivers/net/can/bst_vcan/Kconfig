@@ -1,0 +1,18 @@
+config BST_VCAN
+	tristate "Support BST vcan"
+	depends on ARM64
+	depends on !C1200_SLT && !C1200_MASS
+	default y
+	help
+	  BST vcan is a virtual CAN driver for the BST platform.
+
+	  To compile as a module, choose M here: the module will be called
+	  bst_vcan.
+
+config VCAN_DEBUG
+    tristate "Test for BST vcan"
+    depends on ARM64
+	depends on !C1200_SLT && !C1200_MASS
+    default m
+    help
+      Say Y here if you want to test delay for BST vcan.

@@ -47,6 +47,7 @@ static void dwxgmac2_dma_init(void __iomem *ioaddr,
 	value = (value & ~(3 << XGMAC_DMA_INT_MODE_SHIFT)) | ((dma_cfg->dma_int_mode & 0x3) << XGMAC_DMA_INT_MODE_SHIFT);
 	writel(value, ioaddr + XGMAC_DMA_MODE);
 
+#if 0
 	value = readl(ioaddr + XGMAC_AXI_TX_AR_ACE_CTRL);
 	value &= (~(XGMAC_THC_MASK | XGMAC_TEC_MASK | XGMAC_TDRC_MASK));
 	value |= (3 << XGMAC_THC_SHIFT) | (3 << XGMAC_TEC_SHIFT) | (3 << XGMAC_TDRC_SHIFT);
@@ -61,7 +62,7 @@ static void dwxgmac2_dma_init(void __iomem *ioaddr,
 	value &= (~(XGMAC_RDRC_MASK | XGMAC_TDWC_MASK));
 	value |= (3 << XGMAC_RDRC_SHIFT) | (3 << XGMAC_TDWC_SHIFT);
 	writel(value, ioaddr + XGMAC_AXI_TXRX_AWAR_ACE_CTRL);
-
+#endif
 }
 
 static void dwxgmac2_dma_init_chan(void __iomem *ioaddr,
@@ -571,7 +572,7 @@ static void dwxgmac2_get_hw_feature(void __iomem *ioaddr,
 	dma_cap->estwid = (hw_cap & XGMAC_HWFEAT_ESTWID) >> 23;
 	dma_cap->estdep = (hw_cap & XGMAC_HWFEAT_ESTDEP) >> 20;
 	dma_cap->estsel = (hw_cap & XGMAC_HWFEAT_ESTSEL) >> 19;
-	//dma_cap->asp = (hw_cap & XGMAC_HWFEAT_ASP) >> 14;
+	dma_cap->asp = (hw_cap & XGMAC_HWFEAT_ASP) >> 14;
 
 	dma_cap->dvlan = (hw_cap & XGMAC_HWFEAT_DVLAN) >> 13;
 	dma_cap->frpes = (hw_cap & XGMAC_HWFEAT_FRPES) >> 11;
@@ -581,7 +582,11 @@ static void dwxgmac2_get_hw_feature(void __iomem *ioaddr,
 
 static void dwxgmac2_rx_watchdog(void __iomem *ioaddr, u32 riwt, u32 queue)
 {
-	writel(riwt & XGMAC_RWT, ioaddr + XGMAC_DMA_CH_Rx_WATCHDOG(queue));
+	u32 val;
+	
+	val = riwt & XGMAC_RWT;
+	val |= (1 << 12); //RWTU
+	writel(val, ioaddr + XGMAC_DMA_CH_Rx_WATCHDOG(queue));
 }
 
 static void dwxgmac2_set_rx_ring_len(void __iomem *ioaddr, u32 len, u32 chan)

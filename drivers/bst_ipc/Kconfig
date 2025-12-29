@@ -4,4 +4,10 @@ config BST_IPC
 	help
 	  BST IPC driver is included
 	default y
+config BST_IPC_STRESS
+	tristate "Support BST IPC STRESS"
+	depends on ARM64
+	help
+	  BST IPC driver is included
+	default y
 	

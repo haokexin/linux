@@ -69,6 +69,9 @@ extern int of_pci_range_to_resource(struct of_pci_range *range,
 				    struct device_node *np,
 				    struct resource *res);
 extern bool of_dma_is_coherent(struct device_node *np);
+#ifdef CONFIG_BST_OF_DMA_NEED_SYNC_TO_POP
+extern bool of_dma_is_flag_sync_to_pop(struct device_node *np);
+#endif
 #else /* CONFIG_OF_ADDRESS */
 static inline void __iomem *of_io_request_and_map(struct device_node *device,
 						  int index, const char *name)

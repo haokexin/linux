@@ -2,3 +2,15 @@ config TOUCHSCREEN_VIRT_BST
 	tristate "BST virt touch driver support"
 	help
 	  general driver for virt touch from BST
+
+config TOUCHSCREEN_VIRT_BST_DEBUG_STATISTICS_DELAY_TIMESTAMPS
+	tristate "BST virt touch driver debug statistics coord timestamps and delay time"
+	select TOUCHSCREEN_VIRT_BST
+	default n
+	help
+	  Enable the debug statistics coord timestamps and delay time for BST virt touch driver.
+
+	  Please select the option that matches TOUCHSCREEN_VIRT_BST.
+	  If TOUCHSCREEN_VIRT_BST=y, say Y or N.
+	  If TOUCHSCREEN_VIRT_BST=m, say M or N.
+	  if unsure, say N.

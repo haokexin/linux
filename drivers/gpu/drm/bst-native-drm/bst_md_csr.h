@@ -13,6 +13,7 @@
 #define MD_CSR_DISPLAY1_CFG   0x14
 
 /* display mux */
+#define MD_CSR_VOUT_CFG   0x18
 #define MD_CSR_LVDS0_CFG   0x1C
 #define MD_CSR_LVDS1_CFG   0x20
 #define MD_CSR_LVDS0_PIX_NUM_CFG   0x24
@@ -141,6 +142,7 @@
 u32 bst_md_csr_read(struct device *dev, u32 reg);
 void bst_md_csr_write(struct device *dev, u32 reg, u32 val);
 
+void bst_disp_vout_mux_sel(struct device *dev, u32 disp_id, u32 pipeline_id, u32 link_id);
 void bst_disp_edp_mux_sel(struct device *dev, u32 disp_id, u32 pipeline_id, u32 link_id);
 void bst_disp_lvds_mux_sel(struct device *dev, u32 lvds_n, u32 disp_id, u32 pipeline_id, u32 link_id);
 void bst_disp_dsi_mux_sel(struct device *dev, u32 dsi_n, u32 disp_id, u32 pipeline_id, u32 link_id);

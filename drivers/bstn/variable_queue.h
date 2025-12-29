@@ -1,4 +1,5 @@
-/* SPDX-License-Identifier: GPL-2.0+
+// SPDX-License-Identifier: GPL-2.0+
+/*
  *
  * Copyright (c) 2024 Black Sesame Technologies
  */
@@ -33,11 +34,10 @@
  *
  *  @param Q_ELEM_TYPE the type of the structure containing the link
  **/
- #define Q_NEW_LINK(Q_ELEM_TYPE, LINK_NAME) \
- struct Q_ELEM_TYPE##_##LINK_NAME{ \
-    struct Q_ELEM_TYPE *next, *prev; \
-} LINK_NAME
-
+#define Q_NEW_LINK(Q_ELEM_TYPE, LINK_NAME)       \
+	struct Q_ELEM_TYPE##_##LINK_NAME {       \
+		struct Q_ELEM_TYPE *next, *prev; \
+	} LINK_NAME
 
 /** @def Q_INIT_ELEM(Q_ELEM, LINK_NAME)
  *
@@ -49,10 +49,11 @@
  *  @param Q_ELEM Pointer to the structure instance containing the link
  *  @param LINK_NAME The name of the link to initialize
  **/
-#define Q_INIT_ELEM(Q_ELEM, LINK_NAME) { \
-    (Q_ELEM)->LINK_NAME.next = NULL; \
-    (Q_ELEM)->LINK_NAME.prev = NULL; \
-}
+#define Q_INIT_ELEM(Q_ELEM, LINK_NAME)           \
+	{                                        \
+		(Q_ELEM)->LINK_NAME.next = NULL; \
+		(Q_ELEM)->LINK_NAME.prev = NULL; \
+	}
 
 /** @def Q_INSERT_FRONT(Q_HEAD, Q_ELEM, LINK_NAME)
  *
@@ -70,20 +71,20 @@
  *  @return Void (you may change this if your implementation calls for a
  *                return value)
  **/
-#define Q_INSERT_FRONT(Q_HEAD, Q_ELEM, LINK_NAME) { \
-    if(*(Q_HEAD) == NULL){ \
-        (Q_ELEM)->LINK_NAME.next = Q_ELEM; \
-        (Q_ELEM)->LINK_NAME.prev = Q_ELEM; \
-    } \
-    else{ \
-        (Q_ELEM)->LINK_NAME.next = *(Q_HEAD); \
-        (Q_ELEM)->LINK_NAME.prev = (*(Q_HEAD))->LINK_NAME.prev; \
-        (*(Q_HEAD))->LINK_NAME.prev->LINK_NAME.next = Q_ELEM; \
-        (*(Q_HEAD))->LINK_NAME.prev = Q_ELEM; \
-    } \
-    *(Q_HEAD) = Q_ELEM; \
-}
-
+#define Q_INSERT_FRONT(Q_HEAD, Q_ELEM, LINK_NAME)                             \
+	{                                                                     \
+		if (*(Q_HEAD) == NULL) {                                      \
+			(Q_ELEM)->LINK_NAME.next = Q_ELEM;                    \
+			(Q_ELEM)->LINK_NAME.prev = Q_ELEM;                    \
+		} else {                                                      \
+			(Q_ELEM)->LINK_NAME.next = *(Q_HEAD);                 \
+			(Q_ELEM)->LINK_NAME.prev =                            \
+				(*(Q_HEAD))->LINK_NAME.prev;                  \
+			(*(Q_HEAD))->LINK_NAME.prev->LINK_NAME.next = Q_ELEM; \
+			(*(Q_HEAD))->LINK_NAME.prev = Q_ELEM;                 \
+		}                                                             \
+		*(Q_HEAD) = Q_ELEM;                                           \
+	}
 
 /** @def Q_INSERT_TAIL(Q_HEAD, Q_ELEM, LINK_NAME)
  *  @brief Inserts the queue element pointed to by Q_ELEM at the end of the
@@ -100,20 +101,20 @@
  *  @return Void (you may change this if your implementation calls for a
  *                return value)
  **/
-#define Q_INSERT_TAIL(Q_HEAD, Q_ELEM, LINK_NAME) { \
-    if((*(Q_HEAD)) == NULL){ \
-        (Q_ELEM)->LINK_NAME.prev = Q_ELEM; \
-        (Q_ELEM)->LINK_NAME.next = Q_ELEM; \
-        (*(Q_HEAD)) = Q_ELEM; \
-    } \
-    else{ \
-        (Q_ELEM)->LINK_NAME.prev = (*(Q_HEAD))->LINK_NAME.prev; \
-        (Q_ELEM)->LINK_NAME.next = (*(Q_HEAD)); \
-        (*(Q_HEAD))->LINK_NAME.prev->LINK_NAME.next = Q_ELEM; \
-        (*(Q_HEAD))->LINK_NAME.prev = Q_ELEM; \
-    } \
-}
-
+#define Q_INSERT_TAIL(Q_HEAD, Q_ELEM, LINK_NAME)                              \
+	{                                                                     \
+		if ((*(Q_HEAD)) == NULL) {                                    \
+			(Q_ELEM)->LINK_NAME.prev = Q_ELEM;                    \
+			(Q_ELEM)->LINK_NAME.next = Q_ELEM;                    \
+			(*(Q_HEAD)) = Q_ELEM;                                 \
+		} else {                                                      \
+			(Q_ELEM)->LINK_NAME.prev =                            \
+				(*(Q_HEAD))->LINK_NAME.prev;                  \
+			(Q_ELEM)->LINK_NAME.next = (*(Q_HEAD));               \
+			(*(Q_HEAD))->LINK_NAME.prev->LINK_NAME.next = Q_ELEM; \
+			(*(Q_HEAD))->LINK_NAME.prev = Q_ELEM;                 \
+		}                                                             \
+	}
 
 /** @def Q_GET_FRONT(Q_HEAD)
  *
@@ -136,7 +137,6 @@
  *          is empty
  **/
 #define Q_GET_TAIL(Q_HEAD) (*(Q_HEAD))->LINKNAME.prev
-
 
 /** @def Q_GET_NEXT(Q_ELEM, LINK_NAME)
  *
@@ -183,12 +183,13 @@
  *  @param LINK_NAME  Name of link field used to organize the queue
  **/
 
-#define Q_INSERT_AFTER(Q_INQ, Q_TOINSERT, LINK_NAME) { \
-    (Q_TOINSERT)->LINK_NAME.next = (Q_INQ)->LINK_NAME.next; \
-    (Q_TOINSERT)->LINK_NAME.prev = (Q_INQ); \
-    (Q_INQ)->LINK_NAME.next->LINK_NAME.prev = Q_TOINSERT; \
-    (Q_INQ)->LINK_NAME.next = Q_TOINSERT; \
-}
+#define Q_INSERT_AFTER(Q_INQ, Q_TOINSERT, LINK_NAME)                    \
+	{                                                               \
+		(Q_TOINSERT)->LINK_NAME.next = (Q_INQ)->LINK_NAME.next; \
+		(Q_TOINSERT)->LINK_NAME.prev = (Q_INQ);                 \
+		(Q_INQ)->LINK_NAME.next->LINK_NAME.prev = Q_TOINSERT;   \
+		(Q_INQ)->LINK_NAME.next = Q_TOINSERT;                   \
+	}
 
 /** @def Q_INSERT_BEFORE(Q_HEAD, Q_INQ, Q_TOINSERT, LINK_NAME)
  *
@@ -205,15 +206,16 @@
  *  @param LINK_NAME  Name of link field used to organize the queue
  **/
 
-#define Q_INSERT_BEFORE(Q_HEAD, Q_INQ, Q_TOINSERT, LINK_NAME) { \
-    if ((*(Q_HEAD)) == Q_INQ) { \
-        (*(Q_HEAD)) = Q_TOINSERT; \
-    } \
-    (Q_TOINSERT)->LINK_NAME.prev = (Q_INQ)->LINK_NAME.prev; \
-    (Q_TOINSERT)->LINK_NAME.next = Q_INQ; \
-    (Q_INQ)->LINK_NAME.prev->LINK_NAME.next = Q_TOINSERT; \
-    (Q_INQ)->LINK_NAME.prev = Q_TOINSERT; \
-}
+#define Q_INSERT_BEFORE(Q_HEAD, Q_INQ, Q_TOINSERT, LINK_NAME)           \
+	{                                                               \
+		if ((*(Q_HEAD)) == Q_INQ) {                             \
+			(*(Q_HEAD)) = Q_TOINSERT;                       \
+		}                                                       \
+		(Q_TOINSERT)->LINK_NAME.prev = (Q_INQ)->LINK_NAME.prev; \
+		(Q_TOINSERT)->LINK_NAME.next = Q_INQ;                   \
+		(Q_INQ)->LINK_NAME.prev->LINK_NAME.next = Q_TOINSERT;   \
+		(Q_INQ)->LINK_NAME.prev = Q_TOINSERT;                   \
+	}
 
 /** @def Q_REMOVE(Q_HEAD,Q_ELEM,LINK_NAME)
  *
@@ -234,31 +236,35 @@
  *  @return Void (if you would like to return a value, you may change this
  *                specification)
  **/
-#define Q_REMOVE(Q_HEAD, Q_ELEM, LINK_NAME) { \
-    if((*(Q_HEAD)) == (*(Q_HEAD))->LINK_NAME.prev){ \
-        if((*(Q_HEAD)) == (Q_ELEM)){ \
-            (*(Q_HEAD)) = NULL; \
-        } \
-    } \
-    else{ \
-        if((*(Q_HEAD)) == (Q_ELEM)){ \
-            (*(Q_HEAD)) = (Q_ELEM)->LINK_NAME.next; \
-        } \
-        (Q_ELEM)->LINK_NAME.next->LINK_NAME.prev = (Q_ELEM)->LINK_NAME.prev; \
-        (Q_ELEM)->LINK_NAME.prev->LINK_NAME.next = (Q_ELEM)->LINK_NAME.next; \
-    } \
-}
+#define Q_REMOVE(Q_HEAD, Q_ELEM, LINK_NAME)                             \
+	{                                                               \
+		if ((*(Q_HEAD)) == (*(Q_HEAD))->LINK_NAME.prev) {       \
+			if ((*(Q_HEAD)) == (Q_ELEM)) {                  \
+				(*(Q_HEAD)) = NULL;                     \
+			}                                               \
+		} else {                                                \
+			if ((*(Q_HEAD)) == (Q_ELEM)) {                  \
+				(*(Q_HEAD)) = (Q_ELEM)->LINK_NAME.next; \
+			}                                               \
+			(Q_ELEM)->LINK_NAME.next->LINK_NAME.prev =      \
+				(Q_ELEM)->LINK_NAME.prev;               \
+			(Q_ELEM)->LINK_NAME.prev->LINK_NAME.next =      \
+				(Q_ELEM)->LINK_NAME.next;               \
+		}                                                       \
+	}
 
-#define Q_REMOVE_HEAD(Q_HEAD, LINK_NAME) { \
-    if((*(Q_HEAD)) == (*(Q_HEAD))->LINK_NAME.prev){ \
-        (*(Q_HEAD)) = NULL; \
-    } \
-    else{ \
-        (*(Q_HEAD))->LINK_NAME.next->LINK_NAME.prev = (*(Q_HEAD))->LINK_NAME.prev; \
-        (*(Q_HEAD))->LINK_NAME.prev->LINK_NAME.next = (*(Q_HEAD))->LINK_NAME.next; \
-        (*(Q_HEAD)) = (*(Q_HEAD))->LINK_NAME.next; \
-    } \
-}
+#define Q_REMOVE_HEAD(Q_HEAD, LINK_NAME)                              \
+	{                                                             \
+		if ((*(Q_HEAD)) == (*(Q_HEAD))->LINK_NAME.prev) {     \
+			(*(Q_HEAD)) = NULL;                           \
+		} else {                                              \
+			(*(Q_HEAD))->LINK_NAME.next->LINK_NAME.prev = \
+				(*(Q_HEAD))->LINK_NAME.prev;          \
+			(*(Q_HEAD))->LINK_NAME.prev->LINK_NAME.next = \
+				(*(Q_HEAD))->LINK_NAME.next;          \
+			(*(Q_HEAD)) = (*(Q_HEAD))->LINK_NAME.next;    \
+		}                                                     \
+	}
 
 /** @def Q_FOREACH(CURRENT_ELEM,Q_HEAD,LINK_NAME)
  *
@@ -289,18 +295,16 @@
  *         by Q_HEAD.
  **/
 
-#define Q_FOREACH(CURRENT_ELEM, Q_HEAD, LINK_NAME) for ( \
-    CURRENT_ELEM = (*(Q_HEAD));\
-    CURRENT_ELEM != NULL; \
-    CURRENT_ELEM = ((CURRENT_ELEM)->LINK_NAME.next == (*(Q_HEAD)) ? \
-    NULL : CURRENT_ELEM->LINK_NAME.next) \
-)
+#define Q_FOREACH(CURRENT_ELEM, Q_HEAD, LINK_NAME)                           \
+	for (CURRENT_ELEM = (*(Q_HEAD)); CURRENT_ELEM != NULL;               \
+	     CURRENT_ELEM = ((CURRENT_ELEM)->LINK_NAME.next == (*(Q_HEAD)) ? \
+				     NULL :                                  \
+				     CURRENT_ELEM->LINK_NAME.next))
 
-#define Q_FOREACH_SAFE(CURRENT_ELEM, Q_HEAD, LINK_NAME) for ( \
-    CURRENT_ELEM = (*(Q_HEAD));\
-    CURRENT_ELEM != NULL; \
-    CURRENT_ELEM = ((CURRENT_ELEM)->LINK_NAME.next == (*(Q_HEAD)) ? \
-    NULL : CURRENT_ELEM->LINK_NAME.next) \
-)
+#define Q_FOREACH_SAFE(CURRENT_ELEM, Q_HEAD, LINK_NAME)                      \
+	for (CURRENT_ELEM = (*(Q_HEAD)); CURRENT_ELEM != NULL;               \
+	     CURRENT_ELEM = ((CURRENT_ELEM)->LINK_NAME.next == (*(Q_HEAD)) ? \
+				     NULL :                                  \
+				     CURRENT_ELEM->LINK_NAME.next))
 
 #endif

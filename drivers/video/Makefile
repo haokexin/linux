@@ -12,6 +12,9 @@ obj-y				  += backlight/
 obj-y				  += fbdev/
 
 obj-y				  += v5xx/
+ifeq ($(CONFIG_BST_C1200_ADAS),y)
+obj-y				  += v5xx_1/
+endif
 
 obj-$(CONFIG_VIDEOMODE_HELPERS) += display_timing.o videomode.o
 ifeq ($(CONFIG_OF),y)

@@ -60,8 +60,15 @@ static inline void dma_direct_sync_single_for_device(struct device *dev,
 	if (unlikely(is_swiotlb_buffer(dev, paddr)))
 		swiotlb_sync_single_for_device(dev, paddr, size, dir);
 
+#ifdef CONFIG_BST_OF_DMA_NEED_SYNC_TO_POP
+	if(dev_dma_need_sync_to_pop(dev))
+		arch_sync_dma_for_device_pop(paddr, size, dir);
+	else if (!dev_is_dma_coherent(dev))
+		arch_sync_dma_for_device(paddr, size, dir);
+#else /* CONFIG_BST_OF_DMA_NEED_SYNC_TO_POP */
 	if (!dev_is_dma_coherent(dev))
 		arch_sync_dma_for_device(paddr, size, dir);
+#endif
 }
 
 static inline void dma_direct_sync_single_for_cpu(struct device *dev,
@@ -106,8 +113,16 @@ static inline dma_addr_t dma_direct_map_page(struct device *dev,
 		return DMA_MAPPING_ERROR;
 	}
 
+#ifdef CONFIG_BST_OF_DMA_NEED_SYNC_TO_POP
+	if(dev_dma_need_sync_to_pop(dev) && !(attrs & DMA_ATTR_SKIP_CPU_SYNC))
+		arch_sync_dma_for_device_pop(phys, size, dir);
+	else if (!dev_is_dma_coherent(dev) && !(attrs & DMA_ATTR_SKIP_CPU_SYNC))
+		arch_sync_dma_for_device(phys, size, dir);
+#else /* CONFIG_BST_OF_DMA_NEED_SYNC_TO_POP */
 	if (!dev_is_dma_coherent(dev) && !(attrs & DMA_ATTR_SKIP_CPU_SYNC))
 		arch_sync_dma_for_device(phys, size, dir);
+#endif
+
 	return dma_addr;
 }
 

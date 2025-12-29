@@ -789,13 +789,6 @@ static const struct file_operations dma_buf_te_fops = {
 
 static int dmabuf_driver_probe(struct platform_device *pdev)
 {
-	int res;
-
-    res = of_reserved_mem_device_init_by_idx(te_device.this_device, pdev->dev.of_node, 0);
-    if(res) {
-        dev_err(&pdev->dev,"reserve mem device init failed\n");
-    }
-
 	return 0;
 }
 
@@ -834,9 +827,9 @@ static int __init dma_buf_te_init(void)
 		printk(KERN_WARNING"Misc device registration failed of 'g78_dma_buf'\n");
 		return res;
 	}
-	//te_device.this_device->coherent_dma_mask = DMA_BIT_MASK(32);
-	printk("[%s]set 64 bit mask\n", __func__);
-	te_device.this_device->coherent_dma_mask = DMA_BIT_MASK(36);//add for dma reserve memory with 64 bit addrass
+
+	printk("[%s]set 36 bit mask\n", __func__);
+	te_device.this_device->coherent_dma_mask = DMA_BIT_MASK(36);//add for dma reserve memory with 36 bit addrass
 
 	dev_info(te_device.this_device, "g78_dma_buf ready\n");
 

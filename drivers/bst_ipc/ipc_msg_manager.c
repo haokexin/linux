@@ -18,7 +18,7 @@
 #define IPC_DRIVER_NAME "ipc_msg_manager"
 #define MSG_BIT_NUM	10
 #define MSG_TOKEN_MAX	65534
-#define MSG_SENT_QUEUE_MAX 2048
+#define MSG_SENT_QUEUE_MAX (2<<MSG_BIT_NUM)
 
 /********************* local variables ***************************/
 static DECLARE_RWSEM(sent_msg_hash_rwsem);

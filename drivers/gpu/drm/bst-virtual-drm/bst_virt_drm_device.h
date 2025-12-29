@@ -14,12 +14,6 @@
 #include "bst_virt_format_color.h"
 #include "bst_virt_pipeline.h"
 
-/*
- * this value range from 1 ~ 10, typical value is 2
- * user can turning this value.
- */
-#define BST_DRM_HW_FLUSH_DELAY_RAITO  (2)
-
 #define BST_DRM_EVENT_VSYNC BIT_ULL(0)
 #define BST_DRM_EVENT_FLIP BIT_ULL(1)
 #define BST_DRM_EVENT_URUN BIT_ULL(2)
@@ -76,7 +70,6 @@ struct bst_virt_device_info {
 	u32 core_info;
 	u32 bus_width;
 	u32 subdev_session;
-	u32 client_id;
 	u32 platform_id;
 	u32 device_type;
 	bool is_owner_device;
@@ -106,7 +99,6 @@ struct bst_virt_device {
 
 struct bst_virt_platform_info {
 	uint32_t device_type;
-	uint32_t client_id;
 	uint32_t platform_id;
 	uint32_t want_layer_num;
 };
@@ -125,13 +117,15 @@ struct bst_virt_device_funcs {
 	void (*cleanup)(struct bst_virt_device *virt_dev);
 	void (*flush)(struct bst_virt_device *virt_dev);
 	void (*debug_dump)(struct bst_virt_device *virt_dev, struct seq_file *sf);
+	int (*suspend)(struct bst_virt_device *virt_dev);
+	int (*resume)(struct bst_virt_device *virt_dev);
 };
 
 struct bst_super_device_info {
 	uint32_t device_map[BST_VIRT_MAX_PIPELINES][BST_VIRT_MAX_SUBDEV_OF_1PIPE];
 	uint8_t  want_layers_num[BST_VIRT_MAX_PIPELINES];
 	uint8_t n_pipelines;
-	uint32_t guest_os_client_id;
+	uint32_t client_id;
 	uint32_t platform_id;
 	struct device_node *pipe_np_port0[BST_VIRT_MAX_PIPELINES];
 	struct device_node *pipe_np_port1[BST_VIRT_MAX_PIPELINES];
@@ -264,6 +258,49 @@ static inline uint32_t to_fw_subdev_type(uint32_t virt_drm_dev_type)
 	return subdev_type;
 }
 
+static inline uint8_t to_virt_device_type(uint8_t subdev)
+{
+	uint8_t virt_dev_type;
+
+	switch (subdev) {
+		case BST_SUBDEV_DC0_PIPE0:
+			virt_dev_type = DEVICE_TYPE_VIRT_DC_PIPE0;
+			break;
+		case BST_SUBDEV_DC0_PIPE1:
+			virt_dev_type = DEVICE_TYPE_VIRT_DC_PIPE1;
+			break;
+		case BST_SUBDEV_DC1_PIPE0:
+			virt_dev_type = DEVICE_TYPE_VIRT_DC_PIPE2;
+			break;
+		case BST_SUBDEV_DC1_PIPE1:
+			virt_dev_type = DEVICE_TYPE_VIRT_DC_PIPE3;
+			break;
+		case BST_SUBDEV_DC2_PIPE0:
+			virt_dev_type = DEVICE_TYPE_VIRT_DC_PIPE4;
+			break;
+		case BST_SUBDEV_eDP:
+			virt_dev_type = DEVICE_TYPE_VIRT_DP;
+			break;
+		case BST_SUBDEV_DSI0:
+			virt_dev_type = DEVICE_TYPE_VIRT_DSI0;
+			break;
+		case BST_SUBDEV_DSI1:
+			virt_dev_type = DEVICE_TYPE_VIRT_DSI1;
+			break;
+		case BST_SUBDEV_LVDS0:
+			virt_dev_type = DEVICE_TYPE_VIRT_LVDS0;
+			break;
+		case BST_SUBDEV_LVDS1:
+			virt_dev_type = DEVICE_TYPE_VIRT_LVDS1;
+			break;
+		default:
+			virt_dev_type = DEVICE_TYPE_VIRT_NONE;
+			break;
+	}
+
+	return virt_dev_type;
+}
+
 extern const struct bst_virt_device_funcs virt_shared_conn_dev_funcs;
 
 struct bst_super_device *bst_virt_dev_create(struct device *dev);
@@ -272,6 +309,8 @@ struct bst_virt_device *bst_virt_create_subdevice(struct device *dev,
 			  struct bst_virt_pipe *pipe);
 void bst_virt_dev_destroy(struct bst_super_device *super_dev);
 int bst_virt_dev_suspend(struct bst_super_device *super_dev);
+int bst_virt_connector_suspend(struct bst_super_device *super_dev);
+int bst_virt_connector_resume(struct bst_super_device *super_dev);
 int bst_virt_dev_resume(struct bst_super_device *super_dev);
 void bst_virt_print_events(struct bst_virt_events *evts, struct drm_device *dev);
 int bst_virt_dev_request_irq(struct bst_super_device *super_dev);

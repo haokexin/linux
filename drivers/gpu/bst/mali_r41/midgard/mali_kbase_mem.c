@@ -4878,14 +4878,6 @@ void kbase_jit_report_update_pressure(struct kbase_context *kctx,
 }
 #endif /* MALI_JIT_PRESSURE_LIMIT_BASE */
 
-void kbase_unpin_user_buf_page(struct page *page)
-{
-#if KERNEL_VERSION(5, 9, 0) > LINUX_VERSION_CODE
-	put_page(page);
-#else
-	unpin_user_page(page);
-#endif
-}
 
 #if MALI_USE_CSF
 static void kbase_jd_user_buf_unpin_pages(struct kbase_mem_phy_alloc *alloc)

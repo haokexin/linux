@@ -17,10 +17,9 @@
  * limitations under the License.
  */
 
-/* This file is auto generated for message box v1.2.0.
+/* This file is auto generated for message box v2.0.0.
  * All manual modifications will be LOST by next generation.
  * It is recommended NOT modify it.
- * Generator Version: francaidl cb46a82 msgbx_ipc f2e1e48
  */
 
 #ifndef R5MEM_DATATYPE_H
@@ -30,6 +29,17 @@
 #include <bst/ipc_app_common.h>
 #else
 #include "ipc_app_common.h"
+#endif
+
+#if __has_include(<inttypes.h>)
+  #include <inttypes.h>
+#else
+#ifndef PRId32
+#define PRId32 "d"
+#endif
+#ifndef PRIu8
+#define PRIu8 "u"
+#endif
 #endif
 
 #ifdef __cplusplus
@@ -52,21 +62,23 @@ enum _r5mem_Consts_t {
 
 enum _r5mem_CmdType_t {
 	R5MEM_ALLOC = 0,
-	R5MEM_FREE = 1,
-	R5MEM_ATTATCH = 2,
-	R5MEM_DETATCH = 3,
-	R5MEM_GET_PHYS_ADDR = 4,
-	R5MEM_SET_RANGE = 5,
-	R5MEM_GET_USAGE = 6,
-	R5MEM_ALLOC_AND_ATTACH = 7,
-	R5MEM_GET_PHYS_ADDR_AND_ATTACH = 8,
-	R5MEM_CONFIG_SECURE_MEM = 9
+	R5MEM_ALLOC_AND_ATTACH = 1,
+	R5MEM_SET_RANGE = 2,
+	R5MEM_GET_USAGE = 3,
+	R5MEM_CONFIG_SECURE_MEM = 4,
+	R5MEM_FREE = 5,
+	R5MEM_ATTACH = 6,
+	R5MEM_DETACH = 7,
+	R5MEM_GET_PHYS_ADDR = 8,
+	R5MEM_GET_PHYS_ADDR_AND_ATTACH = 9,
+	R5MEM_CMD_MAX
 };
 #define r5mem_CmdType_t enum _r5mem_CmdType_t
 
 enum _r5mem_MemType_t {
 	R5MEM_TYPE_NORMAL = 0,
 	R5MEM_TYPE_SECURE = 1,
+	R5MEM_TYPE_HIFI = 2,
 	R5MEM_TYPE_MAX
 };
 #define r5mem_MemType_t enum _r5mem_MemType_t
@@ -347,7 +359,6 @@ static inline int32_t deserialize_r5mem_UInt64Array(
 							des_buf_t *buf,
 							r5mem_UInt64Array_t *out)
 {
-	int32_t ret = 0;
 	uint32_t size = 0;
 	uint32_t *size_ptr = NULL;
 
@@ -364,7 +375,7 @@ static inline int32_t deserialize_r5mem_UInt64Array(
 	if (size > 0 && !out->data)
 		return -1;
 
-	return ret >= 0 ? 0 : -1;
+	return 0;
 }
 
 /**

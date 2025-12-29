@@ -392,6 +392,13 @@ config UV_MMTIMER
 	  The uv_mmtimer device allows direct userspace access to the
 	  UV system timer.
 
+config BST_SAFETY_COMMAND
+	tristate "soc send shell command to safety r5"
+	default n
+	help
+	  soc send shell command to safety r5.
+
+	  
 source "drivers/char/tpm/Kconfig"
 
 config TELCLOCK

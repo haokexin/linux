@@ -1,0 +1,73 @@
+/dts-v1/;
+/plugin/;
+
+#include "../common/isp-csi-map.dtsi"
+#include "base-isp.dtsi"
+#include "base-csi-deser-camera.dtsi"
+#include "base-desers-3max96724.dtsi"
+
+&isp {
+	slab = "HIL/slab/slab-1x8b_1x3c-4x3c-4x3f-yuv-bev-park-hil.bin";
+	usage = "[HIL for 10V bev-park-test] 10v 1x8b-5x3c-4x3f 01-4567-89,10,11";
+};
+
+&deser0 {
+	fsync-mode = <FSYNC_OFF>;
+};
+&deser1 {
+	fsync-mode = <FSYNC_OFF>;
+};
+&deser2 {
+	fsync-mode = <FSYNC_OFF>;
+};
+
+&camera0 {
+	#include "../cameras/ox08b_yuv_hk_hil.dtsi"
+	sensor-fps = <20>;
+	status = "okay";
+};
+&camera1 {
+	#include "../cameras/ox03c_yuv_hk_hil.dtsi"
+	sensor-fps = <20>;
+	status = "okay";
+};
+&camera4 {
+	#include "../cameras/ox03c_yuv_hk_hil.dtsi"
+	sensor-fps = <20>;
+	status = "okay";
+};
+&camera5 {
+	#include "../cameras/ox03c_yuv_hk_hil.dtsi"
+	sensor-fps = <20>;
+	status = "okay";
+};
+&camera6 {
+	#include "../cameras/ox03c_yuv_hk_hil.dtsi"
+	sensor-fps = <20>;
+	status = "okay";
+};
+&camera7 {
+	#include "../cameras/ox03c_yuv_hk_hil.dtsi"
+	sensor-fps = <20>;
+	status = "okay";
+};
+&camera8 {
+	#include "../cameras/ox03f_yuv_hk_hil.dtsi"
+	sensor-fps = <20>;
+	status = "okay";
+};
+&camera9 {
+	#include "../cameras/ox03f_yuv_hk_hil.dtsi"
+	sensor-fps = <20>;
+	status = "okay";
+};
+&camera10 {
+	#include "../cameras/ox03f_yuv_hk_hil.dtsi"
+	sensor-fps = <20>;
+	status = "okay";
+};
+&camera11 {
+	#include "../cameras/ox03f_yuv_hk_hil.dtsi"
+	sensor-fps = <20>;
+	status = "okay";
+};

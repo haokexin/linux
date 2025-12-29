@@ -30,6 +30,8 @@
 #define USB_VIRT_DEVICE_CMD_CONNECT	0x03
 #define USB_VIRT_DEVICE_CMD_ACTIVE	0x04
 #define USB_VIRT_DEVICE_CMD_ACTIVE_REPLAY	0x05
+#define USB_VIRT_DEVICE_CMD_SET_SN	0x06
+#define USB_VIRT_DEVICE_CMD_RECONNECT	0x07
 #define USB_VIRT_DEVICE_CMD_MASK	0xFF0000
 
 /*
@@ -71,11 +73,20 @@ struct urb_priv_entry {
 	char *buf;
 	atomic_t status;
 };
+struct buf_priv_entry {
+	unsigned long seqnum;
+	unsigned long wait_ack_jiffies;
+	char *buf;
+	dma_addr_t transfer_dma;
+	u32 actual_length;
+	atomic_t status;
+};
 
 struct urbs_pool {
 	struct urb_priv_entry *urbs;
 	unsigned int urb_max_num;
 	unsigned int urb_buf_size;
+	struct buf_priv_entry mem_buf;
 };
 
 struct token_bucket {
@@ -129,6 +140,7 @@ int virt_usb_rx_loop(void *data);
 int virt_usb_tx_loop(void *data);
 int urb_pool_submit_urb(struct usb_virtual_device *vdev);
 void usb_recv_ep_ack(struct usb_virtual_device *vdev, usb_bst_virsual_msg_t *pdu);
+void usb_recv_device_ack(struct usb_virtual_device *vdev, usb_bst_virsual_msg_t *pdu);
 
 void correct_endian_basic(usb_bst_virsual_msg_t *base, int send);
 int bulk_in_trb_submit(struct usb_virtual_device *vdev,
@@ -137,6 +149,8 @@ void virtual_usb_write_bulk_callback(struct urb *urb);
 void tx_timer_callback(struct timer_list *t);
 void usb_send_device_msg(struct usb_virtual_device *vdev, uint16_t cmd);
 void usb_send_pid_device_msg(struct usb_virtual_device *vdev, uint16_t cmd, uint32_t pid);
+void usb_send_buf_device_msg(struct usb_virtual_device *vdev, uint16_t cmd, char *buf, u32 len);
+
 int usb_local_bulk_out_submit(struct usb_virtual_device *vdev, char *data,
 			      int len);
 void usb_local_send_adb_cnxn_id(struct usb_virtual_device *vdev);

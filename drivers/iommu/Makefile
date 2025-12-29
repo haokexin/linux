@@ -8,7 +8,7 @@ obj-$(CONFIG_IOMMU_DMA) += dma-iommu.o
 obj-$(CONFIG_IOMMU_IO_PGTABLE) += io-pgtable.o
 obj-$(CONFIG_IOMMU_IO_PGTABLE_ARMV7S) += io-pgtable-arm-v7s.o
 
-ifeq ($(CONFIG_ARCH_BST),y)
+ifeq ($(CONFIG_ARCH_BSTC1200),y)
 obj-$(CONFIG_IOMMU_IO_PGTABLE_LPAE) += arm/arm-smmu-v3/bst/io-pgtable-arm.o
 else
 obj-$(CONFIG_IOMMU_IO_PGTABLE_LPAE) += io-pgtable-arm.o

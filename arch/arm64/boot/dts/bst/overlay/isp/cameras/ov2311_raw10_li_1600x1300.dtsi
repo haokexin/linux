@@ -1,0 +1,15 @@
+#include <dt-bindings/media/bst-isp.h>
+
+compatible = "bst,li_ov2311";
+sensor-addr = <0x10>;
+data-type = <DT_RAW10>;
+sensor-fps = <60>;
+reg-width = <WORD_REG_BYTE_VAL>;
+algo-bin = "isp/algo/ov2311/OV2311_raw10_li_AlgoParam.bin";
+iq-bin = "isp/algo/ov2311/OV2311_raw10_li_IqParam.bin";
+
+ser-fsync-tx-pin = <8>;
+ser-addr = <0x42>;
+
+ext-addr = <0x4A>;
+ext-reg-width = <BYTE_REG_BYTE_VAL>;

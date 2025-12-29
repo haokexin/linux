@@ -1,26 +1,46 @@
-/* SPDX-License-Identifier: GPL-2.0 OR BSD-3-Clause
+/* SPDX-License-Identifier: GPL-2.0 OR Apache 2.0
  *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2 of the License, or
- * (at your option) any later version.
+ * Copyright (c) 2024 Black Sesame Technologies
  *
- * This program is also distributed under the terms of the BSD 3-Clause
+ * This program is also distributed under the terms of the Apache 2.0
  * License.
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
- * Copyright (C) 2023 Black Sesame Technologies. Inc.
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 
-/* This file is auto generated for message box v1.0.0.
+/* This file is auto generated for message box v2.0.0.
  * All manual modifications will be LOST by next generation.
  * It is recommended NOT modify it.
- * Generator Version: francaidl 3a7f767 msgbx_ipc 001bddd
  */
 
 #ifndef ST_PUBLIC1_DATATYPE_H
 #define ST_PUBLIC1_DATATYPE_H
 
+#ifdef IPC_RTE_KERNEL
 #include <bst/ipc_app_common.h>
+#else
+#include "ipc_app_common.h"
+#endif
+
+#if __has_include(<inttypes.h>)
+  #include <inttypes.h>
+#else
+#ifndef PRId32
+#define PRId32 "d"
+#endif
+#ifndef PRIu8
+#define PRIu8 "u"
+#endif
+#endif
 
 #ifdef __cplusplus
 extern "C" {
@@ -44,6 +64,27 @@ struct _st_public1_qspi_cmd_head_t {
 	uint32_t flag;
 };
 #define st_public1_qspi_cmd_head_t struct _st_public1_qspi_cmd_head_t
+
+struct _st_public1_bst_virsual_msg_t {
+	uint32_t core_id;
+	uint32_t command;
+	uint32_t high_addr;
+	uint32_t low_addr;
+	uint32_t offset;
+	uint32_t len;
+	uint32_t seqnum;
+};
+#define st_public1_bst_virsual_msg_t struct _st_public1_bst_virsual_msg_t
+
+struct _st_public1_smmu_r5_map_param_t {
+	uint32_t sid;
+	uint32_t flag;
+	uint32_t iova;
+	uint32_t high_addr;
+	uint32_t low_addr;
+	uint32_t len;
+};
+#define st_public1_smmu_r5_map_param_t struct _st_public1_smmu_r5_map_param_t
 
 // constants
 
@@ -125,6 +166,86 @@ static inline int32_t deserialize_st_public1_qspi_cmd_head(
 		return -1;
 
 	*out = (st_public1_qspi_cmd_head_t *)alloc_data(buf, sizeof(st_public1_qspi_cmd_head_t), 4);
+	if (!*out)
+		return -1;
+
+	return 0;
+}
+
+/**
+ * Serialize st_public1_bst_virsual_msg_t.
+ *
+ * @param ser Pointer to serdes_t, which stores the serialized data.
+ * @param in The input data to be serialized.
+ * @return 0 if success, negative if fail.
+ */
+static inline int32_t serialize_st_public1_bst_virsual_msg(
+							serdes_t *ser,
+							const st_public1_bst_virsual_msg_t *in)
+{
+	int32_t ret = 0;
+
+	ret = ipc_ser_put_align(ser, (const uint8_t *)in,
+				sizeof(st_public1_bst_virsual_msg_t), 4);
+	return ret >= 0 ? 0 : -1;
+}
+
+/**
+ * Deserialize st_public1_bst_virsual_msg_t.
+ *
+ * @param des Pointer to serdes_t, which stores the serialized data.
+ * @param out The output of deserialized data.
+ * @param buf The buffer used to make the deserialized objects.
+ * @return 0 if success, negative if fail.
+ */
+static inline int32_t deserialize_st_public1_bst_virsual_msg(
+							des_buf_t *buf,
+							st_public1_bst_virsual_msg_t **out)
+{
+	if (!out || !buf)
+		return -1;
+
+	*out = (st_public1_bst_virsual_msg_t *)alloc_data(buf, sizeof(st_public1_bst_virsual_msg_t), 4);
+	if (!*out)
+		return -1;
+
+	return 0;
+}
+
+/**
+ * Serialize st_public1_smmu_r5_map_param_t.
+ *
+ * @param ser Pointer to serdes_t, which stores the serialized data.
+ * @param in The input data to be serialized.
+ * @return 0 if success, negative if fail.
+ */
+static inline int32_t serialize_st_public1_smmu_r5_map_param(
+							serdes_t *ser,
+							const st_public1_smmu_r5_map_param_t *in)
+{
+	int32_t ret = 0;
+
+	ret = ipc_ser_put_align(ser, (const uint8_t *)in,
+				sizeof(st_public1_smmu_r5_map_param_t), 4);
+	return ret >= 0 ? 0 : -1;
+}
+
+/**
+ * Deserialize st_public1_smmu_r5_map_param_t.
+ *
+ * @param des Pointer to serdes_t, which stores the serialized data.
+ * @param out The output of deserialized data.
+ * @param buf The buffer used to make the deserialized objects.
+ * @return 0 if success, negative if fail.
+ */
+static inline int32_t deserialize_st_public1_smmu_r5_map_param(
+							des_buf_t *buf,
+							st_public1_smmu_r5_map_param_t **out)
+{
+	if (!out || !buf)
+		return -1;
+
+	*out = (st_public1_smmu_r5_map_param_t *)alloc_data(buf, sizeof(st_public1_smmu_r5_map_param_t), 4);
 	if (!*out)
 		return -1;
 

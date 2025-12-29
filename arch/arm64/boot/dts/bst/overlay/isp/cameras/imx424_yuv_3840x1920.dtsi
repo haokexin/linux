@@ -1,7 +1,0 @@
-compatible = "bst,imx424-yuv";
-sensor-id = <0x48>;
-data-type = <0x1e>;
-serializer = "max9295";
-
-trigger-tx-pin = <7>;
-serializer-id = <0x40>;

@@ -1,8 +1,8 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 
-/* 
-* Copyright (C) 2024 Black Sesame Technologies. All Rights Reserved.
-*/
+/*
+ * Copyright (C) 2025 Black Sesame Technologies. All Rights Reserved.
+ */
 #ifndef IO_PGTABLE_ARM_H_
 #define IO_PGTABLE_ARM_H_
 
@@ -30,5 +30,18 @@
 #define ARM_LPAE_TCR_PS_44_BIT		0x4ULL
 #define ARM_LPAE_TCR_PS_48_BIT		0x5ULL
 #define ARM_LPAE_TCR_PS_52_BIT		0x6ULL
+
+/*
+ * include/linux/io-pgtable.h, struct io_pgtable_cfg->quirks.
+ * BIT8 : SMMU_FEAT_MULTI_OS_S2 : ARM_SMMU_FEAT_MULTI_OS && ARM_SMMU_DOMAIN_S2 is only used by coreip
+ * BIT16~31 : streamID
+ */
+#define SMMU_FEAT_MULTI_OS_S2		BIT(8)
+
+/*
+ * Configure this SMMU device to access DDR directly through the CMN.
+ * The 'smmu-cmn-dev-offset' property in the device tree is used to enable this direct path.
+ */
+#define SMMU_FEAT_SPECIAL_CMN_DEV_FLAG		BIT(9)
 
 #endif /* IO_PGTABLE_ARM_H_ */

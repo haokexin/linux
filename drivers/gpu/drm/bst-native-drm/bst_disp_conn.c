@@ -293,6 +293,13 @@ int bst_get_remote_dpu_connection_by_port(struct device *dev,
 }
 EXPORT_SYMBOL(bst_get_remote_dpu_connection_by_port);
 
+void bst_select_dpu_output_to_vout(struct bst_dpu_connection *conn)
+{
+	//printk("%s dpu:%d,pipe:%d,link:%d\n", __func__, conn->port.dpu_id, conn->port.pipeline_id, conn->port.link_id);
+	bst_disp_vout_mux_sel(conn->host, conn->port.dpu_id, conn->port.pipeline_id, conn->port.link_id);
+}
+EXPORT_SYMBOL(bst_select_dpu_output_to_vout);
+
 void bst_select_dpu_output_to_edp(struct bst_dpu_connection *conn)
 {
 	bst_disp_edp_mux_sel(conn->host, conn->port.dpu_id, conn->port.pipeline_id, conn->port.link_id);

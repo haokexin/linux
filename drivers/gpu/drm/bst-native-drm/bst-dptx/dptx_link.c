@@ -32,7 +32,7 @@ static int dptx_link_check_cr_done(struct dptx *dptx, bool *out_done)
 	if (!reg)
 		reg = 400;
 
-	udelay(reg);
+	usleep_range(reg, reg + 10);
 
 	retval = dptx_link_read_status(dptx);
 	if (retval)
@@ -82,7 +82,13 @@ void dptx_link_set_preemp_vswing(struct dptx *dptx)
 	for (i = 0; i < dptx->link.lanes; i++) {
 		u8 pe;
 		u8 vs;
-
+#if defined(CONFIG_C1200_SLT)
+		dptx->link.preemp_level[i] = 2;
+		dptx->link.vswing_level[i] = 1;
+#elif defined(CONFIG_C1200_MASS)
+		dptx->link.preemp_level[i] = 1;
+		dptx->link.vswing_level[i] = 2;
+#endif
 		pe = dptx->link.preemp_level[i];
 		vs = dptx->link.vswing_level[i];
 
@@ -213,6 +219,7 @@ int dptx_set_link_configs(struct dptx *dptx, u8 rate, u8 lanes)
 	dptx->link.lanes = lanes;
 	dptx->link.rate = rate;
 	dptx->link.trained = false;
+	dev_info(dptx->dev, "%s:%d lanes:%d rate:%d\n", __func__, __LINE__, lanes, rate);
 
 	return 0;
 }
@@ -254,7 +261,7 @@ static int dptx_link_training_start(struct dptx *dptx)
 	u8 training_set_bytes[5] = { 0x21, 0x00, 0x00, 0x00, 0x00 };
 
 	dptx_write_regfield(dptx, dptx->field_phy_powerdown, 3);
-	retval = dptx_phy_wait_busy(dptx, DPTX_MAX_LINK_LANES);
+	retval = dptx_phy_wait_busy(dptx, dptx->max_lanes);
 	if (retval) {
 		dptx_err(dptx, "Timed out waiting for PHY BUSY\n");
 		return retval;
@@ -616,14 +623,14 @@ int dptx_fast_link_training(struct dptx *dptx)
 		count++;
 		if (count > 1000)
 			return -EBUSY;
-		mdelay(20);
+		msleep(20);
 	}
 
 	dptx_link_set_preemp_vswing(dptx);
 	dptx_phy_set_pattern(dptx, 1);
 	dptx_phy_enable_xmit(dptx, nr_lanes, true);
 
-	udelay(500);
+	usleep_range(500, 510);
 
 	switch (link_rate) {
 	case (DPTX_PHYIF_CTRL_RATE_HBR):
@@ -640,7 +647,7 @@ int dptx_fast_link_training(struct dptx *dptx)
 		break;
 	}
 
-	udelay(500);
+	usleep_range(500, 510);
 
 	dptx_phy_set_pattern(dptx, 0);
 

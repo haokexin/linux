@@ -426,11 +426,15 @@ static inline void dma_sync_sgtable_for_device(struct device *dev,
 }
 
 #define dma_map_single(d, a, s, r) dma_map_single_attrs(d, a, s, r, 0)
+#define dma_map_single_nocache(d, a, s, r) dma_map_single_attrs(d, a, s, r, DMA_ATTR_SKIP_CPU_SYNC)
 #define dma_unmap_single(d, a, s, r) dma_unmap_single_attrs(d, a, s, r, 0)
+#define dma_unmap_single_nocache(d, a, s, r) dma_unmap_single_attrs(d, a, s, r, DMA_ATTR_SKIP_CPU_SYNC)
 #define dma_map_sg(d, s, n, r) dma_map_sg_attrs(d, s, n, r, 0)
 #define dma_unmap_sg(d, s, n, r) dma_unmap_sg_attrs(d, s, n, r, 0)
 #define dma_map_page(d, p, o, s, r) dma_map_page_attrs(d, p, o, s, r, 0)
+#define dma_map_page_noflush(d, p, o, s, r) dma_map_page_attrs(d, p, o, s, r, DMA_ATTR_SKIP_CPU_SYNC)
 #define dma_unmap_page(d, a, s, r) dma_unmap_page_attrs(d, a, s, r, 0)
+#define dma_unmap_page_noflush(d, a, s, r) dma_unmap_page_attrs(d, a, s, r, DMA_ATTR_SKIP_CPU_SYNC)
 #define dma_get_sgtable(d, t, v, h, s) dma_get_sgtable_attrs(d, t, v, h, s, 0)
 #define dma_mmap_coherent(d, v, c, h, s) dma_mmap_attrs(d, v, c, h, s, 0)
 

@@ -1,0 +1,73 @@
+//security-inf.fdepl
+import "platform:/plugin/com.bst.os.idl/deployment/ipc_spec.fdepl"
+import "security.fidl"
+
+define com.bst.ipc.deployment for interface com.bst.ipc.security.service {
+    MaxMethodNum = 64
+    MaxBroadcastNum = 10
+    method hello {
+        MethodID = 1
+    }
+    method otp_info {
+        MethodID = 2
+    }
+    method trng {
+        MethodID = 3
+    }
+    method hash {
+        MethodID = 4
+    }
+    method hmac {
+        MethodID = 5
+    }
+    method sm3 {
+        MethodID = 6
+    }
+    method crc32 {
+        MethodID = 7
+    }
+    method aes {
+        MethodID = 8
+    }
+    method sm4 {
+        MethodID = 9
+    }
+    method rsa_sign_or_verify {
+        MethodID = 10
+    }
+    method ecc_sign_or_verify {
+        MethodID = 11
+    }
+    method sm2_sign_or_verify {
+        MethodID = 12
+    }
+    method seip_key_status {
+        MethodID = 13
+    }
+    method life_cycle_status {
+        MethodID = 14
+    }
+    method otp_use_with_auth {
+        MethodID = 15
+    }
+    method bin_verify {
+        MethodID = 16
+    }
+    method cbc_mac {
+        MethodID = 17
+    }
+    method cmac {
+        MethodID = 18
+    }
+    method slt_method {
+        MethodID = 19
+    }
+    method config_tzc400 {
+        MethodID = 20
+    }
+    broadcast heartbeat {
+        SubscribeMethodID = 64
+        UnsubscribeMethodID = 65
+        BroadcastID = 1
+    }
+}

@@ -24,6 +24,7 @@
 #include <linux/types.h>
 #include <linux/slab.h>
 #include "bst_pke.h"
+#include "../common/bst_sa_common.h"
 
 //RSA return code
 static void bst_rsa_free_mpi_key(struct bst_rsa_mpi_key *key)
@@ -231,6 +232,16 @@ unsigned int bst_rsa_max_size(struct crypto_akcipher *tfm)
 	struct bst_rsa_mpi_key *pkey = akcipher_tfm_ctx(tfm);
 
 	return mpi_get_size(pkey->n);
+}
+
+int bst_rsa_init_tfm(struct crypto_akcipher *tfm)
+{
+	struct bst_rsa_mpi_key *pkey = akcipher_tfm_ctx(tfm);
+
+	bst_rsa_free_mpi_key(pkey);
+	pke_enable_interrupt();
+	
+	return 0;
 }
 
 void bst_rsa_exit_tfm(struct crypto_akcipher *tfm)

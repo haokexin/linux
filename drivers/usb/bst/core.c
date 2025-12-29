@@ -43,6 +43,8 @@
 
 #define DWC3_DEFAULT_AUTOSUSPEND_DELAY	5000 /* ms */
 
+static int dwc3_core_init(struct dwc3 *dwc);
+
 /**
  * dwc3_get_dr_mode - Validates and sets dr_mode
  * @dwc: pointer to our context structure
@@ -185,6 +187,11 @@ static void __dwc3_set_mode(struct work_struct *work)
 		reg = dwc3_readl(dwc->regs, DWC3_GCTL);
 		reg &= ~DWC3_GCTL_CORESOFTRESET;
 		dwc3_writel(dwc->regs, DWC3_GCTL, reg);
+	}
+
+	if (dwc->usb_phy) {
+		phy_reset(dwc->usb_phy);
+		dwc3_core_init(dwc);
 	}
 
 	spin_lock_irqsave(&dwc->lock, flags);
@@ -574,6 +581,8 @@ void dwc3_event_buffers_cleanup(struct dwc3 *dwc)
 
 static int dwc3_alloc_scratch_buffers(struct dwc3 *dwc)
 {
+	dma_addr_t scratch_addr;
+
 	if (!dwc->has_hibernation)
 		return 0;
 
@@ -585,6 +594,14 @@ static int dwc3_alloc_scratch_buffers(struct dwc3 *dwc)
 	if (!dwc->scratchbuf)
 		return -ENOMEM;
 
+	scratch_addr = dma_map_single(dwc->sysdev, dwc->scratchbuf,
+			dwc->nr_scratch * DWC3_SCRATCHBUF_SIZE,
+			DMA_BIDIRECTIONAL);
+	if (dma_mapping_error(dwc->sysdev, scratch_addr)) {
+		dev_err(dwc->sysdev, "failed to map scratch buffer\n");
+		return -EFAULT;
+	}
+	dwc->scratch_addr = scratch_addr;
 	return 0;
 }
 
@@ -604,36 +621,23 @@ static int dwc3_setup_scratch_buffers(struct dwc3 *dwc)
 	if (!WARN_ON(dwc->scratchbuf))
 		return 0;
 
-	scratch_addr = dma_map_single(dwc->sysdev, dwc->scratchbuf,
-			dwc->nr_scratch * DWC3_SCRATCHBUF_SIZE,
-			DMA_BIDIRECTIONAL);
-	if (dma_mapping_error(dwc->sysdev, scratch_addr)) {
-		dev_err(dwc->sysdev, "failed to map scratch buffer\n");
-		ret = -EFAULT;
-		goto err0;
-	}
-
-	dwc->scratch_addr = scratch_addr;
+	scratch_addr = dwc->scratch_addr;
 
 	param = lower_32_bits(scratch_addr);
 
 	ret = dwc3_send_gadget_generic_command(dwc,
 			DWC3_DGCMD_SET_SCRATCHPAD_ADDR_LO, param);
 	if (ret < 0)
-		goto err1;
+		goto err0;
 
 	param = upper_32_bits(scratch_addr);
 
 	ret = dwc3_send_gadget_generic_command(dwc,
 			DWC3_DGCMD_SET_SCRATCHPAD_ADDR_HI, param);
 	if (ret < 0)
-		goto err1;
+		goto err0;
 
 	return 0;
-
-err1:
-	dma_unmap_single(dwc->sysdev, dwc->scratch_addr, dwc->nr_scratch *
-			DWC3_SCRATCHBUF_SIZE, DMA_BIDIRECTIONAL);
 
 err0:
 	return ret;
@@ -1257,7 +1261,7 @@ static void dwc3_set_deemph(struct dwc3 *dwc)
 	u32 val = 0;
 	u32 cfg;
 	int ret = 0;
-	int i ;
+	int i;
 	u32 tx_deemph[4] = {0};
 
 
@@ -1270,7 +1274,7 @@ static void dwc3_set_deemph(struct dwc3 *dwc)
 	}
 
 	val = device_property_count_u32(dev, "snps,ssp_gen2_deemph");
-	if(val >= 4)
+	if (val >= 4)
 		val = 4;
 	ret = device_property_read_u32_array(dev, "snps,ssp_gen2_deemph",
 					       tx_deemph, val);
@@ -1487,6 +1491,7 @@ static int dwc3_core_get_phy(struct dwc3 *dwc)
 {
 	struct device		*dev = dwc->dev;
 	struct device_node	*node = dev->of_node;
+	struct device_node	*parent_node = NULL;
 	int ret;
 
 	if (node) {
@@ -1499,39 +1504,51 @@ static int dwc3_core_get_phy(struct dwc3 *dwc)
 
 	if (IS_ERR(dwc->usb2_phy)) {
 		ret = PTR_ERR(dwc->usb2_phy);
-		if (ret == -ENXIO || ret == -ENODEV) {
+		if (ret == -ENXIO || ret == -ENODEV)
 			dwc->usb2_phy = NULL;
-		} else {
+		else
 			return dev_err_probe(dev, ret, "no usb2 phy configured\n");
-		}
 	}
 
 	if (IS_ERR(dwc->usb3_phy)) {
 		ret = PTR_ERR(dwc->usb3_phy);
-		if (ret == -ENXIO || ret == -ENODEV) {
+		if (ret == -ENXIO || ret == -ENODEV)
 			dwc->usb3_phy = NULL;
-		} else {
+		else
 			return dev_err_probe(dev, ret, "no usb3 phy configured\n");
-		}
 	}
 
 	dwc->usb2_generic_phy = devm_phy_get(dev, "usb2-phy");
 	if (IS_ERR(dwc->usb2_generic_phy)) {
 		ret = PTR_ERR(dwc->usb2_generic_phy);
-		if (ret == -ENOSYS || ret == -ENODEV) {
+		if (ret == -ENOSYS || ret == -ENODEV)
 			dwc->usb2_generic_phy = NULL;
-		} else {
+		else
 			return dev_err_probe(dev, ret, "no usb2 phy configured\n");
-		}
 	}
 
 	dwc->usb3_generic_phy = devm_phy_get(dev, "usb3-phy");
 	if (IS_ERR(dwc->usb3_generic_phy)) {
 		ret = PTR_ERR(dwc->usb3_generic_phy);
-		if (ret == -ENOSYS || ret == -ENODEV) {
+		if (ret == -ENOSYS || ret == -ENODEV)
 			dwc->usb3_generic_phy = NULL;
-		} else {
+		else
 			return dev_err_probe(dev, ret, "no usb3 phy configured\n");
+	}
+	if (node) {
+		parent_node = of_get_parent(node);
+		if (parent_node) {
+			dwc->usb_phy = devm_of_phy_get_by_index(dev, parent_node, 0);
+			if (IS_ERR(dwc->usb_phy)) {
+				ret = PTR_ERR(dwc->usb_phy);
+				if (ret == -ENOSYS || ret == -ENODEV)
+					dwc->usb_phy = NULL;
+				dev_err_probe(dev, ret, "Failed to get usb generic phy\n");
+				of_node_put(parent_node);
+				return 0;
+			}
+		} else {
+			dev_err_probe(dev, -ENODEV, "Parent node not found\n");
 		}
 	}
 
@@ -2061,13 +2078,13 @@ static int dwc3_probe(struct platform_device *pdev)
 	platform_set_drvdata(pdev, dwc);
 	dwc3_cache_hwparams(dwc);
 /*
-	if (!dwc->sysdev_is_parent &&
-	    DWC3_GHWPARAMS0_AWIDTH(dwc->hwparams.hwparams0) == 64) {
-		ret = dma_set_mask_and_coherent(dwc->sysdev, DMA_BIT_MASK(64));
-		if (ret)
-			goto disable_clks;
-	}
-*/
+ *	if (!dwc->sysdev_is_parent &&
+ *	    DWC3_GHWPARAMS0_AWIDTH(dwc->hwparams.hwparams0) == 64) {
+ *		ret = dma_set_mask_and_coherent(dwc->sysdev, DMA_BIT_MASK(64));
+ *		if (ret)
+ *			goto disable_clks;
+ *	}
+ */
 	spin_lock_init(&dwc->lock);
 	mutex_init(&dwc->mutex);
 

@@ -1,13 +1,20 @@
-// SPDX-License-Identifier: GPL-2.0 OR BSD-3-Clause
-/* This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2 of the License, or
- * (at your option) any later version.
+// SPDX-License-Identifier: GPL-2.0 OR Apache 2.0
+/*
+ * Copyright (c) 2024 Black Sesame Technologies
  *
- * This program is also distributed under the terms of the BSD 3-Clause
+ * This program is also distributed under the terms of the Apache 2.0
  * License.
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
- * Copyright (C) 2024 Black Sesame Technologies. Inc.
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 /**
  * @file  ipc_trans_impl.c
@@ -28,25 +35,26 @@
 #include <linux/semaphore.h>
 #include <linux/slab.h>
 #include <linux/types.h>
-#include <bst/config.h>
+#include <linux/device.h>
+#include <linux/platform_device.h>
 #include <bst/ipc_trans_layer.h>
-
 #include "../src/ipc_trans_runtime.h"
 
 /* performance optimization spec start */
 // device info buffer management
-static struct completion recv_comp[8][CHANNEL_COUNT][SESSION_COUNT];
-#ifdef CONFIG_C1200_SLT
+static struct completion recv_comp[8][CHANNEL_COUNT * SESSION_COUNT];
+static bool session_exit[8][CHANNEL_COUNT * SESSION_COUNT];
+msgbx_end_device_t *g_ipc_end_array[NR_CPUS] = {NULL};
+static struct mutex g_end_ses_create_mtx[NR_CPUS];
+#if defined(CONFIG_C1200_SLT) || defined(CONFIG_C1200_MASS)
 static struct completion loopback_test;
 static rw_msg_t loopback_msg;
 static uint8_t loopback_fid;
 #endif
-static bool session_exit[8][CHANNEL_COUNT][SESSION_COUNT];
-#ifdef CONFIG_C1200_SLT
+#if defined(CONFIG_C1200_SLT) || defined(CONFIG_C1200_MASS)
 struct task_struct *loopback = NULL;
 EXPORT_SYMBOL(loopback);
 #endif
-#define REMOTE_LOG_CPUID 0
 
 static void completion_init(struct completion *comp)
 {
@@ -55,12 +63,11 @@ static void completion_init(struct completion *comp)
 
 void completion_all_init(void)
 {
-	int i, j, k;
+	int i, j;
 	for (i = 0; i < 8; i++)
-		for (j = 0; j < CHANNEL_COUNT; j++)
-			for (k = 0; k < SESSION_COUNT; k++)
-				completion_init(&recv_comp[i][j][k]);
-#ifdef CONFIG_C1200_SLT
+		for (j = 0; j < CHANNEL_COUNT * SESSION_COUNT; j++)
+				completion_init(&recv_comp[i][j]);
+#if defined(CONFIG_C1200_SLT) || defined(CONFIG_C1200_MASS)
 	completion_init(&loopback_test);
 #endif
 }
@@ -71,10 +78,7 @@ EXPORT_SYMBOL(completion_all_init);
  */
 int32_t ipc_trans_complete(const uint8_t cpuid, const uint8_t ses_id)
 {
-	uint8_t fid, sid;
-
-	session_dist(ses_id, &sid, &fid);
-	complete(&recv_comp[cpuid][fid][sid]);
+	complete(&recv_comp[cpuid][ses_id]);
 	return 0;
 }
 /* performance optimization spec end */
@@ -88,7 +92,7 @@ int32_t ipc_trans_complete_sts(const uint8_t cpuid)
 	return 0;
 }
 
-#ifdef CONFIG_C1200_SLT
+#if defined(CONFIG_C1200_SLT) || defined(CONFIG_C1200_MASS)
 /*
  * test for slt
  * fid: filter id
@@ -119,8 +123,8 @@ static int loopback_process_thread(void *arg)
 		reply = loopback_msg;
 		reply.header.pid = loopback_msg.header.cid;
 		reply.header.cid = loopback_msg.header.pid;
-		if (loopback_msg.header.cmd == 0) {
-			reply.header.cmd = 1;
+		if (loopback_msg.header.cmd == 255) {
+			reply.header.typ = MSGBX_MSG_TYPE_USERDEFINED;
 		}
 		cpuid = get_cpuid_by_endid(loopback_msg.header.cid);
 		ret = ipc_hw_layer_send_msg(cpuid, &reply);
@@ -132,66 +136,16 @@ static int loopback_process_thread(void *arg)
 }
 #endif
 
-uint8_t get_cpuid_by_endid(uint8_t end_id)
-{
-	uint8_t cpuid = 0;
-	u8 start_pid = msgbx_get_start_pid();
-
-	cpuid = end_id - start_pid;
-
-	if (cpuid >= NR_CPUS) {
-		pr_info(KERN_ERR "\n cpuid:%u error end_id:%u end0_id:%u\n",
-			   cpuid, end_id, start_pid);
-		cpuid = CPUID_ERR;
-	}
-	return cpuid;
-}
-EXPORT_SYMBOL(get_cpuid_by_endid);
-
 /* error message process, call ipc_trans_err_hdl to pass fault handle command.
  * handle command is TBD
  */
 int err_func(void *addr, msgbx_err_msg_t *err_msg)
 {
-	pr_info("recv err msg, err_msg.type = %d, id = %d, msg = %d ",
-		     err_msg->type, err_msg->id, err_msg->msg);
-// #ifdef IPC_STATE_MGT_ENABLE
-// 	ipc_trans_err_hdl(err_msg->type, err_msg->id, 0, addr);
-// #endif
-// 	pr_info("ipc_trans_err_hdl success!!\n");
+	pr_err("recv err msg, err_msg.fid = %d, err_code = %d\n",
+		err_msg->fid, err_msg->err_code);
 	return 0;
 }
 
-/* remote log process, you can choose to save it in file or print it directly.
- */
-#ifdef ENABLE_REMOTE_LOG_PROCESS_FUNC
-static int remote_log_process_thread(void *arg)
-{
-	uint8_t type = 0;
-	int32_t ret = -1;
-	serdes_t log = { 0 };
-	char msg[128];
-	char *print_msg = msg;
-
-	ENDID_TO_CPUID(msgbx_get_start_pid());
-
-	while (1) {
-		wait_for_completion(
-			&recv_comp[REMOTE_LOG_CPUID][REMOTE_LOG_SES_FID][REMOTE_LOG_SES_SID]);
-		ret = ipc_trans_get_avail_info(REMOTE_LOG_SES_ID, &type,
-						   g_ipc_end_array[REMOTE_LOG_CPUID]);
-		if (ret < 0)
-			continue;
-		ret = ipc_trans_get_msg(REMOTE_LOG_SES_ID, MSGBX_MSG_TYPE_METHOD,
-					&log, g_ipc_end_array[REMOTE_LOG_CPUID]);
-		if (ret < 0)
-			continue;
-		ipc_des_get_string(&log, print_msg, 128);
-		pr_info("--------------pid %d print log: %s\n", log.header.pid,
-			   print_msg);
-	}
-}
-#endif
 /**
  * @name start ipc driver
  * @attention only driver api
@@ -208,36 +162,20 @@ static int remote_log_process_thread(void *arg)
 int32_t ipc_trans_layer_start(const uint8_t endid, uint8_t role)
 {
 	int32_t ret = -1;
-#ifdef ENABLE_REMOTE_LOG_PROCESS_FUNC
-	struct task_struct *log_task = NULL;
-#endif
 	u8 cpuid = ENDID_TO_CPUID(endid);
-	
-#if defined(USE_EXTERNAL_MSG_BUFFER)
-	g_ipc_end_array[cpuid]->ses_map = g_ipc_end_ses_map[cpuid];
-#endif
-	ret = ipc_trans_init(role, err_func, g_ipc_end_array[cpuid]);
 
+	// g_ipc_end_array[cpuid]->g_ipc_cpuid = cpuid;
+	completion_all_init();
+	ret = ipc_trans_init(role, err_func, g_ipc_end_array[cpuid]);
 	if (unlikely(ret))
 		pr_info("ipc_trans_init error\n");
-
-#ifdef ENABLE_REMOTE_LOG_PROCESS_FUNC
-	/* Note: Implement the central end remote log clustering specification*/
-	if (cpuid == REMOTE_LOG_CPUID) {
-		log_task = kthread_run(remote_log_process_thread, NULL,
-					"remote_log_thread");
-		if (unlikely(!log_task))
-			pr_info("pthread_create remote log process thread error\n");
-	}
-
-#endif
-#ifdef CONFIG_C1200_SLT
+	mutex_init(&g_end_ses_create_mtx[cpuid]);
+#if defined(CONFIG_C1200_SLT) || defined(CONFIG_C1200_MASS)
 	loopback = kthread_run(loopback_process_thread, NULL,
 				"msgbox_slt_loopback");
 	if (unlikely(!loopback))
 		pr_err("cna't create msgbox_slt_loopback task\n");
 #endif
-
 	return ret;
 }
 
@@ -254,7 +192,6 @@ int32_t ipc_trans_layer_stop(const uint8_t endid)
 {
 	// transfer endid to device info buffer address
 	u8 cpuid = ENDID_TO_CPUID(endid);
-
 	return ipc_trans_deinit(g_ipc_end_array[cpuid]);
 }
 
@@ -274,29 +211,32 @@ int32_t ipc_trans_layer_stop(const uint8_t endid)
 /* Note: performance optimization spec implementation, please refer to
  * programmers' guide
  */
-int32_t ipc_trans_layer_query_info(const uint8_t endid, const uint8_t handle, ...)
+int32_t ipc_trans_layer_query_info(const uint8_t endid, const uint8_t handle,
+						const uint32_t polling_times, const uint8_t is_from_user)
 {
-	uint8_t type = 0;
-	uint8_t fid = 0, sid = 0;
 	int32_t ret = -1;
-	uint8_t is_from_user = false;
-	va_list ap_ptr;
 	u8 cpuid = ENDID_TO_CPUID(endid);
+	uint32_t times = 0;
 
-	va_start(ap_ptr, handle);
-	is_from_user = va_arg(ap_ptr, int) == 1 ? true : false;
-	va_end(ap_ptr);
-
-	session_dist(handle, &sid, &fid);
 	if (is_from_user) {
-		wait_for_completion_timeout(&recv_comp[cpuid][fid][sid], msecs_to_jiffies(500));
-		return ipc_trans_get_avail_info(handle, &type, g_ipc_end_array[cpuid]);
+		ret = ipc_trans_get_avail_info(handle, g_ipc_end_array[cpuid]);
+		while (ret < 0 && !session_exit[cpuid][handle]) {
+			if (times < polling_times) {
+				++times;
+				schedule();
+				ret = ipc_trans_get_avail_info(handle, g_ipc_end_array[cpuid]);
+			} else {
+				wait_for_completion_timeout(&recv_comp[cpuid][handle], msecs_to_jiffies(500));
+				ret = ipc_trans_get_avail_info(handle, g_ipc_end_array[cpuid]);
+				return ret;
+			}
+		}
+		return ret;
 	}
-	ret = ipc_trans_get_avail_info(handle, &type, g_ipc_end_array[cpuid]);
-	while (ret < 0 && !session_exit[cpuid][fid][sid]) {
-		wait_for_completion(&recv_comp[cpuid][fid][sid]);
-		ret = ipc_trans_get_avail_info(handle, &type,
-						   g_ipc_end_array[cpuid]);
+	ret = ipc_trans_get_avail_info(handle, g_ipc_end_array[cpuid]);
+	while (ret < 0 && !session_exit[cpuid][handle]) {
+		wait_for_completion(&recv_comp[cpuid][handle]);
+		ret = ipc_trans_get_avail_info(handle, g_ipc_end_array[cpuid]);
 	}
 	return ret;
 }
@@ -319,21 +259,32 @@ int32_t ipc_trans_layer_stub_create_handle(const uint8_t endid,
 {
 	uint8_t ses_id = 0;
 	int32_t ret = -1;
+	void* msg_queue_addr = NULL;
 	u8 cpuid = ENDID_TO_CPUID(endid);
 
 	if (endid != g_ipc_end_array[cpuid]->g_ipc_pid)
 		return -ERR_PID_IS_INVALID;
 
 	// transfer endid to device info buffer address
-	ret = ipc_trans_create_session(sid, fid, cid, MSGBX_SES_ROLE_SERVER,
-					   &ses_id, g_ipc_end_array[cpuid]);
+	mutex_lock(&g_end_ses_create_mtx[cpuid]);
+	ret = ipc_trans_create_session(sid, fid, cid, 0, MSGBX_SES_ROLE_SERVER,
+				       &ses_id, g_ipc_end_array[cpuid]);
+	mutex_unlock(&g_end_ses_create_mtx[cpuid]);
+	if (ret < 0)
+		return ret;
+
+	// alloc msg queue and align
+	msg_queue_addr = kzalloc(sizeof(bst_msg_queue_t), GFP_KERNEL);
+	if (!msg_queue_addr) {
+		IPC_LOG_INFO("pid %u fid %u sid %u alloc msg_queue error", endid, fid, sid);
+		return -ERR_CREATE_SES_ALLOC_FAIL;
+	}
+	ret = ipc_trans_msg_queue_alloc(ses_id, msg_queue_addr, g_ipc_end_array[cpuid]);
 	if (ret < 0)
 		return ret;
 	*handle = ses_id;
-
-	session_exit[cpuid][fid][sid] = false;
-
-	return 0;
+	session_exit[cpuid][ses_id] = false;
+	return ret;
 }
 EXPORT_SYMBOL(ipc_trans_layer_stub_create_handle);
 
@@ -346,8 +297,7 @@ int32_t ipc_trans_layer_stub_send_reply_msg(const uint8_t endid,
 {
 	u8 cpuid = ENDID_TO_CPUID(endid);
 
-	return ipc_trans_send_msg(handle, msg, MSGBX_MSG_TYPE_REPLY,
-				  g_ipc_end_array[cpuid]);
+	return ipc_trans_send_msg(handle, msg, MSGBX_MSG_TYPE_REPLY, g_ipc_end_array[cpuid]);
 }
 EXPORT_SYMBOL(ipc_trans_layer_stub_send_reply_msg);
 
@@ -360,8 +310,7 @@ int32_t ipc_trans_layer_stub_send_broadcast(const uint8_t endid,
 {
 	u8 cpuid = ENDID_TO_CPUID(endid);
 
-	return ipc_trans_send_msg(handle, msg, MSGBX_MSG_TYPE_BROADCAST,
-				  g_ipc_end_array[cpuid]);
+	return ipc_trans_send_msg(handle, msg, MSGBX_MSG_TYPE_BROADCAST, g_ipc_end_array[cpuid]);
 }
 EXPORT_SYMBOL(ipc_trans_layer_stub_send_broadcast);
 
@@ -397,21 +346,6 @@ int32_t ipc_trans_layer_unregister_method(const uint8_t endid,
 EXPORT_SYMBOL(ipc_trans_layer_unregister_method);
 
 /**
- * @name receive method message
- * @attention server api only
- * @details
- */
-int32_t ipc_trans_layer_stub_get_method_msg(const uint8_t endid,
-						const uint8_t handle, serdes_t *msg)
-{
-	u8 cpuid = ENDID_TO_CPUID(endid);
-
-	return ipc_trans_get_msg(handle, MSGBX_MSG_TYPE_METHOD, msg,
-				 g_ipc_end_array[cpuid]);
-}
-EXPORT_SYMBOL(ipc_trans_layer_stub_get_method_msg);
-
-/**
  * @name client session init
  * @attention client api only
  * @details
@@ -423,45 +357,40 @@ EXPORT_SYMBOL(ipc_trans_layer_stub_get_method_msg);
  * between each session and its corresponding completion.
  */
 int32_t ipc_trans_layer_proxy_create_handle(const uint8_t endid,
-						const uint8_t fid,
-						const uint8_t sid,
-						const uint8_t cid, uint8_t *handle)
+					    const uint8_t fid,
+					    const uint8_t sid,
+					    const uint8_t cid, const uint8_t ccid, uint8_t *handle)
 {
 	uint8_t ses_id = 0;
 	int32_t ret = -1;
+	void* msg_queue_addr = NULL;
 	u8 cpuid = ENDID_TO_CPUID(endid);
 
 	if (endid != g_ipc_end_array[cpuid]->g_ipc_pid)
 		return -ERR_PID_IS_INVALID;
 
 	// transfer endid to device info buffer address
-	ret = ipc_trans_create_session(sid, fid, cid, MSGBX_SES_ROLE_CLIENT,
+	mutex_lock(&g_end_ses_create_mtx[cpuid]);
+	ret = ipc_trans_create_session(sid, fid, cid, ccid, MSGBX_SES_ROLE_CLIENT,
 					   &ses_id, g_ipc_end_array[cpuid]);
+	mutex_unlock(&g_end_ses_create_mtx[cpuid]);
+	if (ret < 0)
+		return ret;
+
+	// alloc msg queue and align
+	msg_queue_addr = kzalloc(sizeof(bst_msg_queue_t), GFP_KERNEL);
+	if (!msg_queue_addr) {
+		IPC_LOG_INFO("pid %u fid %u sid %u alloc msg_queue error", endid, fid, sid);
+		return -ERR_CREATE_SES_ALLOC_FAIL;
+	}
+	ret = ipc_trans_msg_queue_alloc(ses_id, msg_queue_addr, g_ipc_end_array[cpuid]);
 	if (ret < 0)
 		return ret;
 	*handle = ses_id;
-
-	session_exit[cpuid][fid][sid] = false;
-
-	return 0;
+	session_exit[cpuid][ses_id] = false;
+	return ret;
 }
 EXPORT_SYMBOL(ipc_trans_layer_proxy_create_handle);
-
-/**
- * @name get a sinal message
- * @attention client api only
- * @details
- */
-int32_t ipc_trans_layer_proxy_get_broadcast_msg(const uint8_t endid,
-						const uint8_t handle,
-						serdes_t *msg)
-{
-	u8 cpuid = ENDID_TO_CPUID(endid);
-
-	return ipc_trans_get_msg(handle, MSGBX_MSG_TYPE_BROADCAST, msg,
-				 g_ipc_end_array[cpuid]);
-}
-EXPORT_SYMBOL(ipc_trans_layer_proxy_get_broadcast_msg);
 
 /**
  * @name send a method message
@@ -482,15 +411,13 @@ EXPORT_SYMBOL(ipc_trans_layer_proxy_send_method);
  * @attention client api only
  * @details
  */
-int32_t ipc_trans_layer_proxy_get_reply_msg(const uint8_t endid,
+int32_t ipc_trans_layer_get_msg(const uint8_t endid,
 						const uint8_t handle, serdes_t *msg)
 {
 	u8 cpuid = ENDID_TO_CPUID(endid);
-
-	return ipc_trans_get_msg(handle, MSGBX_MSG_TYPE_REPLY, msg,
-				 g_ipc_end_array[cpuid]);
+	return ipc_trans_get_msg(handle, msg, g_ipc_end_array[cpuid]);
 }
-EXPORT_SYMBOL(ipc_trans_layer_proxy_get_reply_msg);
+EXPORT_SYMBOL(ipc_trans_layer_get_msg);
 
 /**
  * @name handle destroy
@@ -503,23 +430,37 @@ EXPORT_SYMBOL(ipc_trans_layer_proxy_get_reply_msg);
 int32_t ipc_trans_layer_destroy_handle(const uint8_t endid,
 					   const uint8_t handle)
 {
-#ifdef DEBUG_MODE_ENABLE
-	debug_info_t info = { 0 };
+	int32_t ret = -1;
+	void* msg_queue_addr = NULL;
 	u8 cpuid = ENDID_TO_CPUID(endid);
+	debug_info_t info = { 0 };
 
-	ipc_trans_get_debug_info(handle, &info, g_ipc_end_array[cpuid]);
-	pr_info("\nsession %u info role: %u, send_msg_cnt:%u, send_rw_msg_cnt:%u, "
-		   "send_fail_cnt:%u, last_msg_frame_cnt:%u \n",
-		   handle, info.role, info.send_msg_cnt, info.send_rw_msg_cnt,
-		   info.send_fail_cnt, info.send_frame_cnt);
-	pr_info("recv_msg_1_cnt:%u, recv_msg_2_cnt:%u, recv_rw_msg_cnt:%u \n", info.recv_msg_1_cnt,
-		   info.recv_msg_2_cnt, info.recv_rw_msg_cnt);
-	pr_info("send_start_time: %llu, send_end_time:%llu, collate_time:%llu, "
-		   "get_msg_time:%llu \n",
-		   info.send_start_time, info.send_end_time, info.collate_time,
-		   info.get_msg_time);
-#endif
-	return ipc_trans_close_session(handle, g_ipc_end_array[cpuid]);
+	ret = ipc_trans_get_debug_info(handle, &info, g_ipc_end_array[cpuid]);
+	if (ret < 0)
+		return 0;
+
+	// msgbx_clr_max_send_time(cpuid, handle);
+
+	pr_debug("\nsession %u info cid: %u, role: %u, send_msg_cnt:%u, send_rw_msg_cnt:%u, "
+		"send_fail_cnt:%u\n",handle, info.cid, info.role, info.send_msg_cnt, info.send_rw_msg_cnt,
+		info.send_fail_cnt);
+	pr_debug("recv_msg_1_cnt:%u, recv_msg_2_cnt:%u, recv_rw_msg_cnt:%u in_rw_msg_cnt:%u\n", info.recv_msg_1_cnt,
+		info.recv_msg_2_cnt, info.recv_rw_msg_cnt, info.in_rw_msg_cnt);
+	pr_debug("send_start_time: %llu, send_end_time:%llu\n", info.send_start_time, info.send_end_time);
+
+	ret = ipc_trans_map_session(handle, &msg_queue_addr, g_ipc_end_array[cpuid]);
+	if (ret < 0)
+		return 0;
+
+	ret = ipc_trans_close_session(handle, g_ipc_end_array[cpuid]);
+	if (ret < 0)
+		return 0;
+
+	if (msg_queue_addr) {
+		kfree(msg_queue_addr);
+		g_ipc_end_array[cpuid]->ses_map[handle].msg_queue = NULL;
+	}
+	return ret;
 }
 EXPORT_SYMBOL(ipc_trans_layer_destroy_handle);
 
@@ -529,12 +470,9 @@ EXPORT_SYMBOL(ipc_trans_layer_destroy_handle);
 int32_t ipc_trans_layer_release_recv_wait(const uint8_t endid,
 					  const uint8_t handle)
 {
-	uint8_t fid = 0, sid = 0;
 	u8 cpuid = ENDID_TO_CPUID(endid);
-
-	session_dist(handle, &sid, &fid);
-	session_exit[cpuid][fid][sid] = true;
-	complete(&recv_comp[cpuid][fid][sid]);
+	session_exit[cpuid][handle] = true;
+	complete(&recv_comp[cpuid][handle]);
 
 	return 0;
 }
@@ -554,23 +492,35 @@ int32_t ipc_trans_layer_create_handle(const uint8_t endid, const uint8_t fid,
 {
 	uint8_t ses_id = 0;
 	int32_t ret = -1;
+	void* msg_queue_addr = NULL;
 	u8 cpuid = ENDID_TO_CPUID(endid);
 
 	if (endid != g_ipc_end_array[cpuid]->g_ipc_pid)
 		return -ERR_PID_IS_INVALID;
 
 	// transfer endid to device info buffer address
-	ret = ipc_trans_create_session(sid, fid, 0, MSGBX_SES_ROLE_FASTPATH,
+	mutex_lock(&g_end_ses_create_mtx[cpuid]);
+	ret = ipc_trans_create_session(sid, fid, 0, 0, MSGBX_SES_ROLE_FASTPATH,
 				       &ses_id, g_ipc_end_array[cpuid]);
+	mutex_unlock(&g_end_ses_create_mtx[cpuid]);
+	if (ret < 0)
+		return ret;
+
+	// alloc msg queue and align
+	msg_queue_addr = kzalloc(sizeof(bst_msg_queue_t), GFP_KERNEL);
+	if (!msg_queue_addr) {
+		IPC_LOG_INFO("pid %u fid %u sid %u alloc msg_queue error", endid, fid, sid);
+		return -ERR_CREATE_SES_ALLOC_FAIL;
+	}
+	ret = ipc_trans_msg_queue_alloc(ses_id, msg_queue_addr, g_ipc_end_array[cpuid]);
 	if (ret < 0)
 		return ret;
 	*handle = ses_id;
 
 #if !defined(BAREMETAL_VERSION_TRUNCATE)
-	completion_init(&recv_comp[cpuid][fid][sid]);
-	session_exit[cpuid][fid][sid] = false;
+	completion_init(&recv_comp[cpuid][ses_id]);
+	session_exit[cpuid][ses_id] = false;
 #endif
-
 	return 0;
 }
 EXPORT_SYMBOL(ipc_trans_layer_create_handle);
@@ -589,23 +539,18 @@ EXPORT_SYMBOL(ipc_trans_layer_send_msg);
  * @attention fast path app only
  * @details
  */
-int32_t ipc_trans_layer_get_msg(const uint8_t endid, const uint8_t handle,
+int32_t ipc_trans_layer_get_rwmsg(const uint8_t endid, const uint8_t handle,
 				const int32_t timeout, rw_msg_t *msg,
 				uint64_t *timestamp)
 {
 #if defined(IPC_RTE_KERNEL)
-	uint8_t fid = 0, sid = 0;
 	int32_t ret = -1;
 	u8 cpuid = ENDID_TO_CPUID(endid);
 
-	if (session_isvalid(handle, g_ipc_end_array[cpuid]) < 0)
-		return -ERR_SES_IS_INVALID;
-
-	session_dist(handle, &sid, &fid);
 	if (timeout == -1)
-		wait_for_completion(&recv_comp[cpuid][fid][sid]);
+		wait_for_completion(&recv_comp[cpuid][handle]);
 	else {
-		ret = wait_for_completion_timeout(&recv_comp[cpuid][fid][sid],
+		ret = wait_for_completion_timeout(&recv_comp[cpuid][handle],
 						  msecs_to_jiffies(timeout));
 		if (ret == 0)
 			//timeout
@@ -615,7 +560,31 @@ int32_t ipc_trans_layer_get_msg(const uint8_t endid, const uint8_t handle,
 	ret = ipc_trans_get_rwmsg(handle, msg, timestamp, g_ipc_end_array[cpuid]);
 	return ret;
 #else
-	return ipc_trans_get_rwmsg(handle, msg, timestamp, &dev_info);
+	return ipc_trans_get_rwmsg(handle, msg, timestamp, g_ipc_end_array[cpuid]);
 #endif
 }
-EXPORT_SYMBOL(ipc_trans_layer_get_msg);
+EXPORT_SYMBOL(ipc_trans_layer_get_rwmsg);
+
+int32_t ipc_trans_layer_mmap_session(const uint8_t endid, const uint8_t handle, void** ses_addr)
+{
+	int32_t ret = 0;
+	u8 cpuid = ENDID_TO_CPUID(endid);
+	ret = ipc_trans_map_session(handle, ses_addr, g_ipc_end_array[cpuid]);
+	return 0;
+}
+EXPORT_SYMBOL(ipc_trans_layer_mmap_session);
+
+int32_t ipc_trans_layer_get_endmap(const uint8_t endid, sts_endmap_t *map)
+{
+	u8 cpuid = ENDID_TO_CPUID(endid);
+	*map = g_ipc_end_array[cpuid]->g_end_sts_map;
+	return 0;
+}
+EXPORT_SYMBOL(ipc_trans_layer_get_endmap);
+
+int32_t ipc_trans_layer_get_debug_info(const uint8_t endid, const uint8_t handle, msgbox_debug_info_t *info)
+{
+	u8 cpuid = ENDID_TO_CPUID(endid);
+	return ipc_trans_get_debug_info(handle, (debug_info_t *)info, g_ipc_end_array[cpuid]);
+}
+EXPORT_SYMBOL(ipc_trans_layer_get_debug_info);

@@ -10,6 +10,13 @@
 #define dphy4txtester_DIG_RDWR_TX_SYS_1  0x2
 #define FREQUENCY_DIVISION               0x2
 #define FCLKIN                           25
+#define dphy4txtester_DIG_RDWR_TX_CB_0   0x1aa
+#define dphy4txtester_DIG_RDWR_TX_SLEW_0     0x26b
+#define dphy4txtester_DIG_RDWR_TX_SLEW_7     0x272
+//Select value of cb_v400
+#define dphy4txtester_DIG_RDWR_TX_CB_0_200mv 0xE3
+#define dphy4txtester_DIG_RDWR_TX_CB_0_300mv 0xE7
+#define dphy4txtester_DIG_RDWR_TX_CB_0_450mv 0xEf
 struct dphy_parameter_map {
 	unsigned int max_mbps;
 	u8 hsfreqrange;
@@ -138,6 +145,33 @@ int cfg_dphy_signals(struct dw_mipi_dsi_bst *dsi, int dphy_sel, int lane_mbps)
     return 0;
 }
 
+// static int dphy_write_data(struct dw_mipi_dsi_bst *dsi,uint16_t dphy_addr, uint8_t wdata)
+// {
+//     uint8_t high_addr = dphy_addr >> 8;
+//     uint8_t low_addr = dphy_addr & 0xff;
+//     uint32_t ret_val=0;
+//     DRM_INFO("high_addr:0x%x low_addr:0x%x\n",high_addr,low_addr);
+//     bst_dsi_write(dsi, DSI_PHY_TST_CTRL0, 0);
+//     bst_dsi_write(dsi, DSI_PHY_TST_CTRL1, 0x10000);
+//     bst_dsi_write(dsi, DSI_PHY_TST_CTRL0, 2);
+//     bst_dsi_write(dsi, DSI_PHY_TST_CTRL0, 0);
+//     bst_dsi_write(dsi, DSI_PHY_TST_CTRL1, 0);
+//     bst_dsi_write(dsi, DSI_PHY_TST_CTRL1, high_addr);
+//     bst_dsi_write(dsi, DSI_PHY_TST_CTRL0, 2);
+
+//     bst_dsi_write(dsi, DSI_PHY_TST_CTRL0, 0);
+//     bst_dsi_write(dsi, DSI_PHY_TST_CTRL1,(0x1 << 16) | low_addr);
+//     bst_dsi_write(dsi, DSI_PHY_TST_CTRL0, 2);
+//     bst_dsi_write(dsi, DSI_PHY_TST_CTRL0, 0);
+//     bst_dsi_write(dsi, DSI_PHY_TST_CTRL1, wdata);
+//     bst_dsi_write(dsi, DSI_PHY_TST_CTRL0, 2);
+//     bst_dsi_write(dsi, DSI_PHY_TST_CTRL0, 0);
+
+//     ret_val = bst_dsi_read(dsi, DSI_PHY_TST_CTRL1);
+//     DRM_INFO("val:0x%x dphy_addr:0x%x\n",ret_val,dphy_addr);
+//     return 0;
+// }
+
 int dphy_write_control(struct dw_mipi_dsi_bst *dsi, uint8_t testcode, uint8_t testwrite)
 {
     bst_dsi_write(dsi, DSI_PHY_TST_CTRL1, (0x000100 << 8) | testcode);
@@ -163,6 +197,6 @@ int dphy_rate_swtch(struct dw_mipi_dsi_bst *dsi, int lane_mbps)
 
     dphy_write_control(dsi,dphy4txtester_DIG_RDWR_TX_SYS_1,
         dppa_map[i].hsfreqrange);
-
+    //dphy_write_data(dsi,dphy4txtester_DIG_RDWR_TX_CB_0,dphy4txtester_DIG_RDWR_TX_CB_0_450mv);
     return ret;
 }

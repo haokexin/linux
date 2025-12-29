@@ -23,6 +23,9 @@
 #include <linux/pci-epc.h>
 #include <linux/pci-epf.h>
 
+#include <linux/reset.h>
+#include <linux/reset-controller.h>
+
 /* DWC PCIe IP-core versions (native support since v4.70a) */
 #define DW_PCIE_VER_365A		0x3336352a
 #define DW_PCIE_VER_460A		0x3436302a
@@ -81,6 +84,9 @@
 #define PCIE_PORT_DEBUG0		0x728
 #define PORT_LOGIC_LTSSM_STATE_MASK	0x1f
 #define PORT_LOGIC_LTSSM_STATE_L0	0x11
+#define PORT_LOGIC_LTSSM_STATE_L0S	0x12
+#define PORT_LOGIC_LTSSM_STATE_L1	0x14
+#define PORT_LOGIC_LTSSM_STATE_L2	0x15
 #define PCIE_PORT_DEBUG1		0x72C
 #define PCIE_PORT_DEBUG1_LINK_UP		BIT(4)
 #define PCIE_PORT_DEBUG1_LINK_IN_TRAINING	BIT(29)
@@ -200,21 +206,148 @@
 /*
  * RAS-DES register definitions
  */
-#define PCIE_RAS_DES_EVENT_COUNTER_CONTROL	0x8
-#define EVENT_COUNTER_ALL_CLEAR		0x3
-#define EVENT_COUNTER_ENABLE_ALL	0x7
-#define EVENT_COUNTER_ENABLE_SHIFT	2
-#define EVENT_COUNTER_EVENT_SEL_MASK	GENMASK(7, 0)
-#define EVENT_COUNTER_EVENT_SEL_SHIFT	16
-#define EVENT_COUNTER_EVENT_Tx_L0S	0x2
-#define EVENT_COUNTER_EVENT_Rx_L0S	0x3
-#define EVENT_COUNTER_EVENT_L1		0x5
-#define EVENT_COUNTER_EVENT_L1_1	0x7
-#define EVENT_COUNTER_EVENT_L1_2	0x8
-#define EVENT_COUNTER_GROUP_SEL_SHIFT	24
-#define EVENT_COUNTER_GROUP_5		0x5
+#define PCIE_RAS_DES_EVENT_COUNTER_CONTROL				0x8
+#define EVENT_COUNTER_ALL_CLEAR							0x3
+#define EVENT_COUNTER_PER_EVENT_OFF						0x1
+#define EVENT_COUNTER_PER_EVENT_ON						0x3
+#define EVENT_COUNTER_ENABLE_ALL_OFF					0x7
+#define EVENT_COUNTER_ENABLE_ALL_ON						0x7
+#define EVENT_COUNTER_ENABLE_SHIFT						2
+#define EVENT_COUNTER_GROUP_SEL_MASK					GENMASK(3, 0)
+#define EVENT_COUNTER_LANE_SEL_MASK					    GENMASK(3, 0)
+#define EVENT_COUNTER_EVENT_SEL_MASK					GENMASK(7, 0)
+#define EVENT_COUNTER_LANE_SEL_SHIFT                    8
+#define EVENT_COUNTER_EVENT_SEL_SHIFT					16
+#define EVENT_COUNTER_GROUP_SEL_SHIFT					24
+#define PCIE_RAS_DES_EVENT_COUNTER_DATA					0xc
 
-#define PCIE_RAS_DES_EVENT_COUNTER_DATA		0xc
+#define EVENT_COUNTER_GROUP_0		    				0x00
+/* - GROUP0 EVENT - */
+#define EVENT_COUNTER_EVENT_EBUF_OVERFLOW       		0x00
+#define EVENT_COUNTER_EVENT_EBUF_UNDER_FUN       		0x01
+#define EVENT_COUNTER_EVENT_DECODE_ERR      			0x02
+#define EVENT_COUNTER_EVENT_RUNNING_DISPARITY_ERR   	0x03
+#define EVENT_COUNTER_EVENT_SKP_OS_PARITY_ERR       	0x04
+#define EVENT_COUNTER_EVENT_SYNC_HEADER_ERROR      		0x05
+#define EVENT_COUNTER_EVENT_RX_VALID_DE_ASSERTION   	0x06
+#define EVENT_COUNTER_EVENT_CTL_SKP_OS_PARITY_ERR   	0x07
+#define EVENT_COUNTER_EVENT_1ST_RETIMER_PARITY_ERR  	0x08
+#define EVENT_COUNTER_EVENT_2ND_RETIMER_PARITY_ERR      0x09
+#define EVENT_COUNTER_EVENT_MARGIN_CRC_PARITY_ERR       0x0A
+
+#define EVENT_COUNTER_GROUP_1		    				0x1
+/* - GROUP1 EVENT - */
+#define EVENT_COUNTER_EVENT_DETECT_EI_INFER             0x05
+#define EVENT_COUNTER_EVENT_RECEIVER_ERR                0x06
+#define EVENT_COUNTER_EVENT_RX_RECOVERY_REQ             0x07
+#define EVENT_COUNTER_EVENT_N_FTS_TIMEOUT               0x08
+#define EVENT_COUNTER_EVENT_FRAMEING_ERR                0x09
+#define EVENT_COUNTER_EVENT_DESKEW_ERR                  0x0a
+
+#define EVENT_COUNTER_GROUP_2		    				0x2
+/* - GROUP2 EVENT - */
+#define EVENT_COUNTER_EVENT_BAD_TLP                     0x00
+#define EVENT_COUNTER_EVENT_LCRC_ERR                    0x01
+#define EVENT_COUNTER_EVENT_BAD_DLLP                    0x02
+#define EVENT_COUNTER_EVENT_REPLAT_NUM_ROLLOVER         0x03
+#define EVENT_COUNTER_EVENT_REPLAY_TIMEOUT              0x04
+#define EVENT_COUNTER_EVENT_RX_NAK_DLLP                 0x05
+#define EVENT_COUNTER_EVENT_TX_NAK_DLLP                 0x06
+#define EVENT_COUNTER_EVENT_RETRY_TLP                   0x07
+
+#define EVENT_COUNTER_GROUP_3		    				0x3
+/* - GROUP3 EVENT - */
+#define EVENT_COUNTER_EVENT_FC_TIMEOUT                  0x00
+#define EVENT_COUNTER_EVENT_POISONED_TLP                0x01
+#define EVENT_COUNTER_EVENT_ECRC_ERR                    0x02
+#define EVENT_COUNTER_EVENT_UNSUPPORTED_REQ             0x03
+#define EVENT_COUNTER_EVENT_COMPLETER_ABORT             0x04
+#define EVENT_COUNTER_EVENT_COMPLETETION_TIMEOUT        0x05
+
+#define EVENT_COUNTER_GROUP_4		    				0x4
+/* - GROUP4 EVENT - */
+#define EVENT_COUNTER_EVENT_EBUF_SKP_ADD                0x00
+#define EVENT_COUNTER_EVENT_EBUG_SKP_DEL                0x01
+
+
+#define EVENT_COUNTER_GROUP_5		   					0x5
+/* - GROUP5 EVENT - */
+#define EVENT_COUNTER_EVENT_L0_TO_RECOVERY_ENTRY		0x0
+#define EVENT_COUNTER_EVENT_L1_TO_RECOVERY_ENTRY	    0x1
+#define EVENT_COUNTER_EVENT_Tx_L0S						0x2
+#define EVENT_COUNTER_EVENT_Rx_L0S						0x3
+#define EVENT_COUNTER_EVENT_ASPM_L1_REJECT              0x04
+#define EVENT_COUNTER_EVENT_L1							0x5
+#define EVENT_COUNTER_EVENT_L1_CPM  					0x06
+#define EVENT_COUNTER_EVENT_L1_1						0x7
+#define EVENT_COUNTER_EVENT_L1_2						0x8
+#define EVENT_COUNTER_EVENT_L1_SHORT_DURATION   		0x09
+#define EVENT_COUNTER_EVENT_L1_2_ABORT          		0x0A
+#define EVENT_COUNTER_EVENT_L2_ENTRY           			0x0B
+#define EVENT_COUNTER_EVENT_SPEED_CHANGE        		0x0C
+#define EVENT_COUNTER_EVENT_LINK_WIDTH_CHANGE   		0x0D
+// #define EVENT_COUNTER_EVENT_                    0x0E  //RESERVED
+
+#define EVENT_COUNTER_GROUP_6		    				0x6
+/* - GROUP6 EVENT - */
+#define EVENT_COUNTER_EVENT_TX_ACK_DLLP                 0x00
+#define EVENT_COUNTER_EVENT_TX_UPDATE_FC_DLLP           0x01
+#define EVENT_COUNTER_EVENT_RX_ACK_DLLP                 0x02
+#define EVENT_COUNTER_EVENT_RX_UPDATE_FC_DLLP           0x03
+#define EVENT_COUNTER_EVENT_RX_NULLI_TLP                0x04
+#define EVENT_COUNTER_EVENT_TX_NULLI_TLP        		0x05
+#define EVENT_COUNTER_EVENT_RX_DUP_TLP       		    0x06
+
+#define EVENT_COUNTER_GROUP_7		    				0x7
+/* - GROUP7 EVENT - */
+#define EVENT_COUNTER_EVENT_TX_MEM_WRITE                0x00
+#define EVENT_COUNTER_EVENT_TX_MEM_READ                 0x01
+#define EVENT_COUNTER_EVENT_TX_CONFIG_WRITE             0x02
+#define EVENT_COUNTER_EVENT_TX_CONFIG_READ              0x03
+#define EVENT_COUNTER_EVENT_TX_IO_WRITE                 0x04
+#define EVENT_COUNTER_EVENT_TX_IO_READ        		    0x05
+#define EVENT_COUNTER_EVENT_TX_COMPLE_WITHOUT_DATA      0x06
+#define EVENT_COUNTER_EVENT_TX_COMPLE_WITH_DATA      	0x07
+#define EVENT_COUNTER_EVENT_TX_MSG_TLP     				0x08
+#define EVENT_COUNTER_EVENT_TX_ATOMIC    				0x09
+#define EVENT_COUNTER_EVENT_TX_TLP_WITH_PREFIX    		0x0A
+#define EVENT_COUNTER_EVENT_RX_MEM_WRITE                0x0B
+#define EVENT_COUNTER_EVENT_RX_MEM_READ                 0x0C
+#define EVENT_COUNTER_EVENT_RX_CONFIG_WRITE             0x0D
+#define EVENT_COUNTER_EVENT_RX_CONFIG_READ              0x0E
+#define EVENT_COUNTER_EVENT_RX_IO_WRITE                 0x0F
+#define EVENT_COUNTER_EVENT_RX_IO_READ        		    0x10
+#define EVENT_COUNTER_EVENT_RX_COMPLE_WITHOUT_DATA      0x11
+#define EVENT_COUNTER_EVENT_RX_COMPLE_WITH_DATA      	0x12
+#define EVENT_COUNTER_EVENT_RX_MSG_TLP     				0x13
+#define EVENT_COUNTER_EVENT_RX_ATOMIC    				0x14
+#define EVENT_COUNTER_EVENT_RX_TLP_WITH_PREFIX    		0x15
+#define EVENT_COUNTER_EVENT_TX_CCIX_TLP    				0x16
+#define EVENT_COUNTER_EVENT_RX_CCIX_TLP    		        0x15
+
+/*
+ * RAS-DP register definitions
+ */
+#define RASDP_UNCORR_COUNTER_SELECTIN_MASK				GENMASK(7, 0)
+#define RASDP_UNCORR_COUNTER_REG_SELECTIN_MASK			GENMASK(3, 0)
+#define RASDP_UNCORR_COUNTER_SELECTION_SHIFT            24
+#define RASDP_UNCORR_COUNTER_REG_SELECTION_SHIFT        20
+#define RASDP_UNCORR_COUNTER_CTRL_OFF                   0x14
+#define RASDP_UNCORR_COUNT_REPORT_OFF                   0x18
+#define RASDP_UNCORR_CLEAR_COUNTERS_MASK                0x1
+
+/*
+*
+* AXI interface Supervisor Status
+* 
+*/
+#define AXI_SC 											0x00 		// Successful Completion
+#define AXI_UR 											0x01		// Unsupported Request
+#define AXI_RRS 										0x02 		// Request Retry Status
+#define AXI_CA 											0x03        // Completer Abort
+#define AXI_MASTR_READ_STATUS_SECTION_SHIFT             0x0
+#define AXI_MASTR_WRITE_STATUS_SECTION_SHIFT            0x10
+#define AXI_STATUS_DATA_MASK                            0x3
 
 /*
  * The default address offset between dbi_base and atu_base. Root controller
@@ -370,6 +503,72 @@ struct dw_pcie {
 	#ifdef CONFIG_ARCH_BSTC1200
 	struct pcie_cfg_window	cfg_win[8];
 	#endif
+};
+
+#ifdef CONFIG_PCIE_BST_DIAGNOSTIC
+typedef struct bst_pcie_diagnostic_t {
+	u32 ras_des_cap;
+	u32 ras_dp_cap;
+	u32 resdes_monitor_psm;
+	u32 resdes_monitor_periodic;
+    struct task_struct* resdes_counter_monitor_tsk;
+	u32 reg_rdback_monitor_psm;
+	u32 reg_rdback_monitor_enable;
+	u32 smlh_ltssm_state_monitor_psm;
+	u32 smlh_ltssm_state_monitor_periodic;
+	struct task_struct* smlh_ltssm_state_task;
+	u32 axi_monitor_psm;
+	u32 dbi_access_monitor_psm;
+	u32 dbi_access_failed_count;
+	u32 dbi_access_monitor_periodic;
+	struct task_struct* dbi_access_monitor_task;
+	u32 rasdp_error_mode_monitor_psm;
+	u32 rasdp_error_mode_monitor_periodic;
+	struct task_struct* rasdp_error_mode_monitor_task;
+	u32 cr_check_safety_monitor_psm;
+	u32 cr_check_safety_monitor_periodic;
+	u32 cr_check_safety_monitor_enable;
+	struct task_struct* cr_check_safety_monitor_task;
+	u32 ext_sram_access_psm;
+	u32 ext_sram_access_periodic;
+	u16 ext_sram_access_addr;
+	struct task_struct* ext_sram_access_task;
+	u32 tx2rx_monitor_psm;
+	u32 tx2rx_monitor_periodic;
+	struct task_struct* tx2rx_loopback_monitor_task;
+	u8 diag_status;
+}bst_pcie_diag, *bst_pcie_diagnostic;
+#endif
+
+struct bst_pcie {
+	struct dw_pcie			*pci;
+	enum dw_pcie_device_mode	mode;
+
+	struct pcie_phy			*phy;
+	u32				chip_type;
+	u32				ctrl_id;
+	bool				is_pre_init;
+	int				reset_gpio;
+	bool				gpio_active_high;
+	int				legacy_parent_irq;
+	struct irq_domain		*legacy_irq_domain;
+	raw_spinlock_t			legacy_irq_lock;
+
+	spinlock_t			share_dbi_lock;
+
+	int				db_irq;
+	u32				db_irq_num;
+	unsigned long			*db_irq_win;
+	struct list_head		db_irq_list;
+	spinlock_t			db_lock;
+#ifdef CONFIG_PCIE_BST_DIAGNOSTIC
+	bst_pcie_diagnostic bst_pcie_diag;
+	bool pcie_diagnostic_init_done;
+#endif
+
+#ifdef CONFIG_PCIE_BST_RESET
+	struct reset_controller_dev rcdev;
+#endif
 };
 
 #define to_dw_pcie_from_pp(port) container_of((port), struct dw_pcie, pp)

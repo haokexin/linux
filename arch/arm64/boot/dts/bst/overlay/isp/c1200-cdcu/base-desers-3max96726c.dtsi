@@ -1,0 +1,35 @@
+#include "base-desers-3max96726d.dtsi"
+
+&portb {
+	phy_switch-hog {
+		gpio-hog;
+		gpios = <25 GPIO_ACTIVE_HIGH>;
+		output-low;
+		line-name = "csi-rx-cphy";
+	};
+};
+
+&deser0_tx1 {
+	phy-if = <IF_CPHY>;
+	lane-num = <3>;
+	lane-speed = <2500>;
+};
+&deser1_tx1 {
+	phy-if = <IF_CPHY>;
+	lane-num = <3>;
+	lane-speed = <2500>;
+};
+&deser2_tx1 {
+	phy-if = <IF_CPHY>;
+	lane-num = <3>;
+	lane-speed = <2500>;
+};
+&csi0 {
+	lane-speed = <2500>;
+};
+&csi1 {
+	lane-speed = <2500>;
+};
+&csi2 {
+	lane-speed = <2500>;
+};

@@ -1,0 +1,12 @@
+import "smmu-inf.fdepl"
+
+define com.bst.ipc.deployment for provider as smmu_client {
+    ProviderType = Client
+    RTE = LinuxKernel
+    SrcEndID = CPU_4
+    FID = DEF
+    SID = 6
+    instance com.bst.ipc.smmu.mapping {
+        DstEndID = SAFETY_0       
+    }
+}

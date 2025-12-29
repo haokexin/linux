@@ -17,10 +17,9 @@
  * limitations under the License.
  */
 
-/* This file is auto generated for message box v1.1.0.
+/* This file is auto generated for message box v2.0.0.
  * All manual modifications will be LOST by next generation.
  * It is recommended NOT modify it.
- * Generator Version: francaidl c4b9707 msgbx_ipc de48071
  */
 
 #ifndef DB_SWITCH_CLIENT_H
@@ -60,6 +59,7 @@ typedef void (*db_switch_vmac_method_callback_t)(
  * Callback function for broadcast notify_vmac_reinit.
  *
  * @param channel The output argument returned by broadcast notify_vmac_reinit.
+ * @param cmd The output argument returned by broadcast notify_vmac_reinit.
  * @param ext The user-defined data passed to the method.
  * @param info The extended information, containing uuid and timestamp.
  * @note all the data are stored in ext_buf passed to async call.
@@ -69,6 +69,7 @@ typedef void (*db_switch_vmac_method_callback_t)(
  */
 typedef void (*db_switch_notify_vmac_reinit_callback_t)(
 				const uint32_t channel,
+				const uint8_t cmd,
 				void *ext,
 				const ext_info_t *info
 				);
@@ -142,6 +143,10 @@ struct _db_switch_client_t {
 	 * If ext_buf is NULL, internal buffer will be used.
 	 * Please note that, the internal buffer is shared by all callbacks.
 	 * The data MAY CHANGED after leaving the callback function.
+	 * @note subscribe multiple times will result in multiple callbacks, while
+	 * the broadcast registry will be overwritten by the last subscription. This
+	 * means the cb, ext, ext_buf will be overwritten by the last subscription.
+	 * cb2 and ext2 will not be affected.
 	 * @return 0 if success, negative if fail.
 	 */
 	int32_t (*notify_vmac_reinit_sub)(
@@ -158,6 +163,9 @@ struct _db_switch_client_t {
 	 * @param cb The callback function called when the unsubscription is complete.
 	 * @param ext The user-defined data passed to the callback.
 	 * @return 0 if success, negative if fail.
+	 * @note if the subscription is not found, return -1.
+	 * @note unsubscribe multiple times will result in multiple callbacks.
+	 * cb and ext will not be affected by multiple unsubscriptions.
 	 */
 	int32_t (*notify_vmac_reinit_unsub)(broadcast_sub_unsub_callback_t cb, void *ext);
 
@@ -167,7 +175,7 @@ struct _db_switch_client_t {
 	 * @param des The received message package.
 	 * @return 0 if success, negative if fail.
 	 */
-	int32_t (*dispatch_broadcast)(serdes_t *des);
+	int32_t (*dispatch_broadcast)(des_buf_t *des);
 
 	/**
 	 * Dispatch reply messages.
@@ -175,7 +183,7 @@ struct _db_switch_client_t {
 	 * @param des The received message package.
 	 * @return 0 if success, negative if fail.
 	 */
-	int32_t (*dispatch_reply)(serdes_t *des);
+	int32_t (*dispatch_reply)(des_buf_t *des);
 };
 #define db_switch_client_t struct _db_switch_client_t
 
@@ -184,7 +192,13 @@ struct _db_switch_client_t {
  */
 struct _db_switch_client_ext_t {
 	uint8_t cid;
-	uint8_t res[7];
+	uint8_t ccid;
+	uint8_t status;
+	uint8_t res[5];
+	uint64_t cid_mask;
+	avail_changed_callback_t avail_changed_cb;
+	void *avail_ext;
+	callback_registration_t vmac_method_registry[IPC_TOKEN_NUM];
 	callback_registration_t notify_vmac_reinit_registry;
 };
 #define db_switch_client_ext_t struct _db_switch_client_ext_t

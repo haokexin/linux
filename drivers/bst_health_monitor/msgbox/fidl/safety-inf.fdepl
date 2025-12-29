@@ -1,0 +1,15 @@
+//xxx-inf.fdepl
+import "platform:/plugin/com.bst.os.idl/deployment/ipc_spec.fdepl"
+import "safety.fidl"
+
+define com.bst.ipc.deployment for interface com.bst.ipc.safety.healthmonitor {
+    MaxMethodNum = 100
+
+    method fusacoreip_method  {
+        MethodID = 76
+    } 
+
+    method fusaenable_method  {
+        MethodID = 77
+    } 
+}

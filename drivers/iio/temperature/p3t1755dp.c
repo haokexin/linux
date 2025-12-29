@@ -189,9 +189,7 @@ int p3t1755dp_temp_register_sysfs(struct iio_dev *indio_dev)
 {
 	int ret = -1;
 
-	p_iiodev[call_num] = indio_dev;
-        pr_err("%s %d call_num: %d", __func__, __LINE__, call_num);
-	if(call_num == 0){
+	if(!p3t1755dp_kobj){
                 p3t1755dp_kobj = kobject_create_and_add("p3t1755dp", NULL);
                 if (!p3t1755dp_kobj) {
                         pr_err("kobject_create_and_add failed");
@@ -205,7 +203,8 @@ int p3t1755dp_temp_register_sysfs(struct iio_dev *indio_dev)
                         kobject_put(p3t1755dp_kobj);
                 }
         }
-        call_num ++;
+        p_iiodev[call_num] = indio_dev;
+	call_num++;
         return ret;
 }
 #endif
@@ -248,6 +247,17 @@ static int p3t1755dp_temp_probe(struct i3c_device *i3cdev)
         return devm_iio_device_register(&i3cdev->dev, indio_dev);
 }
 
+static void p3t1755dp_temp_remove(struct i3c_device *i3cdev)
+{
+	call_num--;
+        if(call_num == 0)
+		if(p3t1755dp_kobj){
+		       	kobject_put(p3t1755dp_kobj);
+			p3t1755dp_kobj = 0;
+		}
+        return; 
+}
+
 static const struct of_device_id nxp_p3t1755dp_of_match[] = {
         { .compatible = "nxp,p3t1755dp", },
         { },
@@ -260,6 +270,7 @@ static struct i3c_driver nxp_p3t1755dp_driver = {
                 .of_match_table = nxp_p3t1755dp_of_match,
         },
         .probe = p3t1755dp_temp_probe,
+        .remove = p3t1755dp_temp_remove,
         .id_table = nxp_p3t1755dp_i3c_ids,
 };
 module_i3c_driver(nxp_p3t1755dp_driver);

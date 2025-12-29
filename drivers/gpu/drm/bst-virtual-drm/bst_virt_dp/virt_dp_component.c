@@ -34,14 +34,46 @@
 #include <video/videomode.h>
 #include <drm/drm_panel.h>
 #include <drm/drm_edid.h>
-#include "bst_display_dp_cmdset.h"
 #include "bst_display_platform.h"
 #include "bst_display_global_api.h"
+#include "bst_display_conn_cmdset.h"
 #include "bst_virt_pipeline.h"
 #include "virt_dp_dev.h"
 #include "bst_virt_drm_kms.h"
 #include "bst_virt_drm_connector.h"
+
 #define EDID_DETAILED_TIMINGS 4
+
+static bool dp_wait_link_training_done(struct bst_virt_component *c)
+{
+	struct bst_display_submodule_info hw_dp_info = { 0 };
+	struct bst_display_submodule_req hw_dp_req = { 
+		.submodule_id = SUBMODULE_ID_DP_VIDEO
+	};
+	int ret;
+	ktime_t start_time, end_time;
+	#define WAIT_DP_LINK_TRAINING_RETRY_COUNT 300
+	u32 retry = WAIT_DP_LINK_TRAINING_RETRY_COUNT;
+	start_time = ktime_get();
+	/* Wait server DP training done. */
+	do {
+		ret = bst_display_conn_cmd_get_submodule_info(c->subdev_session, &hw_dp_req, &hw_dp_info);
+		if (!ret) {
+			if (hw_dp_info.info.video_info.trained)
+				break;
+		}
+		msleep(10);
+	} while (retry--);
+
+	if (retry != WAIT_DP_LINK_TRAINING_RETRY_COUNT) {
+		end_time = ktime_get();
+		DRM_WARN("Wait DP trained retry %u times < %d times, total %lld ms\n",
+			 WAIT_DP_LINK_TRAINING_RETRY_COUNT - retry,
+			 WAIT_DP_LINK_TRAINING_RETRY_COUNT,
+			 ktime_to_ns(ktime_sub(end_time, start_time)) / 1000000);
+	}
+	return hw_dp_info.info.video_info.trained;
+}
 
 static void dp_enable(struct bst_virt_component *c)
 {
@@ -50,8 +82,8 @@ static void dp_enable(struct bst_virt_component *c)
 	struct bst_virt_device *virt_dev = c->pipe->subdevs[BST_VIRT_CONN_IDX];
 	struct virt_dp_dev *dp_dev =
 		(struct virt_dp_dev *)virt_dev->virt_dev_data;
-	struct bst_display_dp_training_req hw_dp_training = {
-		.client_id = virt_dev->dev_info.client_id,
+
+	struct bst_display_training_req hw_dp_training = {
 		.lanes = v_conn->lanes,
 		.rate = firmware_dp_rate_from_drm(v_conn->rate),
 		.bpc = v_conn->bpc,
@@ -60,26 +92,30 @@ static void dp_enable(struct bst_virt_component *c)
 		.colorimetry = dp_dev->colorimetry,
 		.train_type = DP_LINK_TRAINING
 	};
-	struct bst_display_dp_training_status training_status = {};
-	struct bst_display_dp_set_video_req video_req = {
-		.client_id = virt_dev->dev_info.client_id,
+	struct bst_display_training_status training_status = {};
+	struct bst_display_set_video_stream_req video_req = {
 		.enable = 1,
-		.lanes = v_conn->lanes,
-		.bpc = v_conn->bpc,
-		.video_format = v_conn->video_format,
-		.dynamic_range = dp_dev->dynamic_range,
-		.colorimetry = dp_dev->colorimetry,
+		.ext_info.edp_param = {
+			.lanes = v_conn->lanes,
+			.bpc = v_conn->bpc,
+			.video_format = v_conn->video_format,
+			.dynamic_range = dp_dev->dynamic_range,
+			.colorimetry = dp_dev->colorimetry,
+		},
 	};
-	struct bst_display_dp_set_video_status video_status = {};
+	struct bst_display_comm_reply video_status = {};
 	int ret;
 
 	memcpy(&hw_dp_training.timing, &v_conn->cur_timing,
 	       sizeof(struct video_timing));
 	memcpy(&video_req.timing, &v_conn->cur_timing,
 	       sizeof(struct video_timing));
+
+	dp_dev->trained = dp_wait_link_training_done(c);
+
 	if (!dp_dev->trained) {
 		WARNING("Warning, DP need retraining!\n");
-		ret = bst_display_dp_cmd_do_link_training(
+		ret = bst_display_conn_cmd_link_training(
 			c->subdev_session, &hw_dp_training, &training_status);
 		if (ret) {
 			DRM_ERROR("Error, fw do training failed(%d)!", ret);
@@ -91,38 +127,33 @@ static void dp_enable(struct bst_virt_component *c)
 		atomic_set(&v_conn->connected, training_status.trained ? 1 : 0);
 	}
 	if (dp_dev->trained) {
-		ret = bst_display_dp_cmd_set_video_stream(c->subdev_session, &video_req, &video_status);
-		DRM_INFO("virt dp enable Video %s", !!video_status.result ? "Success!" : "Failed!");
+		ret = bst_display_conn_cmd_set_video_stream(c->subdev_session, &video_req, &video_status);
+		DRM_INFO("virt dp enable Video %s", (video_status.base.status == DISP_COMM_REPLAY_OK) ? "Success!" : "Failed!");
 	}
+	if (v_conn->bconn->bd)
+		backlight_enable(v_conn->bconn->bd);
 }
+
 static void dp_disable(struct bst_virt_component *c)
 {
-	struct bst_virt_connector *v_conn =
-		container_of(c, struct bst_virt_connector, base);
-	struct bst_virt_device *virt_dev = c->pipe->subdevs[BST_VIRT_CONN_IDX];
-	struct virt_dp_dev *dp_dev =
-		(struct virt_dp_dev *)virt_dev->virt_dev_data;
-	struct bst_display_dp_connect_status hw_status = { 0 };
-	struct bst_display_dp_set_video_req video_req = {
-		.client_id = virt_dev->dev_info.client_id,
-		.enable = 0,
-		.lanes = v_conn->lanes,
-		.bpc = v_conn->bpc,
-		.video_format = v_conn->video_format,
-		.dynamic_range = dp_dev->dynamic_range,
-		.colorimetry = dp_dev->colorimetry,
-	};
-	struct bst_display_dp_set_video_status video_status = {};
+	// struct bst_virt_connector *v_conn =
+	// 	container_of(c, struct bst_virt_connector, base);
+	struct bst_display_submodule_req submodule_req = { 0 };
+	uint32_t subdev_session = c->subdev_session;
+	struct bst_display_comm_reply reply = { 0 };
 	int ret;
 
-	ret = bst_display_dp_cmd_set_video_stream(c->subdev_session, &video_req,
-				    &video_status);
-	DRM_INFO("virt dp disable Video %s",
-	     !!video_status.result ? "Success!" : "Failed!");
+	// if (v_conn->bconn->bd)
+	// 	backlight_device_set_brightness(v_conn->bconn->bd, 0);
 
-	DRM_DEBUG("[%s:%d] dp disable connected:%d", __FUNCTION__, __LINE__,
-	    hw_status.connected);
+	submodule_req.submodule_id = SUBMODULE_ID_DP_VIDEO;
+	ret = bst_display_conn_cmd_disable_submodule(subdev_session, &submodule_req, &reply);
+	if (!ret && reply.base.status == DISP_COMM_REPLAY_OK)
+		DRM_DEBUG_ATOMIC("lvds submodule_id:%d disable ok!!\n", submodule_req.submodule_id);
+	else
+		DRM_ERROR("lvds submodule_id:%d disable falied!!\n", submodule_req.submodule_id);
 }
+
 static void dp_update(struct bst_virt_component *c,
 		      struct bst_virt_component_state *state)
 {
@@ -257,10 +288,7 @@ static int dp_get_modes(struct bst_virt_component *c)
 	struct bst_display_dp_probed_info *probed_info =
 		(struct bst_display_dp_probed_info *)virt_dev->dev_info.private;
 	struct bst_display_vm_setting vm_info = { 0 };
-	struct bst_display_vm_req vm_req = {
-		.client_id = virt_dev->dev_info.client_id,
-		.platform_id = virt_dev->dev_info.platform_id,
-		.subdev_session = subdev_session };
+	struct bst_display_vm_req vm_req ;
 	struct drm_display_info *disp_info = &connector->display_info;
 	struct drm_display_mode *mode;
 	struct edid *drm_edid = (struct edid*)dp_dev->edid;
@@ -271,8 +299,8 @@ static int dp_get_modes(struct bst_virt_component *c)
 		dp_dev->audio_support = drm_detect_monitor_audio(drm_edid);
 	}
 
-	if (probed_info->video_timing_nums > 0 && probed_info->preferred_screen.timing_id != SCREEN_TIMING_EDID) {
-		ret = bst_display_glb_cmd_get_cur_video_mode(&vm_req, &vm_info);
+	if (probed_info->video_timing_nums > 0) {
+		ret = bst_display_conn_cmd_get_cur_video_mode(subdev_session, &vm_req, &vm_info);
 		if (ret) {
 			DRM_ERROR("Failed to get DP video info from FW\n");
 			goto fail;
@@ -312,8 +340,15 @@ static int dp_detect(struct bst_virt_component *c)
 {
 	struct bst_virt_connector *v_conn =
 		container_of(c, struct bst_virt_connector, base);
+	struct bst_virt_pipe *pipe = c->pipe;
+	struct bst_virt_device *virt_dev = pipe->subdevs[BST_VIRT_CONN_IDX];
+	struct virt_dp_dev *dp_dev =
+		(struct virt_dp_dev *)virt_dev->virt_dev_data;
+	
+	if (atomic_read(&v_conn->connected) && !dp_dev->trained)
+		dp_dev->trained = dp_wait_link_training_done(c);
 
-	return atomic_read(&v_conn->connected) ? connector_status_connected :
+	return (atomic_read(&v_conn->connected) && dp_dev->trained) ? connector_status_connected :
 						 connector_status_disconnected;
 }
 
@@ -355,18 +390,17 @@ int virt_dp_init_submodule(struct virt_dp_dev *dp,
 	struct bst_virt_connector *v_conn;
 	uint32_t conn_fw_id = SUBMODULE_INFO_SUBMODULE_ID(submodule->submodule_info);
 	uint32_t subdev_session = dp->base_dev->dev_info.subdev_session;
-	uint32_t client_id = dp->base_dev->dev_info.client_id;
 
 	struct bst_display_dp_probed_info *probed_info =
 		(struct bst_display_dp_probed_info *)dp->base_dev->dev_info.private;
-	struct bst_display_dp_info hw_dp_info = { 0 };
-	struct bst_display_dp_req hw_dp_req = { 0 };
+	struct bst_display_submodule_info hw_dp_info = { 0 };
+	struct bst_display_submodule_req hw_dp_req = { 0 };
 	int ret;
 
 	comp = bst_virt_component_add(dp->base_dev->this_pipe, dp->base_dev,
 				      sizeof(*v_conn),
 				      BST_VIRT_COMPONENT_CONN_eDP_VIDEO, conn_fw_id,
-				      &dp_funcs, 0, 1, 1, client_id, "VIRT_eDP-%d",
+				      &dp_funcs, 0, 1, 1, "VIRT_eDP-%d",
 				      0);
 	if (IS_ERR(comp)) {
 		DRM_ERROR("Failed to add connector component\n");
@@ -374,22 +408,22 @@ int virt_dp_init_submodule(struct virt_dp_dev *dp,
 	}
 
 	v_conn = to_virt_connector(comp);
-	hw_dp_req.client_id = dp->base_dev->dev_info.client_id;
-	ret = bst_display_dp_cmd_get_info(subdev_session, &hw_dp_req, &hw_dp_info);
+	hw_dp_req.submodule_id = SUBMODULE_ID_DP_VIDEO;
+	ret = bst_display_conn_cmd_get_submodule_info(subdev_session, &hw_dp_req, &hw_dp_info);
 	if (ret) {
 		DRM_ERROR("Failed to get dp info from FW, ret(%d)\n", ret);
 		return -1;
 	}
-	atomic_set(&v_conn->connected, hw_dp_info.connected ? 1 : 0);
+	atomic_set(&v_conn->connected, hw_dp_info.info.video_info.connected ? 1 : 0);
 	v_conn->lanes = probed_info->lanes;
 	v_conn->rate = drm_dp_rate_from_firmware(probed_info->rate);
 	v_conn->bpc = probed_info->bpc;
 	v_conn->video_format = probed_info->video_format;
-	v_conn->supported_color_formats = hw_dp_info.supported_color_formats;
-	v_conn->supported_color_depths = hw_dp_info.supported_color_depths;
+	v_conn->supported_color_formats = hw_dp_info.info.video_info.supported_color_formats;
+	v_conn->supported_color_depths = hw_dp_info.info.video_info.supported_color_depths;
 	dp->colorimetry = probed_info->colorimetry;
 	dp->dynamic_range = probed_info->dynamic_range;
-	dp->trained = hw_dp_info.trained;
+	dp->trained = hw_dp_info.info.video_info.trained;
 
 	ret = bst_virt_drm_connector_get_edid(v_conn);
 	if (!ret) {

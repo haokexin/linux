@@ -1,0 +1,137 @@
+/dts-v1/;
+/plugin/;
+
+#include "../common/isp-csi-map.dtsi"
+#include "base-isp.dtsi"
+#include "base-csi-deser-camera.dtsi"
+#include "base-desers-3max96726d.dtsi"
+
+&isp {
+	slab = "isp/common/slab-1x8b-4x3c-4x3f-1x3c.bin";
+	usage = "Front, Rear, Side, Around, 10V model, using Max96726 DPHY";
+};
+&fsync2 {
+	source = <FSYNC_INNER1>;
+	tx-pin = <7>;
+	tx-fps = <25>;
+	map-to-outer = <FSYNC_OUTER3>;
+	rx-pin = <4>;
+};
+&deser0_rx0 {
+	rx-rate = <6>;
+};
+&camera0 {
+	#include "../cameras/ox08b_raw14_hk_1920x1080.dtsi"
+	id-reg = <0x300C>;
+	id-val = <0x41>;
+	ser-pre-stream-on =
+		<0x0330 0x80>,
+		<0x0383 0x80>, // Tunnel mode
+		<0x0330 0x00>,
+		<0x0002 0x43>;
+	status = "okay";
+};
+&camera1 {
+	#include "../cameras/ox03c_raw14_hk_1920x1080.dtsi"
+	id-reg = <0x300C>;
+	id-val = <0x43>;
+	ser-pre-stream-on =
+		<0x0330 0x80>,
+		<0x0383 0x80>, // Tunnel mode
+		<0x0331 0x10>, // 2 data lanes
+		<0x0330 0x00>,
+		<0x0002 0x43>;
+	status = "okay";
+};
+&camera4 {
+	#include "../cameras/ox03c_raw14_hk_1920x1080.dtsi"
+	id-reg = <0x300C>;
+	id-val = <0x43>;
+	ser-pre-stream-on =
+		<0x0330 0x80>,
+		<0x0383 0x80>, // Tunnel mode
+		<0x0331 0x10>, // 2 data lanes
+		<0x0330 0x00>,
+		<0x0002 0x43>;
+	status = "okay";
+};
+&camera5 {
+	#include "../cameras/ox03c_raw14_hk_1920x1080.dtsi"
+	id-reg = <0x300C>;
+	id-val = <0x43>;
+	ser-pre-stream-on =
+		<0x0330 0x80>,
+		<0x0383 0x80>, // Tunnel mode
+		<0x0331 0x10>, // 2 data lanes
+		<0x0330 0x00>,
+		<0x0002 0x43>;
+	status = "okay";
+};
+&camera6 {
+	#include "../cameras/ox03c_raw14_hk_1920x1080.dtsi"
+	id-reg = <0x300C>;
+	id-val = <0x43>;
+	ser-pre-stream-on =
+		<0x0330 0x80>,
+		<0x0383 0x80>, // Tunnel mode
+		<0x0331 0x10>, // 2 data lanes
+		<0x0330 0x00>,
+		<0x0002 0x43>;
+	status = "okay";
+};
+&camera7 {
+	#include "../cameras/ox03c_raw14_hk_1920x1080.dtsi"
+	id-reg = <0x300C>;
+	id-val = <0x43>;
+	ser-pre-stream-on =
+		<0x0330 0x80>,
+		<0x0383 0x80>, // Tunnel mode
+		<0x0331 0x10>, // 2 data lanes
+		<0x0330 0x00>,
+		<0x0002 0x43>;
+	status = "okay";
+};
+&camera8 {
+	#include "../cameras/ox03f_raw12_hk_1920x1536.dtsi"
+	id-reg = <0x300C>;
+	id-val = <0x46>;
+	ser-pre-stream-on =
+		<0x0330 0x80>,
+		<0x0383 0x80>, // Tunnel mode
+		<0x0330 0x00>,
+		<0x0002 0x43>;
+	status = "okay";
+};
+&camera9 {
+	#include "../cameras/ox03f_raw12_hk_1920x1536.dtsi"
+	id-reg = <0x300C>;
+	id-val = <0x46>;
+	ser-pre-stream-on =
+		<0x0330 0x80>,
+		<0x0383 0x80>, // Tunnel mode
+		<0x0330 0x00>,
+		<0x0002 0x43>;
+	status = "okay";
+};
+&camera10 {
+	#include "../cameras/ox03f_raw12_hk_1920x1536.dtsi"
+	id-reg = <0x300C>;
+	id-val = <0x46>;
+	ser-pre-stream-on =
+		<0x0330 0x80>,
+		<0x0383 0x80>, // Tunnel mode
+		<0x0330 0x00>,
+		<0x0002 0x43>;
+	status = "okay";
+};
+&camera11 {
+	#include "../cameras/ox03f_raw12_hk_1920x1536.dtsi"
+	id-reg = <0x300C>;
+	id-val = <0x46>;
+	ser-pre-stream-on =
+		<0x0330 0x80>,
+		<0x0383 0x80>, // Tunnel mode
+		<0x0330 0x00>,
+		<0x0002 0x43>;
+	status = "okay";
+};

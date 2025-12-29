@@ -1,0 +1,12 @@
+#include <dt-bindings/media/bst-isp.h>
+
+compatible = "bst,custom_camera";
+sensor-addr = <0x36>;
+data-type = <DT_UYVY>;
+sensor-fps = <20>;
+reg-width = <BYTE_REG_BYTE_VAL>;
+ser-reg-width = <BYTE_REG_BYTE_VAL>;
+
+ser-type = <SER_MAX96701>;
+ser-fsync-tx-pin = <0>;
+ser-addr = <0x40>;

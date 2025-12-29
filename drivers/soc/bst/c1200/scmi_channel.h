@@ -5,4 +5,4 @@
 extern int scmi_read(u32 reg,u32 *val);
 extern int scmi_write(u32 reg,u32 val);
 
-#endf
+#endif

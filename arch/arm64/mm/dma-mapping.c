@@ -21,6 +21,15 @@ void arch_sync_dma_for_device(phys_addr_t paddr, size_t size,
 
 	dcache_clean_poc(start, start + size);
 }
+#ifdef CONFIG_BST_OF_DMA_NEED_SYNC_TO_POP
+void arch_sync_dma_for_device_pop(phys_addr_t paddr, size_t size,
+			   enum dma_data_direction dir)
+{
+	unsigned long start = (unsigned long)phys_to_virt(paddr);
+
+	dcache_clean_pop(start, start + size);
+}
+#endif
 
 void arch_sync_dma_for_cpu(phys_addr_t paddr, size_t size,
 			   enum dma_data_direction dir)
@@ -80,3 +89,23 @@ void arch_setup_dma_ops(struct device *dev, u64 dma_base, u64 size,
 
 	xen_setup_dma_ops(dev);
 }
+
+#ifdef CONFIG_BST_OF_DMA_NEED_SYNC_TO_POP
+void bst_arch_setup_dma_ops(struct device *dev, u64 dma_base, u64 size,
+			const struct iommu_ops *iommu, bool flag_sync_to_pop)
+{
+	int cls = cache_line_size_of_cpu();
+	if (!flag_sync_to_pop && cls > ARCH_DMA_MINALIGN)
+		panic("%s %s: ARCH_DMA_MINALIGN smaller than CTR_EL0.CWG (%d < %d)",
+		      dev_driver_string(dev), dev_name(dev), ARCH_DMA_MINALIGN,
+		      cls);
+
+	dev->dma_need_sync_to_pop = flag_sync_to_pop;
+	if (iommu) {
+		iommu_setup_dma_ops(dev, dma_base, dma_base + size - 1);
+		trace_android_rvh_iommu_setup_dma_ops(dev, dma_base, dma_base + size - 1);
+	}
+
+	xen_setup_dma_ops(dev);
+}
+#endif

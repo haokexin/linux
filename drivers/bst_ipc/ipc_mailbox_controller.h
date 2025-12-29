@@ -15,17 +15,23 @@ enum rx_mode {
 	POLL_MODE
 };
 #define RX_MODE enum rx_mode
+#define MAX_CPU 6
+#define MAX_SRC 21
 
 struct ipc_mbox {
 	struct device *dev;
 	void __iomem *event_base;
 	void __iomem *sem_base;
 	struct ipc_mempool *pool;
+	spinlock_t lock[MAX_CPU][MAX_SRC];
+
 #ifdef ON_FPGA
 	void __iomem *fpga_reset;
 	void __iomem *fpga_status;
 #endif
 };
+
+#define IPC_BASE_OFFSET 0x100000
 
 // share buffer format definition
 struct ipc_aligned_msg {
@@ -46,5 +52,7 @@ struct ipc_all_cores_register_addr // place in one page : 4096Byte
 
 int32_t ipc_send_data(struct ipc_client_info *client_info, enum ipc_core_e src,
 		      void *data);
+void * translate_address_by_system(void * addr);
+void * translate_address_by_src(enum ipc_core_e cpu_id,void * addr);
 
 #endif

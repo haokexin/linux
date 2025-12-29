@@ -72,6 +72,7 @@
  */
 #define VIDEO_MAX_FRAME               64
 #define VIDEO_MAX_PLANES               8
+#define VIDEO_MAX_VIEWS                4
 
 /*
  *	M I S C E L L A N E O U S
@@ -155,11 +156,15 @@ enum v4l2_buf_type {
 	V4L2_BUF_TYPE_META_OUTPUT	   = 14,
 	/* Deprecated, do not use */
 	V4L2_BUF_TYPE_PRIVATE              = 0x80,
+	V4L2_BUF_TYPE_VIDEO_CAPTURE_MVIEW  = 0x81,
 };
 
 #define V4L2_TYPE_IS_MULTIPLANAR(type)			\
 	((type) == V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE	\
 	 || (type) == V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE)
+
+#define V4L2_TYPE_IS_MULTIVIEW(type) \
+	((type) == V4L2_BUF_TYPE_VIDEO_CAPTURE_MVIEW)
 
 #define V4L2_TYPE_IS_OUTPUT(type)				\
 	((type) == V4L2_BUF_TYPE_VIDEO_OUTPUT			\
@@ -836,6 +841,8 @@ struct v4l2_pix_format {
 /* Flags */
 #define V4L2_PIX_FMT_FLAG_PREMUL_ALPHA	0x00000001
 #define V4L2_PIX_FMT_FLAG_SET_CSC	0x00000002
+#define V4L2_PIX_FMT_FLAG_META_ENABLED	0x40000000
+#define V4L2_PIX_FMT_FLAG_VIEW_OPENED	0x80000000
 
 /*
  *	F O R M A T   E N U M E R A T I O N
@@ -1116,10 +1123,18 @@ struct v4l2_buffer {
 		__u32           offset;
 		unsigned long   userptr;
 		struct v4l2_plane *planes;
+		struct v4l2_buffer *views;
 		__s32		fd;
 	} m;
 	__u32			length;
-	__u32			reserved2;
+	union {
+		__u32		reserved2;
+
+		struct {
+			__u8	abnormal_id;
+			__u8	rsv[3];
+		};
+	};
 	union {
 		__s32		request_fd;
 		__u32		reserved;
@@ -1202,7 +1217,10 @@ static inline __u64 v4l2_timeval_to_ns(const struct timeval *tv)
 struct v4l2_exportbuffer {
 	__u32		type; /* enum v4l2_buf_type */
 	__u32		index;
-	__u32		plane;
+	union {
+		__u32	plane;
+		__u32	view;
+	};
 	__u32		flags;
 	__s32		fd;
 	__u32		reserved[11];
@@ -2401,6 +2419,7 @@ struct v4l2_meta_format {
  * @type:	enum v4l2_buf_type; type of the data stream
  * @pix:	definition of an image format
  * @pix_mp:	definition of a multiplanar image format
+ * @pix_mv:	definition of a multi-view image format
  * @win:	definition of an overlaid image
  * @vbi:	raw VBI capture or output parameters
  * @sliced:	sliced VBI capture or output parameters
@@ -2413,6 +2432,8 @@ struct v4l2_format {
 	union {
 		struct v4l2_pix_format		pix;     /* V4L2_BUF_TYPE_VIDEO_CAPTURE */
 		struct v4l2_pix_format_mplane	pix_mp;  /* V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE */
+		/* V4L2_BUF_TYPE_VIDEO_CAPTURE_MVIEW */
+		struct v4l2_pix_format		pix_mv[VIDEO_MAX_VIEWS];
 		struct v4l2_window		win;     /* V4L2_BUF_TYPE_VIDEO_OVERLAY */
 		struct v4l2_vbi_format		vbi;     /* V4L2_BUF_TYPE_VBI_CAPTURE */
 		struct v4l2_sliced_vbi_format	sliced;  /* V4L2_BUF_TYPE_SLICED_VBI_CAPTURE */
@@ -2710,5 +2731,79 @@ struct v4l2_create_buffers {
  */
 #define V4L2_CAP_ASYNCIO 0x02000000
 #endif
+
+/*
+ * BST ISP meta data
+ */
+#define MAX_SENSOR_EMBEDDED_ZONE (3)
+
+struct meta_zone {
+	__u32 offset;
+	__u32 size;
+};
+
+struct meta_desc {
+	union {
+		struct {
+			__u32 snr_exp_us;
+			__u32 reserved0[3];
+			struct meta_zone isp;
+			struct meta_zone sensor[MAX_SENSOR_EMBEDDED_ZONE];
+		};
+
+		__u8 reserved[512];
+	};
+};
+
+/*
+ * WARN: The following is deprecated BST definitions,
+ * kept for backwards compatibility, DO NOT use in new app.
+ */
+#define MAX_CAMERA_NAME_SIZE	 (16)
+#define MAX_VIEWS_PER_CAMERA	 (3)
+
+struct view_format {
+	__u32 sizeimage;
+	__u32 bytesperline;
+	__u32 pixelformat;
+	__u16 width;
+	__u16 height;
+} __packed;
+
+struct abnormal_info {
+	__u8 id;
+	__u8 type;
+	__u32 last_good_sn;
+	__u32 total_bad_frames;
+	__u32 total_frames;
+} __packed;
+
+struct camera_info {
+	char name[MAX_CAMERA_NAME_SIZE];
+	int id;
+	int is_streaming;
+	__u16 data_type;
+	__u16 fps;
+	__u16 raw_width;
+	__u16 raw_height;
+};
+
+struct embedded_info {
+	__u32 line_num[MAX_SENSOR_EMBEDDED_ZONE];
+	__u32 line_start[MAX_SENSOR_EMBEDDED_ZONE];
+	__u32 emd_zone_offset[MAX_SENSOR_EMBEDDED_ZONE][MAX_VIEWS_PER_CAMERA];
+};
+
+struct embedded_view_info {
+	__u8 embedded_view;
+	struct embedded_info embedded_info;
+};
+
+/* clang-format off */
+#define ISPIOC_G_ABNORMAL_INFO	_IOR('V', BASE_VIDIOC_PRIVATE + 12, struct abnormal_info)
+#define ISPIOC_G_CAMERA_INFO	_IOR('V', BASE_VIDIOC_PRIVATE + 16, struct camera_info)
+#define ISPIOC_G_EMBEDDED_INFO	_IOR('V', BASE_VIDIOC_PRIVATE + 17, struct embedded_view_info)
+#define ISPIOC_G_DATA_MODE	_IOR('V', BASE_VIDIOC_PRIVATE + 20, int)
+/* clang-format on */
 
 #endif /* _UAPI__LINUX_VIDEODEV2_H */

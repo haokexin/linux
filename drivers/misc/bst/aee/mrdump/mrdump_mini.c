@@ -64,9 +64,12 @@ static char kmsg_save[KMSG_SIZE] = {0};
 #ifdef CONFIG_VMAP_STACK
 DEFINE_PER_CPU(unsigned long [IRQ_STACK_SIZE/sizeof(long)], irq_stack)
 	__aligned(16);
+#else
+extern unsigned long irq_stack;
+#endif
+
 
 #define IRQ_STACK_PTR(cpu) ((unsigned long)per_cpu(irq_stack, cpu) + IRQ_STACK_START_SP)
-#endif
 
 #define MRDUMP_SIZE	(CONFIG_BST_MRDUMP_REGION_SIZE)
 
@@ -355,7 +358,7 @@ static void fill_prstatus(struct elf_prstatus *prstatus, struct pt_regs *regs,
 {
 	elf_core_copy_regs(&prstatus->pr_reg, regs);
 	prstatus->common.pr_pid = pid;
-	prstatus->common.pr_ppid = AEE_BST_CPU_NUMS;
+	prstatus->common.pr_ppid = num_online_cpus();
 	prstatus->common.pr_sigpend = (uintptr_t)p;
 }
 
@@ -558,7 +561,7 @@ static void mrdump_mini_add_tsk_ti(int cpu, struct pt_regs *regs,
 	else
 		ti = (struct thread_info *)tsk->stack;
 
-	bottom = (unsigned long *)(ti + sizeof(struct thread_info));
+	bottom = (unsigned long *)regs->reg_sp;
 	mrdump_mini_add_entry(regs->reg_sp, MRDUMP_MINI_SECTION_SIZE);
 	mrdump_mini_add_entry((unsigned long)ti, MRDUMP_MINI_SECTION_SIZE);
 	mrdump_mini_add_entry((unsigned long)tsk, MRDUMP_MINI_SECTION_SIZE);
@@ -567,8 +570,9 @@ static void mrdump_mini_add_tsk_ti(int cpu, struct pt_regs *regs,
 		return;
 
 #ifdef __aarch64__
-	if (on_irq_stack((unsigned long)bottom, (unsigned long)&info))
+	if (on_irq_stack((unsigned long)bottom, (unsigned long)&info)) {
 		top = (unsigned long *)IRQ_STACK_PTR(cpu);
+	}
 	else {
 		top = (unsigned long *)ALIGN((unsigned long)bottom,
 					THREAD_SIZE);
@@ -610,7 +614,7 @@ static int mrdump_mini_cpu_regs(int cpu, struct pt_regs *regs,
 
 	if (mrdump_mini_ehdr == NULL || !mrdump_addr)
 		mrdump_mini_init();
-	if (cpu >= AEE_BST_CPU_NUMS || mrdump_mini_ehdr == NULL)
+	if (cpu >= num_online_cpus() || mrdump_mini_ehdr == NULL)
 		return -1;
 	if (regs == NULL)
 		return -1;
@@ -635,7 +639,7 @@ EXPORT_SYMBOL(mrdump_mini_per_cpu_regs);
 void mrdump_mini_build_task_info(struct pt_regs *regs)
 {
 #define MAX_STACK_TRACE_DEPTH 32
-	unsigned long ipanic_stack_entries[MAX_STACK_TRACE_DEPTH];
+	unsigned long ipanic_stack_entries[MAX_STACK_TRACE_DEPTH] = {0};
 	char symbol[SYMBOL_SIZE] = {'\0'};
 	int sz;
 #ifndef CONFIG_ARCH_STACKWALK
@@ -659,8 +663,7 @@ void mrdump_mini_build_task_info(struct pt_regs *regs)
 	}
 	cur_proc = (struct aee_process_info *)((void *)mrdump_mini_ehdr +
 			MRDUMP_MINI_HEADER_SIZE);
-	if (!cur_proc)
-		return;
+
 	/* Current panic user tasks */
 	sz = 0;
 	do {
@@ -959,7 +962,7 @@ static void mrdump_mini_add_loads(void)
 
 	if (mrdump_mini_ehdr == NULL)
 		return;
-	for (id = 0; id < AEE_BST_CPU_NUMS + 1; id++) {
+	for_each_online_cpu(id) {
 		if (!strncmp(mrdump_mini_ehdr->prstatus[id].name, "NA", 2))
 			continue;
 		prstatus = &mrdump_mini_ehdr->prstatus[id].data;
@@ -977,7 +980,7 @@ static void mrdump_mini_add_loads(void)
 				mrdump_mini_add_entry((unsigned long)cpu_rq(cpu),
 						MRDUMP_MINI_SECTION_SIZE);
 			}
-		} else if (prstatus->common.pr_pid <= AEE_BST_CPU_NUMS) {
+		} else if (prstatus->common.pr_pid <= num_online_cpus()) {
 			cpu = prstatus->common.pr_pid - 1;
 			if (cpu >= 0 && cpu < num_possible_cpus()) {
 				mrdump_mini_add_tsk_ti(cpu, &regs, tsk, 0);
@@ -998,7 +1001,7 @@ static void mrdump_mini_add_loads(void)
 			MRDUMP_MINI_SECTION_SIZE);
 	mrdump_mini_add_entry((unsigned long)mem_map, MRDUMP_MINI_SECTION_SIZE);
 	if (dump_all_cpus) {
-		for (cpu = 0; cpu < AEE_BST_CPU_NUMS; cpu++) {
+		for_each_online_cpu(cpu) {
 			tsk = cpu_curr(cpu);
 			if (mrdump_virt_addr_valid(tsk))
 				ti = (struct thread_info *)tsk->stack;
@@ -1167,7 +1170,7 @@ int mrdump_mini_init(void)
 		    sizeof(struct elf_prpsinfo));
 
 	memset_io(&regs, 0, sizeof(struct pt_regs));
-	for (i = 0; i < AEE_BST_CPU_NUMS + 1; i++) {
+	for (i = 0; i < num_online_cpus() + 1; i++) {
 		fill_prstatus(&mrdump_mini_ehdr->prstatus[i].data, &regs,
 				NULL, i);
 		fill_note_S(&mrdump_mini_ehdr->prstatus[i].note, "NA",
@@ -1215,7 +1218,7 @@ void mrdump_mini_reserve_memory(void)
 			MRDUMP_MINI_HEADER_SIZE + TASK_INFO_SIZE + PSTORE_SIZE);
 }
 
-int mini_rdump_reserve_memory(struct reserved_mem *rmem)
+static int __init mini_rdump_reserve_memory(struct reserved_mem *rmem)
 {
 #ifndef DUMMY_MEMORY_LAYOUT
 	if (rmem->base != KERN_MINIDUMP_BASE ||

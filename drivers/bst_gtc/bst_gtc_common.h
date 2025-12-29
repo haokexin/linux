@@ -33,6 +33,8 @@ extern struct work_struct gtc_work;
 #define GTC_LATCH_EN_SEL		0x00000070
 #define GTC_CNTREG2_LO          0x00000090
 #define GTC_CNTREG2_HI          0x00000094
+#define GTC_CNTREG20_LO         0x00000120
+#define GTC_CNTREG20_HI         0x00000124
 #define GTC_INTR_LATCH_DATA0	0x00000180
 #define GTC_INTR_LATCH_DATA1	0x00000184
 #define GTC_SYNCBITS_SEL		0x00000200
@@ -51,8 +53,9 @@ extern struct work_struct gtc_work;
 #define GTC_IOC_MUX_CFG      _IOW(GTC_IOC_MAGIC, 3, int)
 #define GTC_IOC_GET_PARM     _IOR(GTC_IOC_MAGIC, 4, struct time_sync_parm)
 #define GTC_IOC_GET_FREQ     _IOR(GTC_IOC_MAGIC, 5, struct gtc_freq)
-#define GTC_IOC_LOG          _IOR(GTC_IOC_MAGIC, 6, int)
-#define GTC_IOC_MAXNR    7
+#define GTC_IOC_LOG          _IOW(GTC_IOC_MAGIC, 6, int)
+#define GTC_IOC_TEST_KTIME   _IOW(GTC_IOC_MAGIC, 7, u64)
+#define GTC_IOC_MAXNR    8
 
 #define GTC_WQ_DEF_CPU      2
 #define GTC_GENL_NAME       "BST_GTC_GENL"
@@ -104,6 +107,9 @@ struct bst_gtc {
     int gtc_irq;
     int mux_idx;
     int gtc_syncbit;
+    spinlock_t mono_lock;
+    spinlock_t ctm_lock;
+    u32 freq_ns;
 };
 
 struct gtc_mux_pin_t {
@@ -134,6 +140,7 @@ void gtc_latch_clear(void __iomem *ioaddr, u32 value);
 void gtc_intr_mask(void __iomem *ioaddr, u32 value);
 int gtc_mux_config(void __iomem *ioaddr, u32 value);
 int gtc_send_msg_to_user(struct time_sync_parm *msg, int len);
+int bst_gtc_get_freq(struct gtc_freq *freq_info);
 
 #ifdef CONFIG_BST_DWMAC_ETH
 extern int bstgmac_get_synctime(unsigned int gmac_idx, long long *sec, long *nsec);

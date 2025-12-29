@@ -1,4 +1,5 @@
-/* SPDX-License-Identifier: GPL-2.0+
+// SPDX-License-Identifier: GPL-2.0+
+/*
  *
  * Copyright (c) 2024 Black Sesame Technologies
  */
@@ -24,8 +25,8 @@ static void bst_lwnn_shutdown(struct platform_device *pdev);
 // globle data define
 static const struct of_device_id bst_lwnn_of_match[] = {
 	{
-	 .compatible = "bst,bst_lwnn,cma",
-	 },
+		.compatible = "bst,bst_lwnn,cma",
+	},
 	{},
 };
 
@@ -76,7 +77,8 @@ static int bst_lwnn_probe(struct platform_device *pdev)
 	if (dev_cvsmm) {
 		node = dev_of_node(dev_cvsmm);
 		if (!node) {
-			BST_LWNN_DEV_ERR(dev_cvsmm, "no device tree node found");
+			BST_LWNN_DEV_ERR(dev_cvsmm,
+					 "no device tree node found");
 			return -ENODEV;
 		}
 
@@ -92,25 +94,25 @@ static int bst_lwnn_probe(struct platform_device *pdev)
 
 	if ((bst_lwnn_msg_interface != BST_LWNN_MSG_INTERFACE_IPC) &&
 	    (bst_lwnn_msg_interface != BST_LWNN_MSG_INTERFACE_MSGBOX)) {
-		BST_LWNN_STAGE_PRINTK
-		    ("bst_lwnn msg interface is error, it should be %d or %d",
-		     BST_LWNN_MSG_INTERFACE_IPC, BST_LWNN_MSG_INTERFACE_MSGBOX);
+		BST_LWNN_STAGE_PRINTK(
+			"bst_lwnn msg interface is error, it should be %d or %d",
+			BST_LWNN_MSG_INTERFACE_IPC,
+			BST_LWNN_MSG_INTERFACE_MSGBOX);
 		return -EINVAL;
 	}
 
-	BST_LWNN_STAGE_PRINTK
-	    ("bst_lwnn driver is initializing, dsp number is %d, msg interface is %s ...",
-	     bst_lwnn_dspcnt, msg_interface_name[bst_lwnn_msg_interface]);
+	BST_LWNN_STAGE_PRINTK(
+		"bst_lwnn driver is initializing, dsp number is %d, msg interface is %s ...",
+		bst_lwnn_dspcnt, msg_interface_name[bst_lwnn_msg_interface]);
 
 	BST_LWNN_STAGE_PRINTK(
 		"BST_LWNN driver is initializing, bst_lwnn_mem_usingsmmu %d...",
-		bst_lwnn_mem_usingsmmu
-	);
+		bst_lwnn_mem_usingsmmu);
 
 	if ((bst_lwnn_dspcnt < 1) || (bst_lwnn_dspcnt > BST_LWNN_MAX_DSPNUM)) {
-		BST_LWNN_STAGE_PRINTK
-		    ("the dsp number of bst_lwnn should be between 1 and %d",
-		     BST_LWNN_MAX_DSPNUM);
+		BST_LWNN_STAGE_PRINTK(
+			"the dsp number of bst_lwnn should be between 1 and %d",
+			BST_LWNN_MAX_DSPNUM);
 		return -EINVAL;
 	}
 
@@ -232,7 +234,8 @@ static void bst_lwnn_shutdown(struct platform_device *pdev)
 		pbst_lwnn->fw_manager.dsps[i].boot = 1;
 	}
 	bst_lwnn_fw_rt_cleanup(pbst_lwnn);
-	BST_LWNN_STAGE_PRINTK("release lwnn dsp 0 ~ %d", pbst_lwnn->dsp_num - 1);
+	BST_LWNN_STAGE_PRINTK("release lwnn dsp 0 ~ %d",
+			      pbst_lwnn->dsp_num - 1);
 	BST_LWNN_STAGE_PRINTK("lwnn shutdown");
 	return;
 }
@@ -245,6 +248,9 @@ static void bst_lwnn_shutdown(struct platform_device *pdev)
  */
 static int __init bst_lwnn_driver_init(void)
 {
+	BST_LWNN_STAGE_PRINTK("LWNN version:%s,%s", _GIT_MSG_, _GIT_DATE_);
+	BST_LWNN_STAGE_PRINTK("LWNN build:  %s,%s", __DATE__, __TIME__);
+
 	return platform_driver_register(&bst_lwnn_driver);
 }
 
@@ -262,7 +268,7 @@ module_init(bst_lwnn_driver_init);
 module_exit(bst_lwnn_driver_exit);
 
 MODULE_AUTHOR("BST Ltd.");
-MODULE_DESCRIPTION
-    ("BST_LWNN: Linux device driver for Black Sesame Technologies Data Processing IP");
+MODULE_DESCRIPTION(
+	"BST_LWNN: Linux device driver for Black Sesame Technologies Data Processing IP");
 MODULE_LICENSE("GPL");
 MODULE_IMPORT_NS(DMA_BUF);

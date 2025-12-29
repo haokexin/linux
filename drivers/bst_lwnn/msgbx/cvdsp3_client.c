@@ -1,26 +1,33 @@
-// SPDX-License-Identifier: GPL-2.0 OR BSD-3-Clause
+// SPDX-License-Identifier: GPL-2.0 OR Apache 2.0
 /*
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2 of the License, or
- * (at your option) any later version.
+ * Copyright (c) 2024 Black Sesame Technologies
  *
- * This program is also distributed under the terms of the BSD 3-Clause
+ * This program is also distributed under the terms of the Apache 2.0
  * License.
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
- * Copyright (C) 2023 Black Sesame Technologies. Inc.
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 
-/* This file is auto generated for message box v1.1.0.
+/* This file is auto generated for message box v2.0.0.
  * All manual modifications will be LOST by next generation.
  * It is recommended NOT modify it.
- * Generator Version: francaidl 797e374 msgbx_ipc c468e33
  */
 
 #include "cvdsp3_client.h"
 
 // macro definitions
 #define CID ISPCV_3
+#define CCID 0
+#define CID_MASK (0x1U << 13)
 #define MAJOR 1U
 #define MINOR 0U
 
@@ -36,12 +43,14 @@ static cvdsp3_client_ext_t *s_ext;
 #ifndef IPC_RTE_BAREMETAL
 
 struct _disp_req_out_t {
+	DECL_SEM(sem)
 	uint32_t *rep;
 	cvdsp3_ErrorEnum_t *err;
 };
 #define disp_req_out_t struct _disp_req_out_t
 
 struct _disp_run_out_t {
+	DECL_SEM(sem)
 	uint32_t *status;
 	uint32_t *perf_us;
 	cvdsp3_ErrorEnum_t *err;
@@ -90,6 +99,8 @@ static void disp_req_sync_callback(
 		return;
 	*out->rep = rep;
 	*out->err = err;
+
+	IPC_SEM_POST(&out->sem);
 }
 
 static int32_t call_disp_req_sync(const uint32_t req,
@@ -108,6 +119,7 @@ static int32_t call_disp_req_sync(const uint32_t req,
 
 	if (!data || !s_ext)
 		return -ERR_APP_PARAM;
+	IPC_SEM_INIT(&out.sem, 0);
 	ser = &serdes;
 	(void)ipc_ser_init(ser);
 
@@ -118,24 +130,23 @@ static int32_t call_disp_req_sync(const uint32_t req,
 	}
 
 	// send request
-	ret = send_request(data, ser, s_ext->cid, CMD_METHOD_DISP_REQ,
-				disp_req_sync_callback, &out, ext_buf);
+	ret = send_request(data, s_ext->disp_req_registry, ser, s_ext->cid,
+			CMD_METHOD_DISP_REQ, disp_req_sync_callback, &out, ext_buf);
 	if (ret < 0 || ret >= IPC_TOKEN_NUM) {
-		IPC_LOG_ERR("send method fail %d.\n", ret);
+		IPC_LOG_ERR("send method fail %" PRId32 ".\n", ret);
 		return ret;
 	}
 
 	//wait for reply
-	reg = &data->method_registry[ret];
-	reg->disable_gc = true;
+	reg = &s_ext->disp_req_registry[ret];
 	if (timeout_ms <= 0)
-		ret = wait_on_registry(reg);
+		IPC_SEM_WAIT(&out.sem);
 	else
-		ret = timedwait_on_registry(reg, timeout_ms);
-	if (ret < 0) {
-		clear_registry(reg);
+		IPC_SEM_TIMED_WAIT(&out.sem, timeout_ms);
+	if (ret < 0)
 		IPC_LOG_ERR("wait timeout\n");
-	}
+	clear_registry(reg);
+	IPC_SEM_DESTROY(&out.sem);
 
 	return ret;
 }
@@ -147,7 +158,7 @@ static int32_t call_disp_req_async(const uint32_t req,
 				des_buf_t *ext_buf)
 {
 	int32_t ret = 0;
-#ifdef IPC_RTE_BAREMETAL
+#ifdef IPC_SHARED_SERIALIZER
 	serdes_t *ser = NULL;
 #else
 	serdes_t serdes = { 0 };
@@ -157,7 +168,7 @@ static int32_t call_disp_req_async(const uint32_t req,
 
 	if (!data || !s_ext)
 		return -ERR_APP_PARAM;
-#ifdef IPC_RTE_BAREMETAL
+#ifdef IPC_SHARED_SERIALIZER
 	ser = &data->serializer;
 #endif
 	(void)ipc_ser_init(ser);
@@ -169,45 +180,48 @@ static int32_t call_disp_req_async(const uint32_t req,
 	}
 
 	// send request
-	ret = send_request(data, ser, s_ext->cid, CMD_METHOD_DISP_REQ,
-				cb, ext, ext_buf);
+	ret = send_request(data, s_ext->disp_req_registry, ser, s_ext->cid,
+			CMD_METHOD_DISP_REQ, cb, ext, ext_buf);
 	if (ret < 0 || ret >= IPC_TOKEN_NUM) {
-		IPC_LOG_ERR("send method fail %d.\n", ret);
+		IPC_LOG_ERR("send method fail %" PRId32 ".\n", ret);
 		return ret;
 	}
 
 	return RESULT_SUCCESS;
 }
 
-static inline int32_t call_disp_req_callback(serdes_t *des)
+static inline int32_t call_disp_req_callback(des_buf_t *des)
 {
 	int32_t ret = 0;
 	callback_registration_t *reg = NULL;
 	des_buf_t *buf = NULL;
-	uint32_t len = 0;
 	com_client_data_t *data = s_data;
+	cvdsp3_disp_req_callback_t cb = NULL;
 	uint32_t rep = 0;
 	cvdsp3_ErrorEnum_t err = 0;
 
 
-	if (!des || !data)
+	if (!des || !data || !s_ext)
 		return -ERR_APP_PARAM;
 
-	reg = &data->method_registry[des->header.tok];
-	if (!reg->busy || reg->cmd != CMD_METHOD_DISP_REQ) {
+	reg = &s_ext->disp_req_registry[des->header.tok];
+	if (!reg->busy) {
 		IPC_LOG_ERR("callback registry is invalid.\n");
 		return -ERR_APP_TOK;
 	}
-	buf = reg->ext_buf ? reg->ext_buf : &data->des_buf;
-	clear_des_buf(buf);
+	if (reg->ext_buf) {
+		buf = reg->ext_buf;
+		(void)ipc_memcpy(buf, des, sizeof(des_buf_t));
+	}
+	else
+		buf = des;
+	// set info (for callback function)
 	data->info.uuid = ipc_msg_get_uuid(des->header);
-	data->info.timestamp = des->recv_end_time;
+	data->info.timestamp = des->timestamp;
 
 	// deserialize arguments
-	len = ipc_des_get_all(des, (uint8_t *)buf->data_buf);
-	if (len <= 0)
+	if (buf->unavail_data_size >= IPC_MAX_DATA_SIZE)
 		return -ERR_APP_SERDES;
-	buf->unavail_data_size = IPC_MAX_DATA_SIZE - len;
 
 	if (ret >= 0)
 		ret = deserialize_cvdsp3_ErrorEnum(buf, &err);
@@ -221,16 +235,10 @@ static inline int32_t call_disp_req_callback(serdes_t *des)
 			return -ERR_APP_SERDES;
 	}
 
-	{
 	// call callback function
-	cvdsp3_disp_req_callback_t cb = (cvdsp3_disp_req_callback_t)(reg->cb);
+	cb = (cvdsp3_disp_req_callback_t)(reg->cb);
 	if (cb)
 		cb(rep, err, reg->ext, &data->info);
-	}
-#ifndef IPC_RTE_BAREMETAL
-	notify_callback_registry(reg);
-#endif
-	clear_registry(reg);
 
 	return RESULT_SUCCESS;
 }
@@ -270,6 +278,8 @@ static void disp_run_sync_callback(
 	*out->status = status;
 	*out->perf_us = perf_us;
 	*out->err = err;
+
+	IPC_SEM_POST(&out->sem);
 }
 
 static int32_t call_disp_run_sync(const uint32_t opcode,
@@ -291,6 +301,7 @@ static int32_t call_disp_run_sync(const uint32_t opcode,
 
 	if (!data || !s_ext)
 		return -ERR_APP_PARAM;
+	IPC_SEM_INIT(&out.sem, 0);
 	ser = &serdes;
 	(void)ipc_ser_init(ser);
 
@@ -301,24 +312,23 @@ static int32_t call_disp_run_sync(const uint32_t opcode,
 	}
 
 	// send request
-	ret = send_request(data, ser, s_ext->cid, CMD_METHOD_DISP_RUN,
-				disp_run_sync_callback, &out, ext_buf);
+	ret = send_request(data, s_ext->disp_run_registry, ser, s_ext->cid,
+			CMD_METHOD_DISP_RUN, disp_run_sync_callback, &out, ext_buf);
 	if (ret < 0 || ret >= IPC_TOKEN_NUM) {
-		IPC_LOG_ERR("send method fail %d.\n", ret);
+		IPC_LOG_ERR("send method fail %" PRId32 ".\n", ret);
 		return ret;
 	}
 
 	//wait for reply
-	reg = &data->method_registry[ret];
-	reg->disable_gc = true;
+	reg = &s_ext->disp_run_registry[ret];
 	if (timeout_ms <= 0)
-		ret = wait_on_registry(reg);
+		IPC_SEM_WAIT(&out.sem);
 	else
-		ret = timedwait_on_registry(reg, timeout_ms);
-	if (ret < 0) {
-		clear_registry(reg);
+		IPC_SEM_TIMED_WAIT(&out.sem, timeout_ms);
+	if (ret < 0)
 		IPC_LOG_ERR("wait timeout\n");
-	}
+	clear_registry(reg);
+	IPC_SEM_DESTROY(&out.sem);
 
 	return ret;
 }
@@ -331,7 +341,7 @@ static int32_t call_disp_run_async(const uint32_t opcode,
 				des_buf_t *ext_buf)
 {
 	int32_t ret = 0;
-#ifdef IPC_RTE_BAREMETAL
+#ifdef IPC_SHARED_SERIALIZER
 	serdes_t *ser = NULL;
 #else
 	serdes_t serdes = { 0 };
@@ -341,7 +351,7 @@ static int32_t call_disp_run_async(const uint32_t opcode,
 
 	if (!data || !s_ext)
 		return -ERR_APP_PARAM;
-#ifdef IPC_RTE_BAREMETAL
+#ifdef IPC_SHARED_SERIALIZER
 	ser = &data->serializer;
 #endif
 	(void)ipc_ser_init(ser);
@@ -353,46 +363,49 @@ static int32_t call_disp_run_async(const uint32_t opcode,
 	}
 
 	// send request
-	ret = send_request(data, ser, s_ext->cid, CMD_METHOD_DISP_RUN,
-				cb, ext, ext_buf);
+	ret = send_request(data, s_ext->disp_run_registry, ser, s_ext->cid,
+			CMD_METHOD_DISP_RUN, cb, ext, ext_buf);
 	if (ret < 0 || ret >= IPC_TOKEN_NUM) {
-		IPC_LOG_ERR("send method fail %d.\n", ret);
+		IPC_LOG_ERR("send method fail %" PRId32 ".\n", ret);
 		return ret;
 	}
 
 	return RESULT_SUCCESS;
 }
 
-static inline int32_t call_disp_run_callback(serdes_t *des)
+static inline int32_t call_disp_run_callback(des_buf_t *des)
 {
 	int32_t ret = 0;
 	callback_registration_t *reg = NULL;
 	des_buf_t *buf = NULL;
-	uint32_t len = 0;
 	com_client_data_t *data = s_data;
+	cvdsp3_disp_run_callback_t cb = NULL;
 	uint32_t status = 0;
 	uint32_t perf_us = 0;
 	cvdsp3_ErrorEnum_t err = 0;
 
 
-	if (!des || !data)
+	if (!des || !data || !s_ext)
 		return -ERR_APP_PARAM;
 
-	reg = &data->method_registry[des->header.tok];
-	if (!reg->busy || reg->cmd != CMD_METHOD_DISP_RUN) {
+	reg = &s_ext->disp_run_registry[des->header.tok];
+	if (!reg->busy) {
 		IPC_LOG_ERR("callback registry is invalid.\n");
 		return -ERR_APP_TOK;
 	}
-	buf = reg->ext_buf ? reg->ext_buf : &data->des_buf;
-	clear_des_buf(buf);
+	if (reg->ext_buf) {
+		buf = reg->ext_buf;
+		(void)ipc_memcpy(buf, des, sizeof(des_buf_t));
+	}
+	else
+		buf = des;
+	// set info (for callback function)
 	data->info.uuid = ipc_msg_get_uuid(des->header);
-	data->info.timestamp = des->recv_end_time;
+	data->info.timestamp = des->timestamp;
 
 	// deserialize arguments
-	len = ipc_des_get_all(des, (uint8_t *)buf->data_buf);
-	if (len <= 0)
+	if (buf->unavail_data_size >= IPC_MAX_DATA_SIZE)
 		return -ERR_APP_SERDES;
-	buf->unavail_data_size = IPC_MAX_DATA_SIZE - len;
 
 	if (ret >= 0)
 		ret = deserialize_cvdsp3_ErrorEnum(buf, &err);
@@ -409,15 +422,9 @@ static inline int32_t call_disp_run_callback(serdes_t *des)
 	}
 
 	// call callback function
-	{
-	cvdsp3_disp_run_callback_t cb = (cvdsp3_disp_run_callback_t)(reg->cb);
+	cb = (cvdsp3_disp_run_callback_t)(reg->cb);
 	if (cb)
 		cb(status, perf_us, err, reg->ext, &data->info);
-	}
-#ifndef IPC_RTE_BAREMETAL
-	notify_callback_registry(reg);
-#endif
-	clear_registry(reg);
 
 	return RESULT_SUCCESS;
 }
@@ -425,7 +432,7 @@ static inline int32_t call_disp_run_callback(serdes_t *des)
 // broadcast
 
 // dispatch_broadcast
-static inline int32_t dispatch_broadcast(serdes_t *des)
+static inline int32_t dispatch_broadcast(des_buf_t *des)
 {
 	int32_t ret = 0;
 
@@ -436,7 +443,6 @@ static inline int32_t dispatch_broadcast(serdes_t *des)
 
 	default:
 		ret = -ERR_APP_UNKNOWN_CMD;
-		IPC_LOG_ERR("unknown broadcast message %d.\n", des->header.cmd);
 		break;
 	}
 
@@ -444,7 +450,7 @@ static inline int32_t dispatch_broadcast(serdes_t *des)
 }
 
 // dispatch_reply
-static inline int32_t dispatch_reply(serdes_t *des)
+static inline int32_t dispatch_reply(des_buf_t *des)
 {
 	int32_t ret = 0;
 
@@ -461,7 +467,6 @@ static inline int32_t dispatch_reply(serdes_t *des)
 
 	default:
 		ret = -ERR_APP_UNKNOWN_CMD;
-		IPC_LOG_ERR("unknown reply message %d.\n", des->header.cmd);
 		break;
 	}
 
@@ -471,7 +476,12 @@ static inline int32_t dispatch_reply(serdes_t *des)
 // register availablity changed callback function
 static int32_t register_avail_changed_cb(avail_changed_callback_t cb, void *ext)
 {
-	return reg_avail_changed_cb(s_data, cb, ext);
+	if (!s_ext)
+		return -ERR_APP_PARAM;
+
+	s_ext->avail_changed_cb = cb;
+	s_ext->avail_ext = ext;
+	return 0;
 }
 
 // initialize client
@@ -491,18 +501,22 @@ int32_t cvdsp3_client_init(com_client_data_t *data, cvdsp3_client_t *client,
 	client->disp_req_sync = call_disp_req_sync;
 #endif
 	client->disp_req_async = call_disp_req_async;
-#ifndef IPC_RTE_BAREMETAL
+(void)init_registry(ext->disp_req_registry);
+	#ifndef IPC_RTE_BAREMETAL
 	client->disp_run_sync = call_disp_run_sync;
 #endif
 	client->disp_run_async = call_disp_run_async;
+(void)init_registry(ext->disp_run_registry);
 
 
 	client->dispatch_broadcast = dispatch_broadcast;
 	client->dispatch_reply = dispatch_reply;
 
 	// set ext
-	if (ext->cid == 0)
-		ext->cid = CID;
+	ext->cid = CID;
+	ext->ccid = CCID;
+	ext->cid_mask = CID_MASK;
+	ext->status = false;
 
 	return 0;
 }

@@ -420,10 +420,18 @@ void dma_direct_sync_sg_for_device(struct device *dev,
 		if (unlikely(is_swiotlb_buffer(dev, paddr)))
 			swiotlb_sync_single_for_device(dev, paddr, sg->length,
 						       dir);
-
+#ifdef CONFIG_BST_OF_DMA_NEED_SYNC_TO_POP
+		if(dev_dma_need_sync_to_pop(dev))
+			arch_sync_dma_for_device_pop(paddr, sg->length,
+					dir);
+		else if (!dev_is_dma_coherent(dev))
+			arch_sync_dma_for_device(paddr, sg->length,
+					dir);
+#else /* CONFIG_BST_OF_DMA_NEED_SYNC_TO_POP */
 		if (!dev_is_dma_coherent(dev))
 			arch_sync_dma_for_device(paddr, sg->length,
 					dir);
+#endif
 	}
 }
 #endif

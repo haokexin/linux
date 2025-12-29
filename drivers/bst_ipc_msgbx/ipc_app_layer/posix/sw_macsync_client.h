@@ -1,33 +1,76 @@
-/* SPDX-License-Identifier: GPL-2.0 OR BSD-3-Clause
+/* SPDX-License-Identifier: GPL-2.0 OR Apache 2.0
  *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2 of the License, or
- * (at your option) any later version.
+ * Copyright (c) 2024 Black Sesame Technologies
  *
- * This program is also distributed under the terms of the BSD 3-Clause
+ * This program is also distributed under the terms of the Apache 2.0
  * License.
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
- * Copyright (C) 2023 Black Sesame Technologies. Inc.
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 
-/* This file is auto generated for message box v1.0.0.
+/* This file is auto generated for message box v2.0.0.
  * All manual modifications will be LOST by next generation.
  * It is recommended NOT modify it.
- * Generator Version: francaidl 77a2400 msgbx_ipc eb42a92
  */
 
 #ifndef SW_MACSYNC_CLIENT_H
 #define SW_MACSYNC_CLIENT_H
 
 #define IPC_RTE_KERNEL
+#ifdef IPC_RTE_KERNEL
 #include <bst/ipc_app_client_utils.h>
+#else
+#include "ipc_app_client_utils.h"
+#endif
 #include "sw_macsync_datatype.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
+/**
+ * Callback function for switch_xgmac_macsync_async method.
+ *
+
+ * @param err The error code returned by the method.
+ * @param ext The user-defined data passed to the method.
+ * @param info The extended information, containing uuid and timestamp.
+ * @note all the data are stored in ext_buf passed to async call.
+ * If ext_buf is NULL, internal buffer will be used.
+ * Please note that, the internal buffer is shared by all callbacks.
+ * The data MAY CHANGED after leaving the callback function.
+ */
+typedef void (*sw_macsync_switch_xgmac_macsync_callback_t)(
+				const sw_macsync_ErrorEnum_t err,
+				void *ext,
+				const ext_info_t *info
+				);
+
+/**
+ * Callback function for broadcast time_offset.
+ *
+ * @param offset The output argument returned by broadcast time_offset.
+ * @param ext The user-defined data passed to the method.
+ * @param info The extended information, containing uuid and timestamp.
+ * @note all the data are stored in ext_buf passed to async call.
+ * If ext_buf is NULL, internal buffer will be used.
+ * Please note that, the internal buffer is shared by all callbacks.
+ * The data MAY CHANGED after leaving the callback function.
+ */
+typedef void (*sw_macsync_time_offset_callback_t)(
+				const int64_t offset,
+				void *ext,
+				const ext_info_t *info
+				);
 
 // Interface client
 struct _sw_macsync_client_t {
@@ -47,20 +90,82 @@ struct _sw_macsync_client_t {
 	int32_t (*register_avail_changed)(avail_changed_callback_t cb,
 					void *ext);
 
+	#ifndef IPC_RTE_BAREMETAL
 	/**
-	 * Fire and forget call to the no_reply_method.
-	 * This is one way method call. The server will NOT return.
+	 * Synchronously call the hello method.
 	 *
 	 * @param macaddr_msg The input argument of method switch_xgmac_macsync.
 	 * @param flag The input argument of method switch_xgmac_macsync.
+
+	 * @param err The error code returned by the method.
+	 * @param timeout_ms The timeout for the method call in milliseconds, less or equal to 0 means wait forever.
+	 * @param ext_buf The buffer to store the user-defined data.
 	 * @return 0 if success, negative if fail.
-	 * @note This is unreliable transmission, be used ONLY if message losing is accepted.
 	 */
-	int32_t (*switch_xgmac_macsync_fire_and_forget)(
+	int32_t (*switch_xgmac_macsync_sync)(
 					const sw_macsync_MyArray_t macaddr_msg,
-					const uint32_t flag
+					const uint32_t flag,
+					sw_macsync_ErrorEnum_t *err,
+					int64_t timeout_ms,
+					des_buf_t *ext_buf
+					);
+	#endif
+
+	/**
+	 * Asynchronously call the switch_xgmac_macsync method.
+	 *
+	 * @param macaddr_msg The input argument of method switch_xgmac_macsync.
+	 * @param flag The input argument of method switch_xgmac_macsync.
+	 * @param cb The callback function to be called when the method returns.
+	 * @param ext The user-defined data passed to the method.
+	 * @param ext_buf The buffer to store the user-defined data.
+	 * @return 0 if success, negative if fail.
+	 */
+	int32_t (*switch_xgmac_macsync_async)(
+					const sw_macsync_MyArray_t macaddr_msg,
+					const uint32_t flag,
+					sw_macsync_switch_xgmac_macsync_callback_t cb,
+					void *ext,
+					des_buf_t *ext_buf
 					);
 
+	/**
+	 * Subscribe to the time_offset broadcast.
+	 *
+	 * @param cb The callback function called when the broadcast received.
+	 * @param ext The user-defined data passed to the broadcast callback.
+	 * @param ext_buf The buffer to store the user-defined data.
+	 * @param cb2 The callback function called when the subscription is complete.
+	 * @param ext2 The user-defined data passed to the subscription callback.
+	 * @note all the data are stored in ext_buf passed to async call.
+	 * If ext_buf is NULL, internal buffer will be used.
+	 * Please note that, the internal buffer is shared by all callbacks.
+	 * The data MAY CHANGED after leaving the callback function.
+	 * @note subscribe multiple times will result in multiple callbacks, while
+	 * the broadcast registry will be overwritten by the last subscription. This
+	 * means the cb, ext, ext_buf will be overwritten by the last subscription.
+	 * cb2 and ext2 will not be affected.
+	 * @return 0 if success, negative if fail.
+	 */
+	int32_t (*time_offset_sub)(
+					sw_macsync_time_offset_callback_t cb,
+					void *ext,
+					des_buf_t *ext_buf,
+					broadcast_sub_unsub_callback_t cb2,
+					void *ext2
+					);
+
+	/**
+	 * Unsubscribe from the time_offset broadcast.
+	 *
+	 * @param cb The callback function called when the unsubscription is complete.
+	 * @param ext The user-defined data passed to the callback.
+	 * @return 0 if success, negative if fail.
+	 * @note if the subscription is not found, return -1.
+	 * @note unsubscribe multiple times will result in multiple callbacks.
+	 * cb and ext will not be affected by multiple unsubscriptions.
+	 */
+	int32_t (*time_offset_unsub)(broadcast_sub_unsub_callback_t cb, void *ext);
 
 	/**
 	 * Dispatch broadcast messages.
@@ -68,7 +173,7 @@ struct _sw_macsync_client_t {
 	 * @param des The received message package.
 	 * @return 0 if success, negative if fail.
 	 */
-	int32_t (*dispatch_broadcast)(serdes_t *des);
+	int32_t (*dispatch_broadcast)(des_buf_t *des);
 
 	/**
 	 * Dispatch reply messages.
@@ -76,7 +181,7 @@ struct _sw_macsync_client_t {
 	 * @param des The received message package.
 	 * @return 0 if success, negative if fail.
 	 */
-	int32_t (*dispatch_reply)(serdes_t *des);
+	int32_t (*dispatch_reply)(des_buf_t *des);
 };
 #define sw_macsync_client_t struct _sw_macsync_client_t
 
@@ -85,8 +190,14 @@ struct _sw_macsync_client_t {
  */
 struct _sw_macsync_client_ext_t {
 	uint8_t cid;
-	uint8_t res[7];
-
+	uint8_t ccid;
+	uint8_t status;
+	uint8_t res[5];
+	uint64_t cid_mask;
+	avail_changed_callback_t avail_changed_cb;
+	void *avail_ext;
+	callback_registration_t switch_xgmac_macsync_registry[IPC_TOKEN_NUM];
+	callback_registration_t time_offset_registry;
 };
 #define sw_macsync_client_ext_t struct _sw_macsync_client_ext_t
 

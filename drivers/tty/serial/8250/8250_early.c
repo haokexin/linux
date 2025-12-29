@@ -84,11 +84,17 @@ static void serial8250_early_out(struct uart_port *port, int offset, int value)
 	}
 }
 
+DEFINE_SPINLOCK(early_uart_spin_lock);
+
+
 static void serial_putc(struct uart_port *port, unsigned char c)
 {
 	unsigned int status;
+	unsigned long flags;
 
+	spin_lock_irqsave(&early_uart_spin_lock,flags);
 	serial8250_early_out(port, UART_TX, c);
+	spin_unlock_irqrestore(&early_uart_spin_lock, flags);
 
 	for (;;) {
 		status = serial8250_early_in(port, UART_LSR);
@@ -160,6 +166,8 @@ int __init early_serial8250_setup(struct earlycon_device *device,
 
 	if (!device->baud) {
 		struct uart_port *port = &device->port;
+
+
 		unsigned int ier;
 
 		/* assume the device was initialized, only mask interrupts */

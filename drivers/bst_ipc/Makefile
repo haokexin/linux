@@ -13,3 +13,4 @@ obj-$(CONFIG_BST_IPC)	+= ipc_msg_manager.o
 obj-$(CONFIG_BST_IPC)	+= ipc_sys.o
 obj-$(CONFIG_BST_IPC)	+= ipc_common.o
 obj-$(CONFIG_BST_IPC)	+= ipc_interface.o
+obj-$(CONFIG_BST_IPC_STRESS)	+= ipc_stress.o

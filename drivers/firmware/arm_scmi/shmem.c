@@ -16,6 +16,8 @@
 #include "common.h"
 
 
+unsigned int debug_token = 0;
+
 void shmem_tx_prepare(struct scmi_shared_mem __iomem *shmem,
 		      struct scmi_xfer *xfer, struct scmi_chan_info *cinfo)
 {
@@ -47,7 +49,10 @@ void shmem_tx_prepare(struct scmi_shared_mem __iomem *shmem,
 		return;
 	}
 
+	debug_token++;
+	
 	iowrite32(0x1234abcd, &shmem->reserved);
+	iowrite32(debug_token,&shmem->reserved1[0]);
 
 	/* Mark channel busy + clear error */
 	iowrite32(0x0, &shmem->channel_status);
@@ -59,10 +64,13 @@ void shmem_tx_prepare(struct scmi_shared_mem __iomem *shmem,
 		memcpy_toio(shmem->msg_payload, xfer->tx.buf, xfer->tx.len);
 }
 
+
+
 u32 shmem_read_header(struct scmi_shared_mem __iomem *shmem)
 {
 	return ioread32(&shmem->msg_header);
 }
+
 
 void shmem_fetch_response(struct scmi_shared_mem __iomem *shmem,
 			  struct scmi_xfer *xfer)

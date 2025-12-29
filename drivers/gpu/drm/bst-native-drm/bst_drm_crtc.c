@@ -221,6 +221,7 @@ bst_crtc_do_flush(struct drm_crtc *crtc,
 	struct bst_pipeline *slave = bcrtc->slave;
 	struct bst_wb_connector *wb_conn = bcrtc->wb_conn;
 	struct drm_connector_state *conn_st;
+	struct bst_dev *mdev = bcrtc->master->mdev;
 
 	DRM_DEBUG_ATOMIC("CRTC%d_FLUSH: active_pipes: 0x%x, affected: 0x%x.\n",
 			 drm_crtc_index(crtc),
@@ -235,6 +236,8 @@ bst_crtc_do_flush(struct drm_crtc *crtc,
 	conn_st = wb_conn ? wb_conn->base.base.state : NULL;
 	if (conn_st && conn_st->writeback_job)
 		drm_writeback_queue_job(&wb_conn->base, conn_st);
+
+	mdev->funcs->flush(mdev, bcrtc->master->id, bcrtc_st->active_pipes);
 }
 
 static void
@@ -274,40 +277,6 @@ void bst_crtc_flush_and_wait_for_flip_done(struct bst_crtc *bcrtc,
 		if (!input_flip_done) {
 			unsigned long flags;
 
-			spin_lock_irqsave(&drm->event_lock, flags);
-			bcrtc->disable_done = NULL;
-			spin_unlock_irqrestore(&drm->event_lock, flags);
-		}
-	}
-}
-
-void bst_crtc_hw_flush(struct bst_crtc *bcrtc)
-{
-	struct bst_dev *mdev = bcrtc->master->mdev;
-	mdev->funcs->flush(mdev, bcrtc->master->id, 0);
-}
-
-void bst_crtc_wait_for_hw_flip_done(struct bst_crtc *bcrtc,
-					 struct completion *input_flip_done)
-{
-	struct drm_device *drm = bcrtc->base.dev;
-	struct completion *flip_done;
-	struct completion temp;
-	int timeout;
-
-	if (input_flip_done) {
-		flip_done = input_flip_done;
-	} else {
-		init_completion(&temp);
-		bcrtc->disable_done = &temp;
-		flip_done = &temp;
-	}
-
-	timeout = wait_for_completion_timeout(flip_done, HZ);
-	if (timeout == 0) {
-		DRM_ERROR("wait pipe%d flip done timeout\n", bcrtc->master->id);
-		if (!input_flip_done) {
-			unsigned long flags;
 			spin_lock_irqsave(&drm->event_lock, flags);
 			bcrtc->disable_done = NULL;
 			spin_unlock_irqrestore(&drm->event_lock, flags);

@@ -17,16 +17,17 @@
  * limitations under the License.
  */
 
-/* This file is auto generated for message box v1.2.0.
+/* This file is auto generated for message box v2.0.0.
  * All manual modifications will be LOST by next generation.
  * It is recommended NOT modify it.
- * Generator Version: francaidl cb46a82 msgbx_ipc f2e1e48
  */
 
 #include "usb_client.h"
 
 // macro definitions
 #define CID SAFETY_0
+#define CCID 0
+#define CID_MASK (0x1U << 26)
 #define MAJOR 1U
 #define MINOR 0U
 
@@ -44,6 +45,7 @@ static usb_client_ext_t *s_ext;
 #ifndef IPC_RTE_BAREMETAL
 
 struct _usb_proxy_method_out_t {
+	DECL_SEM(sem)
 	usb_bst_virsual_msg_t **cmd_msg_ack;
 	usb_ErrorEnum_t *err;
 };
@@ -91,6 +93,8 @@ static void usb_proxy_method_sync_callback(
 		return;
 	*out->cmd_msg_ack = (usb_bst_virsual_msg_t *)cmd_msg_ack;
 	*out->err = err;
+
+	IPC_SEM_POST(&out->sem);
 }
 
 static int32_t call_usb_proxy_method_sync(const usb_bst_virsual_msg_t *cmd_msg_req,
@@ -109,6 +113,7 @@ static int32_t call_usb_proxy_method_sync(const usb_bst_virsual_msg_t *cmd_msg_r
 
 	if (!data || !s_ext)
 		return -ERR_APP_PARAM;
+	IPC_SEM_INIT(&out.sem, 0);
 	ser = &serdes;
 	(void)ipc_ser_init(ser);
 
@@ -119,24 +124,23 @@ static int32_t call_usb_proxy_method_sync(const usb_bst_virsual_msg_t *cmd_msg_r
 	}
 
 	// send request
-	ret = send_request(data, ser, s_ext->cid, CMD_METHOD_USB_PROXY_METHOD,
-				usb_proxy_method_sync_callback, &out, ext_buf);
+	ret = send_request(data, s_ext->usb_proxy_method_registry, ser, s_ext->cid,
+			CMD_METHOD_USB_PROXY_METHOD, usb_proxy_method_sync_callback, &out, ext_buf);
 	if (ret < 0 || ret >= IPC_TOKEN_NUM) {
-		IPC_LOG_ERR("send method fail %d.\n", ret);
+		IPC_LOG_ERR("send method fail %" PRId32 ".\n", ret);
 		return ret;
 	}
 
 	//wait for reply
-	reg = &data->method_registry[ret];
-	reg->disable_gc = true;
+	reg = &s_ext->usb_proxy_method_registry[ret];
 	if (timeout_ms <= 0)
-		ret = wait_on_registry(reg);
+		IPC_SEM_WAIT(&out.sem);
 	else
-		ret = timedwait_on_registry(reg, timeout_ms);
-	if (ret < 0) {
-		clear_registry(reg);
+		IPC_SEM_TIMED_WAIT(&out.sem, timeout_ms);
+	if (ret < 0)
 		IPC_LOG_ERR("wait timeout\n");
-	}
+	clear_registry(reg);
+	IPC_SEM_DESTROY(&out.sem);
 
 	return ret;
 }
@@ -170,46 +174,48 @@ static int32_t call_usb_proxy_method_async(const usb_bst_virsual_msg_t *cmd_msg_
 	}
 
 	// send request
-	ret = send_request(data, ser, s_ext->cid, CMD_METHOD_USB_PROXY_METHOD,
-				cb, ext, ext_buf);
+	ret = send_request(data, s_ext->usb_proxy_method_registry, ser, s_ext->cid,
+			CMD_METHOD_USB_PROXY_METHOD, cb, ext, ext_buf);
 	if (ret < 0 || ret >= IPC_TOKEN_NUM) {
-		IPC_LOG_ERR("send method fail %d.\n", ret);
+		IPC_LOG_ERR("send method fail %" PRId32 ".\n", ret);
 		return ret;
 	}
 
 	return RESULT_SUCCESS;
 }
 
-static inline int32_t call_usb_proxy_method_callback(serdes_t *des)
+static inline int32_t call_usb_proxy_method_callback(des_buf_t *des)
 {
 	int32_t ret = 0;
 	callback_registration_t *reg = NULL;
 	des_buf_t *buf = NULL;
-	uint32_t len = 0;
 	com_client_data_t *data = s_data;
 	usb_usb_proxy_method_callback_t cb = NULL;
 	usb_bst_virsual_msg_t *cmd_msg_ack = NULL;
 	usb_ErrorEnum_t err = 0;
 
 
-	if (!des || !data)
+	if (!des || !data || !s_ext)
 		return -ERR_APP_PARAM;
 
-	reg = &data->method_registry[des->header.tok];
-	if (!reg->busy || reg->cmd != CMD_METHOD_USB_PROXY_METHOD) {
+	reg = &s_ext->usb_proxy_method_registry[des->header.tok];
+	if (!reg->busy) {
 		IPC_LOG_ERR("callback registry is invalid.\n");
 		return -ERR_APP_TOK;
 	}
-	buf = reg->ext_buf ? reg->ext_buf : &data->des_buf;
-	clear_des_buf(buf);
+	if (reg->ext_buf) {
+		buf = reg->ext_buf;
+		(void)ipc_memcpy(buf, des, sizeof(des_buf_t));
+	}
+	else
+		buf = des;
+	// set info (for callback function)
 	data->info.uuid = ipc_msg_get_uuid(des->header);
-	data->info.timestamp = des->recv_end_time;
+	data->info.timestamp = des->timestamp;
 
 	// deserialize arguments
-	len = ipc_des_get_all(des, (uint8_t *)buf->data_buf);
-	if (len <= 0)
+	if (buf->unavail_data_size >= IPC_MAX_DATA_SIZE)
 		return -ERR_APP_SERDES;
-	buf->unavail_data_size = IPC_MAX_DATA_SIZE - len;
 
 	if (ret >= 0)
 		ret = deserialize_usb_ErrorEnum(buf, &err);
@@ -227,10 +233,6 @@ static inline int32_t call_usb_proxy_method_callback(serdes_t *des)
 	cb = (usb_usb_proxy_method_callback_t)(reg->cb);
 	if (cb)
 		cb(cmd_msg_ack, err, reg->ext, &data->info);
-#ifndef IPC_RTE_BAREMETAL
-	notify_callback_registry(reg);
-#endif
-	clear_registry(reg);
 
 	return RESULT_SUCCESS;
 }
@@ -257,13 +259,13 @@ static int32_t subscribe_usb_proxy_event(
 
 	// set registry
 	s_ext->usb_proxy_event_registry.busy = true;
-	(void)add_registry(&s_ext->usb_proxy_event_registry, (void *)cb, ext, ext_buf);
+	(void)set_registry(&s_ext->usb_proxy_event_registry, (void *)cb, ext, ext_buf);
 
 	// send request
-	ret = send_request(data, ser, s_ext->cid, CMD_METHOD_SUB_USB_PROXY_EVENT,
-				cb2, ext2, NULL);
+	ret = send_request(data, data->common_registry, ser, s_ext->cid,
+			CMD_METHOD_SUB_USB_PROXY_EVENT, cb2, ext2, NULL);
 	if (ret < 0 || ret >= IPC_TOKEN_NUM) {
-		IPC_LOG_ERR("send fail %d.\n", ret);
+		IPC_LOG_ERR("send fail %" PRId32 ".\n", ret);
 		clear_registry(&s_ext->usb_proxy_event_registry);
 		return ret;
 	}
@@ -278,27 +280,26 @@ static int32_t unsubscribe_usb_proxy_event(broadcast_sub_unsub_callback_t cb, vo
 	serdes_t *ser = NULL;
 	com_client_data_t *data = s_data;
 
-	if (!data)
+	if (!data || !s_ext || !s_ext->usb_proxy_event_registry.busy)
 		return -ERR_APP_PARAM;
 
 	ser = &data->serializer;
 
 	// send request
-	ret = send_request(data, ser, s_ext->cid, CMD_METHOD_UNSUB_USB_PROXY_EVENT,
-				cb, ext, NULL);
+	ret = send_request(data, data->common_registry, ser, s_ext->cid,
+			CMD_METHOD_UNSUB_USB_PROXY_EVENT, cb, ext, NULL);
 	if (ret < 0 || ret >= IPC_TOKEN_NUM) {
-		IPC_LOG_ERR("send fail %d.\n", ret);
+		IPC_LOG_ERR("send fail %" PRId32 ".\n", ret);
 		return ret;
 	}
 
 	return RESULT_SUCCESS;
 }
 
-static inline int32_t call_usb_proxy_event_callback(serdes_t *des)
+static inline int32_t call_usb_proxy_event_callback(des_buf_t *des)
 {
 	int32_t ret = 0;
 	des_buf_t *buf = NULL;
-	uint32_t len = 0;
 	com_client_data_t *data = s_data;
 	callback_registration_t *reg = NULL;
 	usb_usb_proxy_event_callback_t cb = NULL;
@@ -314,13 +315,15 @@ static inline int32_t call_usb_proxy_event_callback(serdes_t *des)
 	}
 
 	data->info.uuid = ipc_msg_get_uuid(des->header);
-	data->info.timestamp = des->recv_end_time;
-	buf = reg->ext_buf ? reg->ext_buf : &data->des_buf;
-	clear_des_buf(buf);
-	len = ipc_des_get_all(des, (uint8_t *)buf->data_buf);
-	if (len <= 0)
+	data->info.timestamp = des->timestamp;
+	if (reg->ext_buf) {
+		buf = reg->ext_buf;
+		(void)ipc_memcpy(buf, des, sizeof(des_buf_t));
+	}
+	else
+		buf = des;
+	if (buf->unavail_data_size >= IPC_MAX_DATA_SIZE)
 		return -ERR_APP_SERDES;
-	buf->unavail_data_size = IPC_MAX_DATA_SIZE - len;
 
 	if (ret >= 0)
 		ret = deserialize_usb_bst_virsual_msg(buf, &pub_cmd_msg);
@@ -335,7 +338,7 @@ static inline int32_t call_usb_proxy_event_callback(serdes_t *des)
 }
 
 // dispatch_broadcast
-static inline int32_t dispatch_broadcast(serdes_t *des)
+static inline int32_t dispatch_broadcast(des_buf_t *des)
 {
 	int32_t ret = 0;
 
@@ -348,7 +351,6 @@ static inline int32_t dispatch_broadcast(serdes_t *des)
 		break;
 	default:
 		ret = -ERR_APP_UNKNOWN_CMD;
-		IPC_LOG_ERR("unknown broadcast message %d.\n", des->header.cmd);
 		break;
 	}
 
@@ -356,7 +358,7 @@ static inline int32_t dispatch_broadcast(serdes_t *des)
 }
 
 // dispatch_reply
-static inline int32_t dispatch_reply(serdes_t *des)
+static inline int32_t dispatch_reply(des_buf_t *des)
 {
 	int32_t ret = 0;
 	com_client_data_t *data = s_data;
@@ -378,7 +380,6 @@ static inline int32_t dispatch_reply(serdes_t *des)
 		break;
 	default:
 		ret = -ERR_APP_UNKNOWN_CMD;
-		IPC_LOG_ERR("unknown reply message %d.\n", des->header.cmd);
 		break;
 	}
 
@@ -388,7 +389,12 @@ static inline int32_t dispatch_reply(serdes_t *des)
 // register availablity changed callback function
 static int32_t register_avail_changed_cb(avail_changed_callback_t cb, void *ext)
 {
-	return reg_avail_changed_cb(s_data, cb, ext);
+	if (!s_ext)
+		return -ERR_APP_PARAM;
+
+	s_ext->avail_changed_cb = cb;
+	s_ext->avail_ext = ext;
+	return 0;
 }
 
 // initialize client
@@ -408,6 +414,7 @@ int32_t usb_client_init(com_client_data_t *data, usb_client_t *client,
 	client->usb_proxy_method_sync = call_usb_proxy_method_sync;
 #endif
 	client->usb_proxy_method_async = call_usb_proxy_method_async;
+(void)init_registry(ext->usb_proxy_method_registry);
 
 	client->usb_proxy_event_sub = subscribe_usb_proxy_event;
 	client->usb_proxy_event_unsub = unsubscribe_usb_proxy_event;
@@ -417,8 +424,10 @@ int32_t usb_client_init(com_client_data_t *data, usb_client_t *client,
 	client->dispatch_reply = dispatch_reply;
 
 	// set ext
-	if (ext->cid == 0)
-		ext->cid = CID;
+	ext->cid = CID;
+	ext->ccid = CCID;
+	ext->cid_mask = CID_MASK;
+	ext->status = false;
 
 	return 0;
 }

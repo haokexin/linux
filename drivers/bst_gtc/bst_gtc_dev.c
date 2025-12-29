@@ -4,7 +4,7 @@
  */
 
 #include "bst_gtc_common.h"
-
+#include <bst/bst_gtc.h>
 struct time_sync_parm record;
 int bstgtc_log;
 
@@ -17,8 +17,8 @@ int bstgtc_log;
 static long bst_gtc_ioctl(struct file *filp, unsigned int cmd, unsigned long args)
 {
     int ret = 0, parm;
+    u64 cnt;
     struct bst_gtc *pbst_gtc = NULL;
-    u32 val;
     struct gtc_freq freq_info;
 
     if ((filp == NULL) || (filp->private_data == NULL)) {
@@ -65,10 +65,10 @@ static long bst_gtc_ioctl(struct file *filp, unsigned int cmd, unsigned long arg
             }
             switch (parm) {
             case 0:
-                gtc_intr_mask(pbst_gtc->addr, 0x1f);
+                gtc_intr_mask(pbst_gtc->addr, 0);
                 break;
             case 1:
-                gtc_intr_mask(pbst_gtc->addr, 0x0);
+                gtc_intr_mask(pbst_gtc->addr, 1);
                 break;
             }
             printk(KERN_DEBUG "GTC_IOC_INTR_CFG: %d\n", parm);
@@ -95,15 +95,9 @@ static long bst_gtc_ioctl(struct file *filp, unsigned int cmd, unsigned long arg
             printk(KERN_DEBUG "GTC_IOC_GET_PARM\n");
             break;
         case GTC_IOC_GET_FREQ:
-            ret = scmi_read(TOP_CRM_BASE_ADDR+GTC_REFCLK_DIV_PARA, &val);
-            if (ret < 0)
-                ret = -EINVAL;
-            freq_info.clk_div = ((val >> 24) & 0xf); 
-
-            ret = scmi_read(TOP_CRM_BASE_ADDR+GTC_REFCLK_MUX_CTRL, &val);
-            if (ret < 0)
-                ret = -EINVAL;
-            freq_info.clk_freq = ((val >> 5) & 0xf);
+            ret = bst_gtc_get_freq(&freq_info);
+            if (ret)
+                break;
 
             ret = copy_to_user((void __user *)args, &freq_info, _IOC_SIZE(cmd));
             if (ret) {
@@ -118,6 +112,14 @@ static long bst_gtc_ioctl(struct file *filp, unsigned int cmd, unsigned long arg
             }
             bstgtc_log = parm;
             printk(KERN_DEBUG "GTC_IOC_LOG %d\n", bstgtc_log);
+            break;
+        case GTC_IOC_TEST_KTIME:
+            ret = copy_from_user(&cnt, (const void *)args, _IOC_SIZE(cmd));
+            if (ret) {
+                return -EFAULT;
+            }
+            printk(KERN_DEBUG "GTC_IOC_TEST_KTIME %llu\n", cnt);
+            bst_gtc_cnt_to_sys_mono(cnt);         
             break;
         default:
             ret = -EINVAL;
@@ -144,7 +146,7 @@ int bst_gtc_miscdev_init(struct bst_gtc *pbst_gtc)
 
     snprintf(bst_gtc_dev_name, sizeof(BST_GTC_DEV_NAME) + BST_GTC_DEV_ID_LEN,
         "%s", BST_GTC_DEV_NAME);
-    printk(KERN_ERR "gtc device name: %s", bst_gtc_dev_name);
+    printk(KERN_ERR "gtc device name: %s\n", bst_gtc_dev_name);
 
     // init & register bst_cv miscdev
     pbst_gtc->miscdev.minor = MISC_DYNAMIC_MINOR;

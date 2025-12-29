@@ -25,6 +25,11 @@ int sysctl_max_rcu_stall_to_panic __read_mostly;
 #define RCU_STALL_MIGHT_DIV		8
 #define RCU_STALL_MIGHT_MIN		(2 * HZ)
 
+#ifdef CONFIG_ARCH_BST
+#include <linux/arm-smccc.h>
+#define BST_SIP_STALL_DETECT		0xC2000007
+#endif
+
 int rcu_exp_jiffies_till_stall_check(void)
 {
 	int cpu_stall_timeout = READ_ONCE(rcu_exp_cpu_stall_timeout);
@@ -564,6 +569,7 @@ static void print_other_cpu_stall(unsigned long gp_seq, unsigned long gps)
 	int ndetected = 0;
 	struct rcu_node *rnp;
 	long totqlen = 0;
+	struct arm_smccc_res res;
 
 	lockdep_assert_irqs_disabled();
 
@@ -585,6 +591,8 @@ static void print_other_cpu_stall(unsigned long gp_seq, unsigned long gps)
 			for_each_leaf_node_possible_cpu(rnp, cpu)
 				if (rnp->qsmask & leaf_node_cpu_bit(rnp, cpu)) {
 					print_cpu_stall_info(cpu);
+					/* Call the police. */
+					arm_smccc_smc(BST_SIP_STALL_DETECT, 0, cpu, 0, 0, 0, 0, 0, &res);
 					ndetected++;
 				}
 		}

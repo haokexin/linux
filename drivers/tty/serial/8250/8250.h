@@ -39,9 +39,11 @@ struct uart_8250_dma {
 	/* DMA address of the buffer in memory */
 	dma_addr_t		rx_addr;
 	dma_addr_t		tx_addr;
+	
 
 	dma_cookie_t		rx_cookie;
 	dma_cookie_t		tx_cookie;
+	
 
 	void			*rx_buf;
 
@@ -51,6 +53,12 @@ struct uart_8250_dma {
 	unsigned char		tx_running;
 	unsigned char		tx_err;
 	unsigned char		rx_running;
+
+	dma_addr_t      tx_fifo_addr; //circ buff py addr
+	struct circ_buf		xmit;     //circ buff virtual addr
+	char tx_fifo_dma_flag;
+	char tx_transfer; //0 : app dma 1: fifo dma
+	struct page *fifo_pages;
 };
 
 struct old_serial_port {
@@ -349,6 +357,10 @@ extern int serial8250_rx_dma(struct uart_8250_port *);
 extern void serial8250_rx_dma_flush(struct uart_8250_port *);
 extern int serial8250_request_dma(struct uart_8250_port *);
 extern void serial8250_release_dma(struct uart_8250_port *);
+extern int serial8250_fifo_insert_chars(struct uart_8250_port *p,const unsigned char *buf, int count);
+extern unsigned int serial8250_fifo_space(struct uart_8250_port *p);
+
+
 
 static inline void serial8250_do_prepare_tx_dma(struct uart_8250_port *p)
 {

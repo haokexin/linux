@@ -1,0 +1,12 @@
+import "safety-inf.fdepl"
+
+define com.bst.ipc.deployment for provider as thermalclient {
+	ProviderType = Client
+	RTE = LinuxKernel
+	SrcEndID = CPU_5
+	FID = F1
+	SID = 4
+	instance com.bst.ipc.safety.st_public1 {
+		DstEndID = SAFETY_0
+	}
+}

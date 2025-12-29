@@ -27,9 +27,9 @@
 
 // macro
 #define IPC_DRIVER_NAME		   "ipc_communication_mgr"
-#define IPC_CHANNEL_MAX		   8
+#define IPC_CHANNEL_MAX		   23
 #define Rx_Tx_WORK_QUEUE_FIFO_SIZE 40960
-
+#define IPC_QUEUE_IN_TIMES 10000
 /********************* function declaration ***************************/
 static void msg_dispatch(enum ipc_core_e src, enum ipc_core_e dest,
 			 struct ipc_fill_register_msg *buf, u32 len,
@@ -43,6 +43,29 @@ struct work_data {
 	enum ipc_core_e dest;
 	ktime_t timestamp;
 };
+
+
+static unsigned int send_queue_count = 0;
+static unsigned int recv_queue_count = 0;
+static unsigned int dispatch_count = 0;
+static unsigned int queue_fifo_count = 0;
+static unsigned int recv_drv_in_count = 0;
+
+module_param(send_queue_count, uint, 0644);
+MODULE_PARM_DESC(send_queue_count, "max send time");
+
+module_param(recv_queue_count, uint, 0644);
+MODULE_PARM_DESC(recv_queue_count, "max send time");
+
+module_param(dispatch_count, uint, 0644);
+MODULE_PARM_DESC(dispatch_count, "max send time");
+
+module_param(queue_fifo_count, uint, 0644);
+MODULE_PARM_DESC(queue_fifo_count, "max send time");
+
+module_param(recv_drv_in_count, uint, 0644);
+MODULE_PARM_DESC(recv_drv_in_count, "max send time");
+
 
 struct send_work_data {
 	struct work_struct work;
@@ -88,6 +111,7 @@ static void send_func(struct work_struct *work)
 	struct ipc_session *session;
 #ifdef MSG_DUMP
 	uint32_t row, col;
+	struct ipc_all_cores_register_addr *g_ipc_all_cores_register_addr_ptr = NULL;
 #endif
 
 	if (IS_ERR_OR_NULL(send_msg)) {
@@ -127,15 +151,21 @@ static void send_func(struct work_struct *work)
 
 		// send completion to interface layer to return sending result
 		// to user.
-		set_session_status(send_msg->session_id, SESSION_WAIT_SEND);
+		set_session_status(send_msg->session_id, SESSION_SENT);
 		complete(&session->tx_complete);
 
 #ifdef MSG_DUMP
 		if (save_flag[send_msg->dest] == true) {
 			row = send_msg->dest;
 			col = save_cnt[send_msg->dest] % IPC_INFO_MAX_NUM;
-			g_ipc_all_cores_register_addr->data_saved[row][col] =
-				(*(uint64_t *)(&(send_msg->data)));
+
+			g_ipc_all_cores_register_addr_ptr = (struct ipc_all_cores_register_addr *)translate_address_by_system(g_ipc_all_cores_register_addr);
+			if (!g_ipc_all_cores_register_addr_ptr) {
+					IPC_LOG_WARNING("core %d not support ipc", dest);
+					kfree(send_msg);
+					return;
+			}
+			g_ipc_all_cores_register_addr_ptr->data_saved[row][col] =(*(uint64_t *)(&(send_msg->data)));
 			++save_cnt[send_msg->dest];
 		}
 #endif
@@ -149,12 +179,22 @@ static void send_func(struct work_struct *work)
 static void recv_func(struct work_struct *work)
 {
 	struct work_data work_data;
+	
+	recv_queue_count++;
 	// in receive function, we just need to take an empty from recv msg fifo
 	while (!kfifo_is_empty(&pfifo_out)) {
+		
+		
+		queue_fifo_count++;
+		
 		if (kfifo_out(&pfifo_out, &work_data, sizeof(work_data)) != 0) {
+			
+			dispatch_count++;
+			
 			msg_dispatch(work_data.src, work_data.dest, &work_data.data,
 					work_data.data_len, work_data.timestamp);
 		}
+		
 	}
 }
 
@@ -179,8 +219,17 @@ static void msg_dispatch(enum ipc_core_e src, enum ipc_core_e dest,
 	if (save_flag[dest] == true) {
 		row = dest;
 		col = save_cnt[dest] % IPC_INFO_MAX_NUM;
-		g_ipc_all_cores_register_addr->data_saved[row][col] =
-			(*(uint64_t *)(fill_msg));
+		
+		g_ipc_all_cores_register_addr_ptr = (struct ipc_all_cores_register_addr *)translate_address_by_system(g_ipc_all_cores_register_addr);
+
+		if (!g_ipc_all_cores_register_addr_ptr) {
+				IPC_LOG_WARNING("core %d not support ipc", dest);
+				kfree(send_msg);
+				return;
+		}
+
+		g_ipc_all_cores_register_addr_ptr->data_saved[row][col]  = (*(uint64_t *)(fill_msg));
+
 		++save_cnt[dest];
 	}
 #endif
@@ -221,7 +270,7 @@ static void msg_dispatch(enum ipc_core_e src, enum ipc_core_e dest,
 			.msg.timestamp = timestamp,
 		};
 #endif
-		if (src >= IPC_CORE_DB0) {
+		if (src >= IPC_CORE_MAX) {
 			IPC_LOG_WARNING("method dispatch core %d invalid", src);
 			goto discard_msg;
 		}
@@ -361,7 +410,7 @@ static void msg_dispatch(enum ipc_core_e src, enum ipc_core_e dest,
 #endif
 
 		// free alloced msg in send func
-		set_session_status(ipc_session->id, SESSION_RECEIVED);
+		//set_session_status(ipc_session->id, SESSION_RECEIVED);
 		ret = ipc_session_msg_in(ipc_session->id, *ipc_drv_msg);
 		if (ret < 0) {
 			IPC_LOG_WARNING("reply push in session %d failed",
@@ -454,6 +503,7 @@ int32_t ipc_drv_send(enum ipc_core_e src, enum ipc_core_e dest,
 		     int32_t session_id, void *buf, uint32_t len)
 {
 	bool queue_status;
+
 	struct send_work_data *send_msg;
 
 	// search send thread queue
@@ -478,9 +528,14 @@ int32_t ipc_drv_send(enum ipc_core_e src, enum ipc_core_e dest,
 	send_msg->session_id = session_id;
 
 	INIT_WORK(&send_msg->work, send_func);
+
+
 	queue_status = queue_work(ipc_send_wq[channel_id], &send_msg->work);
-	if (!queue_status)
+	if (!queue_status){
+		IPC_LOG_ERR("send queue_work failed\n");
 		diagnose_info[session_id].send_err.queue_full += 1;
+		kfree(send_msg);
+	}
 
 	return queue_status ? 0 : -1;
 }
@@ -492,23 +547,27 @@ int32_t ipc_drv_recv(enum ipc_core_e src, enum ipc_core_e dest, void *buf,
 	int32_t ret;
 	unsigned long flag;
 
-	if (ipc_recv_wq == NULL)
+	if (ipc_recv_wq == NULL){
+		IPC_LOG_ERR("ipc_recv_wq is NULL  error !!!!!!!!!!!!!!!!!!!!!!!!!\n");
 		return 0;
+	}
 
 	work_data.data = *(struct ipc_fill_register_msg *)buf;
 	work_data.data_len = len;
 	work_data.src = src;
 	work_data.dest = dest;
 	work_data.timestamp = ktime_get_raw();
-
+	
+	recv_drv_in_count++;
 	// fifo in work_data
 	spin_lock_irqsave(&out_lock, flag);
 	if (kfifo_avail(&pfifo_out)) {
 		IPC_LOG_INFO("msg from %d kfifo in", src);
+		send_queue_count++;
 		ret = kfifo_in(&pfifo_out, &work_data, sizeof(work_data));
 		ret = queue_work(ipc_recv_wq, &ipc_recv_work);
 	} else {
-		IPC_LOG_WARNING("fifo in is overrun");
+		IPC_LOG_ERR("fifo in is overrun");
 		spin_unlock_irqrestore(&out_lock, flag);
 		return -1;
 	}

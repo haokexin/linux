@@ -36,7 +36,7 @@
 #include "xrp_address_map.h"
 #define ipc_en
 #ifdef ipc_en
-#include "sample_client.h"
+#include "audio_msgbox_client.h"
 #endif
 struct device;
 struct firmware;
@@ -59,7 +59,7 @@ struct xvp {
 	void *hw_arg;
 	unsigned n_queues;
 	#ifdef ipc_en
-	struct _sample_client_t *xrp_ipc;
+	audio_msgbox_client_t *xrp_ipc;
 	#endif
 	u32 *queue_priority;
 	struct xrp_comm *queue;

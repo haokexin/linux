@@ -105,6 +105,7 @@ static void tsdev_dev_release(struct device *dev)
 
 	ts_dev = container_of(dev, struct ts_dev, dev);
 	kfree(ts_dev);
+	ts_dev = NULL;
 }
 
 static struct ts_dev *get_free_ts_dev(struct bst_ts_data *ts)
@@ -133,8 +134,10 @@ static void put_ts_dev(struct ts_dev *ts_dev, bool del_cdev)
 	spin_lock(&ts_dev_list_lock);
 	list_del(&ts_dev->list);
 	spin_unlock(&ts_dev_list_lock);
-	if (del_cdev)
+	if (del_cdev) {
 		cdev_device_del(&ts_dev->cdev, &ts_dev->dev);
+		touch_dev_free_minor(MINOR(ts_dev->dev.devt));
+	}
 	put_device(&ts_dev->dev);
 }
 
@@ -225,7 +228,7 @@ int bst_touch_cdev_init(struct bst_ts_data *ts, struct file_operations *fops)
 	devid = MKDEV(major, minor);
 	ts->devt = devid;
 
-	dev_info(&ts->pdev->dev, "Devname: %s, major: %d, minor: %d devt: 0x%x\n", TOUCH_DEV_NAME, major, minor, devid);
+	dev_dbg(&ts->pdev->dev, "Devname: %s, major: %d, minor: %d devt: 0x%x\n", TOUCH_DEV_NAME, major, minor, devid);
 
 	ts_dev = get_free_ts_dev(ts);
 	if (IS_ERR(ts_dev)) {
@@ -250,8 +253,8 @@ int bst_touch_cdev_init(struct bst_ts_data *ts, struct file_operations *fops)
 	dev_set_name(&ts_dev->dev, TOUCH_DEV_NAME"%d", dev_no);
 
 	retval = cdev_device_add(&ts_dev->cdev, &ts_dev->dev);
-		if (retval)
-			goto err_put_ts_dev;
+	if (retval)
+		goto err_put_ts_dev;
 
 	pr_info("Touch dev: touchscreen [%s] registered as minor %d\n",
 		 ts->uniq, MINOR(ts->devt));
@@ -262,9 +265,10 @@ err_put_ts_dev:
 err_free_minor:
 	touch_dev_free_minor(minor);
 err_quit:
+	pr_err ("Touch dev: Failed to initialize touchscreen [%s]\n", ts->uniq);
 	return retval;
 }
-EXPORT_SYMBOL(bst_touch_cdev_init);
+EXPORT_SYMBOL_GPL(bst_touch_cdev_init);
 
 /**
  * bst_touch_cdev_remove - Remove the character device for the touch screen
@@ -281,11 +285,10 @@ void bst_touch_cdev_remove(struct bst_ts_data *ts)
 	if (!ts_dev)
 		return;
 
-	cdev_device_del(&ts_dev->cdev, &ts_dev->dev);
-	touch_dev_free_minor(MINOR(ts_dev->dev.devt));
 	put_ts_dev(ts_dev, true);
+	pr_info("Touch dev: touchscreen [%s] unregistered\n", ts->uniq);
 }
-EXPORT_SYMBOL(bst_touch_cdev_remove);
+EXPORT_SYMBOL_GPL(bst_touch_cdev_remove);
 
 /**
  * bst_ts_dev_init - Initialize the touch screen device subsystem

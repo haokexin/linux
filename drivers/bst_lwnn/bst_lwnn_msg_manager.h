@@ -1,4 +1,5 @@
-/* SPDX-License-Identifier: GPL-2.0+
+// SPDX-License-Identifier: GPL-2.0+
+/*
  *
  * Copyright (c) 2024 Black Sesame Technologies
  */
@@ -30,7 +31,7 @@ struct bst_lwnn_xchg {
 	} result;
 	struct bst_lwnn_msg_xchg *xchg;
 	struct completion complete;
-	struct list_head link;	// work list link
+	struct list_head link; // work list link
 };
 
 struct bst_lwnn_dsp_msg_ctl {
@@ -59,7 +60,7 @@ struct bst_lwnn_msg_manager {
 };
 
 int bst_lwnn_msg_send(struct bst_lwnn *pbst_lwnn, int dsp, uint32_t data);
-int bst_lwnn_msg_recv(struct bst_lwnn *pbst_lwnn, int dsp, uint32_t * data,
+int bst_lwnn_msg_recv(struct bst_lwnn *pbst_lwnn, int dsp, uint32_t *data,
 		      int timeout);
 int bst_lwnn_msg_xchg(struct bst_lwnn *pbst_lwnn,
 		      struct bst_lwnn_msg_xchg *msg_xchg);
@@ -68,5 +69,6 @@ void bst_lwnn_msg_manager_probe_init(struct bst_lwnn *pbst_lwnn);
 void bst_lwnn_msg_manager_cleanup(struct bst_lwnn *pbst_lwnn);
 void bst_lwnn_msg_manager_exit(struct bst_lwnn *pbst_lwnn);
 bool bst_lwnn_msg_is_bootdone(struct bst_lwnn *pbst_lwnn, int target);
+int bst_lwnn_msg_psm_enabled_status(struct bst_lwnn *pbst_lwnn);
 
 #endif

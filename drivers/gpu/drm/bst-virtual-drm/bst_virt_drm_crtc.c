@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-2.0
+// SPDX-License-Identifier: GPL-2.0+
 /*
  * (C) COPYRIGHT 2018 ARM Limited. All rights reserved.
  * Author: James.Qian.Wang <james.qian.wang@arm.com>
@@ -121,10 +121,18 @@ void bst_crtc_handle_event(struct bst_crtc *bcrtc, struct bst_virt_events *evts)
 		if (bcrtc->disable_done) {
 			complete_all(bcrtc->disable_done);
 			bcrtc->disable_done = NULL;
+			DRM_DEBUG_DRIVER("CRTC[%d]: pipe%d FLIP is disable done!\n", drm_crtc_index(&bcrtc->base), bcrtc->master->pipe_id);
 		} else if (crtc->state->event) {
 			event = crtc->state->event;
+			/*
+			 * Consume event before notifying drm core that flip
+			 * happened.
+			 */
 			crtc->state->event = NULL;
 			drm_crtc_send_vblank_event(crtc, event);
+		} else {
+			DRM_DEBUG_DRIVER("CRTC[%d]: FLIP happened but no pending commit.\n",
+				 drm_crtc_index(&bcrtc->base));
 		}
 		spin_unlock_irqrestore(&crtc->dev->event_lock, flags);
 	}
@@ -137,7 +145,7 @@ static void bst_crtc_do_flush(struct drm_crtc *crtc, struct drm_crtc_state *old)
 	struct bst_virt_pipe *master = bcrtc->master;
 	struct bst_wb_connector *wb_conn = bcrtc->wb_conn;
 	struct drm_connector_state *conn_st;
-	struct bst_virt_device *dc_dev = master->subdevs[BST_VIRT_DC_IDX];
+	//struct bst_virt_device *dc_dev = master->subdevs[BST_VIRT_DC_IDX];
 
 	DRM_DEBUG_ATOMIC("CRTC%d_FLUSH: active_pipes: 0x%x, affected: 0x%x.\n",
 			 drm_crtc_index(crtc), bcrtc_st->active_pipes,
@@ -150,10 +158,7 @@ static void bst_crtc_do_flush(struct drm_crtc *crtc, struct drm_crtc_state *old)
 	if (conn_st && conn_st->writeback_job)
 		drm_writeback_queue_job(&wb_conn->base, conn_st);
 
-	if (dc_dev->first_flush) {
-		dc_dev->funcs->flush(dc_dev);
-		dc_dev->first_flush = false;
-	}
+	//dc_dev->funcs->flush(dc_dev);
 }
 
 static void
@@ -162,6 +167,7 @@ bst_crtc_atomic_enable(struct drm_crtc *crtc,
 {
 	struct drm_crtc_state *old = drm_atomic_get_old_crtc_state(state,
 								   crtc);
+
 	pm_runtime_get_sync(crtc->dev->dev);
 	drm_crtc_vblank_on(crtc);
 	WARN_ON(drm_crtc_vblank_get(crtc));
@@ -190,15 +196,23 @@ void bst_crtc_wait_for_hw_flip_done(struct bst_crtc *bcrtc,
 		flip_done = &temp;
 	}
 
-	timeout = wait_for_completion_timeout(flip_done, HZ);
+	timeout = wait_for_completion_timeout(flip_done, HZ * 0.3);
 	if (timeout == 0) {
-		DRM_ERROR("wait pipe-%d flip done timeout\n", bcrtc->master->pipe_id);
+		unsigned long flags;
+		struct drm_crtc *crtc = &bcrtc->base;
+		struct drm_pending_vblank_event *event;
+
+		DRM_INFO("[%s]wait pipe-%d flip done timeout 300ms, send evt.\n", __func__, bcrtc->master->pipe_id);
+		spin_lock_irqsave(&drm->event_lock, flags);
+		event = crtc->state->event;
+		crtc->state->event = NULL;
+		if (event)
+			drm_crtc_send_vblank_event(crtc, event);
+
 		if (!input_flip_done) {
-			unsigned long flags;
-			spin_lock_irqsave(&drm->event_lock, flags);
 			bcrtc->disable_done = NULL;
-			spin_unlock_irqrestore(&drm->event_lock, flags);
 		}
+		spin_unlock_irqrestore(&drm->event_lock, flags);
 	}
 }
 
@@ -394,6 +408,7 @@ bst_crtc_atomic_duplicate_state(struct drm_crtc *crtc)
 
 	new->affected_pipes = old->active_pipes;
 	new->clock_ratio = old->clock_ratio;
+	new->en_scaling = old->en_scaling;
 
 	return &new->base;
 }
@@ -449,7 +464,7 @@ int bst_kms_setup_crtcs(struct bst_kms_dev *kms,
 		master = super_dev->pipelines[i];
 		crtc->master = master;
 
-		DRM_INFO("CRTC-%d: master(pipe-%d)\n", kms->n_crtcs,
+		DRM_DEBUG("CRTC-%d: master(pipe-%d)\n", kms->n_crtcs,
 			 master->pipe_id);
 
 		kms->n_crtcs++;

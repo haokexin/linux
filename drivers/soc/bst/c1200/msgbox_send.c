@@ -1,5 +1,7 @@
 #include "msgbox_send.h"
 
+
+
 // local variables
 static msgbox_send_t* s_data = NULL;
 static _Atomic volatile uint8_t s_token = 0;
@@ -31,7 +33,7 @@ static inline int32_t serialize_scmi_msg(serdes_t* ser, const uint64_t addr)
     int32_t ret = 0;
     if (ret >= 0)
     {
-        ret = ipc_ser_put(ser, (uint8_t*)&addr, sizeof(uint64_t));
+        ret = ipc_ser_put_64(ser, &addr);
     }
     
     if (ret < 0)
@@ -45,7 +47,7 @@ static inline int32_t serialize_param(serdes_t* ser, const uint8_t param)
     int32_t ret = 0;
     if (ret >= 0)
     {
-        ret = ipc_ser_put(ser, (uint8_t*)&param, sizeof(uint8_t));
+        ret = ipc_ser_put_8(ser, &param);
     }
     
     if (ret < 0)
@@ -103,7 +105,7 @@ msgbox_send_client_t *msgbox_client_init(void)
     PID = setup_max_cpus >= 2 ? PID : current->thread_info.cpu + msgbx_get_start_pid();
 
     // create client handle.
-    ret = ipc_trans_layer_proxy_create_handle(PID, FID, SID, CID, &s_data->handle);
+    ret = ipc_trans_layer_proxy_create_handle(PID, FID, SID, CID, 0, &s_data->handle);
     if (ret < 0)
         return NULL;
 

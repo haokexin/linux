@@ -1,4 +1,5 @@
-/* SPDX-License-Identifier: GPL-2.0+
+// SPDX-License-Identifier: GPL-2.0+
+/*
  *
  * Copyright (c) 2024 Black Sesame Technologies
  */
@@ -30,8 +31,7 @@
  */
 static int bst_lwnn_ioctl_buf_alloc(struct file *filp,
 				    struct bst_lwnn *pbst_lwnn,
-				    struct bst_lwnn_user_buffer __user *
-				    ubuffer)
+				    struct bst_lwnn_user_buffer __user *ubuffer)
 {
 	struct bst_lwnn_user_buffer buffer;
 	int ret;
@@ -77,32 +77,34 @@ static int bst_lwnn_ioctl_buf_alloc(struct file *filp,
  */
 static int bst_lwnn_ioctl_buf_flush(struct file *filp,
 				    struct bst_lwnn *pbst_lwnn,
-				    struct bst_lwnn_user_buffer __user *
-				    ubuffer)
+				    struct bst_lwnn_user_buffer __user *pbuffer)
 {
+	int ret;
 	struct bst_lwnn_user_buffer buffer;
+	struct bst_lwnn_mem_manager *pmman;
+	struct device *pdev;
 
-	BST_LWNN_TRACE_PRINTK("enter, user ptr: %px", ubuffer);
+	pmman = &pbst_lwnn->mem_manager;
+	pdev = &pbst_lwnn->pdev->dev;
 
-	if (pbst_lwnn->mem_manager.enable_smmu) {
-		/*
-		1. if cmn off, mmap using dma_mmap_attr with no cache
-		2. if cmn on,  cmn will ensure memory coherence.
-		 */
-		return 0;
-	}
-
-	if (copy_from_user(&buffer, ubuffer, sizeof(buffer))) {
-		BST_LWNN_DEV_ERR(&pbst_lwnn->pdev->dev,
-				 "copy_from_user failed");
+	BST_LWNN_TRACE_PRINTK("enter, user ptr: %px", pbuffer);
+	if (copy_from_user(&buffer, pbuffer, sizeof(buffer))) {
+		BST_LWNN_DEV_ERR(pdev, "copy_from_user failed");
 		return -EFAULT;
 	}
-	dma_sync_single_for_device(
-		pbst_lwnn->mem_manager.pdev,
-		bus_to_dma(buffer.bus_addr),
-		buffer.size,
-		DMA_TO_DEVICE
-	);
+
+	if (pmman->enable_smmu) {
+		ret = bst_lwnn_dma_buf_flush(filp, pbst_lwnn, &buffer);
+		if (ret != 0) {
+			BST_LWNN_DEV_ERR(pdev, "dma buf flush failed!");
+			return -EFAULT;
+		}
+		return 0;
+	} else {
+		dma_sync_single_for_device(pbst_lwnn->mem_manager.pdev,
+					   bus_to_dma(buffer.bus_addr),
+					   buffer.size, DMA_TO_DEVICE);
+	}
 
 	BST_LWNN_TRACE_PRINTK("exit");
 	return 0;
@@ -113,40 +115,41 @@ static int bst_lwnn_ioctl_buf_flush(struct file *filp,
  *              buffer by invalidating its cache.
  * @param[in]   filp The misc device file descriptor
  * @param[in]   pbst_lwnn The bst_lwnn driver
- * @param[in]   ubuffer The user pointer to the synchronized user buffer
+ * @param[in]   pbuffer The user pointer to the synchronized user buffer
  *              inforamtion
  * @return      0 - success
  *              Error code - failure
  */
-static int bst_lwnn_ioctl_buf_invalidate(struct file *filp,
-					 struct bst_lwnn *pbst_lwnn,
-					 struct bst_lwnn_user_buffer __user *
-					 ubuffer)
+static int
+bst_lwnn_ioctl_buf_invalidate(struct file *filp, struct bst_lwnn *pbst_lwnn,
+			      struct bst_lwnn_user_buffer __user *pbuffer)
 {
+	int ret;
 	struct bst_lwnn_user_buffer buffer;
+	struct bst_lwnn_mem_manager *pmman;
+	struct device *pdev;
 
-	BST_LWNN_TRACE_PRINTK("enter, user ptr: %px", ubuffer);
+	pmman = &pbst_lwnn->mem_manager;
+	pdev = &pbst_lwnn->pdev->dev;
 
-	if (pbst_lwnn->mem_manager.enable_smmu) {
-		/*
-		1. if cmn off, mmap using dma_mmap_attr with no cache
-		2. if cmn on,  cmn will ensure memory coherence.
-		 */
-		return 0;
-	}
-
-	if (copy_from_user(&buffer, ubuffer, sizeof(buffer))) {
-		BST_LWNN_DEV_ERR(&pbst_lwnn->pdev->dev,
-				 "copy_from_user failed");
+	BST_LWNN_TRACE_PRINTK("enter, user ptr: %px", pbuffer);
+	if (copy_from_user(&buffer, pbuffer, sizeof(buffer))) {
+		BST_LWNN_DEV_ERR(pdev, "copy_from_user failed");
 		return -EFAULT;
 	}
 
-	dma_sync_single_for_cpu(
-		pbst_lwnn->mem_manager.pdev,
-		bus_to_dma(buffer.bus_addr),
-		buffer.size,
-		DMA_FROM_DEVICE
-	);
+	if (pmman->enable_smmu) {
+		ret = bst_lwnn_dma_buf_invalidate(filp, pbst_lwnn, &buffer);
+		if (ret != 0) {
+			BST_LWNN_DEV_ERR(pdev, "dma buf invalidate failed!");
+			return -EFAULT;
+		}
+		return 0;
+	} else {
+		dma_sync_single_for_cpu(pbst_lwnn->mem_manager.pdev,
+					bus_to_dma(buffer.bus_addr),
+					buffer.size, DMA_FROM_DEVICE);
+	}
 
 	BST_LWNN_TRACE_PRINTK("exit");
 	return 0;
@@ -161,7 +164,7 @@ static int bst_lwnn_ioctl_buf_invalidate(struct file *filp,
  */
 static int bst_lwnn_ioctl_buf_free(struct file *filp,
 				   struct bst_lwnn *pbst_lwnn,
-				   struct bst_lwnn_user_buffer __user * ubuffer)
+				   struct bst_lwnn_user_buffer __user *ubuffer)
 {
 	struct bst_lwnn_user_buffer buffer;
 	int ret;
@@ -186,9 +189,9 @@ static int bst_lwnn_ioctl_buf_free(struct file *filp,
 	return ret;
 }
 
-static int bst_lwnn_ioctl_cma_buf_import(struct bst_lwnn *pbst_lwnn,
-					 struct bst_lwnn_cma_buf __user *
-					 ubuffer)
+static int
+bst_lwnn_ioctl_cma_buf_import(struct file *filp, struct bst_lwnn *pbst_lwnn,
+			      struct bst_lwnn_cma_buf __user *ubuffer)
 {
 	struct bst_lwnn_cma_buf buffer;
 	int ret;
@@ -207,7 +210,7 @@ static int bst_lwnn_ioctl_cma_buf_import(struct bst_lwnn *pbst_lwnn,
 		return -EFAULT;
 	}
 
-	ret = bst_lwnn_cma_buf_import(pbst_lwnn, &buffer);
+	ret = bst_lwnn_cma_buf_import(filp, pbst_lwnn, &buffer);
 	if (ret != 0) {
 		return ret;
 	} else {
@@ -217,7 +220,7 @@ static int bst_lwnn_ioctl_cma_buf_import(struct bst_lwnn *pbst_lwnn,
 	ret = copy_to_user(ubuffer, &buffer, sizeof(buffer));
 	if (ret != 0) {
 		BST_LWNN_DEV_ERR(&pbst_lwnn->pdev->dev, "copy_to_user failed!");
-		bst_lwnn_cma_buf_return(pbst_lwnn, &buffer);
+		bst_lwnn_cma_buf_return(filp, pbst_lwnn, &buffer);
 		return -EFAULT;
 	}
 
@@ -225,9 +228,9 @@ static int bst_lwnn_ioctl_cma_buf_import(struct bst_lwnn *pbst_lwnn,
 	return ret;
 }
 
-static int bst_lwnn_ioctl_cma_buf_return(struct bst_lwnn *pbst_lwnn,
-					 struct bst_lwnn_cma_buf __user *
-					 ubuffer)
+static int
+bst_lwnn_ioctl_cma_buf_return(struct file *filp, struct bst_lwnn *pbst_lwnn,
+			      struct bst_lwnn_cma_buf __user *ubuffer)
 {
 	struct bst_lwnn_cma_buf buffer;
 	int ret;
@@ -245,7 +248,7 @@ static int bst_lwnn_ioctl_cma_buf_return(struct bst_lwnn *pbst_lwnn,
 	}
 	BST_LWNN_TRACE_PRINTK("buffer addr: 0x%x", buffer.bus_addr);
 
-	ret = bst_lwnn_cma_buf_return(pbst_lwnn, &buffer);
+	ret = bst_lwnn_cma_buf_return(filp, pbst_lwnn, &buffer);
 
 	BST_LWNN_TRACE_PRINTK("exit");
 	return ret;
@@ -258,9 +261,9 @@ static int bst_lwnn_ioctl_cma_buf_return(struct bst_lwnn *pbst_lwnn,
  * @return          0 - success
  *                  Error code - failure
  */
-static int bst_lwnn_ioctl_dma_buf_import(struct bst_lwnn *pbst_lwnn,
-					 struct bst_lwnn_dma_buf __user *
-					 ubuffer)
+static int
+bst_lwnn_ioctl_dma_buf_import(struct file *filp, struct bst_lwnn *pbst_lwnn,
+			      struct bst_lwnn_dma_buf __user *ubuffer)
 {
 	struct bst_lwnn_dma_buf buffer;
 	int ret;
@@ -274,7 +277,7 @@ static int bst_lwnn_ioctl_dma_buf_import(struct bst_lwnn *pbst_lwnn,
 		return -EFAULT;
 	}
 
-	ret = bst_lwnn_dma_buf_import(pbst_lwnn, &buffer);
+	ret = bst_lwnn_dma_buf_import(filp, pbst_lwnn, &buffer);
 	if (ret != 0) {
 		return ret;
 	} else {
@@ -284,7 +287,7 @@ static int bst_lwnn_ioctl_dma_buf_import(struct bst_lwnn *pbst_lwnn,
 	ret = copy_to_user(ubuffer, &buffer, sizeof(buffer));
 	if (ret != 0) {
 		BST_LWNN_DEV_ERR(&pbst_lwnn->pdev->dev, "copy_to_user failed!");
-		bst_lwnn_dma_buf_return(pbst_lwnn, &buffer);
+		bst_lwnn_dma_buf_return(filp, pbst_lwnn, &buffer);
 		return -EFAULT;
 	}
 
@@ -300,20 +303,22 @@ static int bst_lwnn_ioctl_dma_buf_import(struct bst_lwnn *pbst_lwnn,
  *                  Error code - failure
  */
 static int bst_lwnn_ioctl_dma_buf_export(struct file *filp,
-										 struct bst_lwnn *pbst_lwnn,
-										 struct bst_lwnn_dma_buf __user * buf)
+					 struct bst_lwnn *pbst_lwnn,
+					 struct bst_lwnn_dma_buf __user *buf)
 {
 	int ret;
 	struct bst_lwnn_dma_buf buffer;
 	ret = copy_from_user(&buffer, buf, sizeof(buffer));
 	if (ret != 0) {
-		BST_LWNN_DEV_ERR(&pbst_lwnn->pdev->dev, "copy_from_user failed!");
+		BST_LWNN_DEV_ERR(&pbst_lwnn->pdev->dev,
+				 "copy_from_user failed!");
 		return -EFAULT;
 	}
 
 	ret = bst_lwnn_dma_buf_export(filp, pbst_lwnn, &buffer);
 	if (ret != 0) {
-		BST_LWNN_DEV_ERR(&pbst_lwnn->pdev->dev, "dma buf export failed!");
+		BST_LWNN_DEV_ERR(&pbst_lwnn->pdev->dev,
+				 "dma buf export failed!");
 		return -EFAULT;
 	}
 	BST_LWNN_TRACE_PRINTK("exp fd: %d", buffer.fd);
@@ -335,9 +340,9 @@ static int bst_lwnn_ioctl_dma_buf_export(struct file *filp,
  * @return      0 - success
  *              Error code - failure
  */
-static int bst_lwnn_ioctl_dma_buf_return(struct bst_lwnn *pbst_lwnn,
-					 struct bst_lwnn_dma_buf __user *
-					 ubuffer)
+static int
+bst_lwnn_ioctl_dma_buf_return(struct file *filp, struct bst_lwnn *pbst_lwnn,
+			      struct bst_lwnn_dma_buf __user *ubuffer)
 {
 	struct bst_lwnn_dma_buf buffer;
 	int ret;
@@ -352,7 +357,7 @@ static int bst_lwnn_ioctl_dma_buf_return(struct bst_lwnn *pbst_lwnn,
 	}
 	BST_LWNN_TRACE_PRINTK("buffer addr: 0x%x", buffer.bus_addr);
 
-	ret = bst_lwnn_dma_buf_return(pbst_lwnn, &buffer);
+	ret = bst_lwnn_dma_buf_return(filp, pbst_lwnn, &buffer);
 
 	BST_LWNN_TRACE_PRINTK("exit");
 	return ret;
@@ -370,7 +375,7 @@ static int bst_lwnn_ioctl_dma_buf_return(struct bst_lwnn *pbst_lwnn,
  *                  Error code  - failure
  */
 static int bst_lwnn_ioctl_msg_xchg(struct bst_lwnn *pbst_lwnn,
-				   struct bst_lwnn_msg_xchg __user * pmsg_xchg)
+				   struct bst_lwnn_msg_xchg __user *pmsg_xchg)
 {
 	int ret;
 	struct bst_lwnn_msg_xchg msg_xchg;
@@ -389,8 +394,8 @@ static int bst_lwnn_ioctl_msg_xchg(struct bst_lwnn *pbst_lwnn,
 		return ret;
 	}
 
-	ret =
-	    copy_to_user(&pmsg_xchg->rsp, &msg_xchg.rsp, sizeof(msg_xchg.rsp));
+	ret = copy_to_user(&pmsg_xchg->rsp, &msg_xchg.rsp,
+			   sizeof(msg_xchg.rsp));
 	if (ret != 0) {
 		BST_LWNN_DEV_ERR(&pbst_lwnn->pdev->dev, "copy_to_user failed!");
 		return -EFAULT;
@@ -409,9 +414,9 @@ static int bst_lwnn_ioctl_msg_xchg(struct bst_lwnn *pbst_lwnn,
  * @return          0 - success
  *                  Error code  - failure
  */
-static int bst_lwnn_ioctl_dsp_info_get(struct bst_lwnn *pbst_lwnn,
-				       struct bst_lwnn_ver_info __user *
-				       pdsp_info)
+static int
+bst_lwnn_ioctl_dsp_info_get(struct bst_lwnn *pbst_lwnn,
+			    struct bst_lwnn_ver_info __user *pdsp_info)
 {
 	int ret, i;
 	struct bst_lwnn_dsp_info dsp_info;
@@ -448,9 +453,9 @@ static int bst_lwnn_ioctl_dsp_info_get(struct bst_lwnn *pbst_lwnn,
  * @return          0 - success
  *                  Error code  - failure
  */
-static int bst_lwnn_ioctl_ver_info_get(struct bst_lwnn *pbst_lwnn,
-				       struct bst_lwnn_ver_info __user *
-				       pver_info)
+static int
+bst_lwnn_ioctl_ver_info_get(struct bst_lwnn *pbst_lwnn,
+			    struct bst_lwnn_ver_info __user *pver_info)
 {
 	int ret;
 	struct bst_lwnn_ver_info ver_info;
@@ -506,6 +511,7 @@ static long bst_lwnn_ioctl(struct file *filp, unsigned int cmd,
 	}
 
 	pbst_lwnn = container_of(filp->private_data, struct bst_lwnn, miscdev);
+	/* BST_LWNN_DEV_ERR(&pbst_lwnn->pdev->dev, "build:%s", __TIME__); */
 	mutex_lock(&pbst_lwnn->mutex);
 	if (pbst_lwnn->state != BST_LWNN_ONLINE) {
 		mutex_unlock(&pbst_lwnn->mutex);
@@ -517,60 +523,51 @@ static long bst_lwnn_ioctl(struct file *filp, unsigned int cmd,
 
 	switch (cmd) {
 	case BST_LWNN_IOCTL_BUF_ALLOC:
-		ret =
-		    bst_lwnn_ioctl_buf_alloc(filp, pbst_lwnn,
-					     (void __user *)args);
+		ret = bst_lwnn_ioctl_buf_alloc(filp, pbst_lwnn,
+					       (void __user *)args);
 		break;
 	case BST_LWNN_IOCTL_BUF_FREE:
-		ret =
-		    bst_lwnn_ioctl_buf_free(filp, pbst_lwnn,
-					    (void __user *)args);
+		ret = bst_lwnn_ioctl_buf_free(filp, pbst_lwnn,
+					      (void __user *)args);
 		break;
 	case BST_LWNN_IOCTL_BUF_FLUSH:
-		ret =
-		    bst_lwnn_ioctl_buf_flush(filp, pbst_lwnn,
-					     (void __user *)args);
+		ret = bst_lwnn_ioctl_buf_flush(filp, pbst_lwnn,
+					       (void __user *)args);
 		break;
 	case BST_LWNN_IOCTL_BUF_INVALIDATE:
-		ret =
-		    bst_lwnn_ioctl_buf_invalidate(filp, pbst_lwnn,
-						  (void __user *)args);
+		ret = bst_lwnn_ioctl_buf_invalidate(filp, pbst_lwnn,
+						    (void __user *)args);
 		break;
 	case BST_LWNN_IOCTL_CMA_BUF_IMPORT:
-		ret =
-		    bst_lwnn_ioctl_cma_buf_import(pbst_lwnn,
-						  (void __user *)args);
+		ret = bst_lwnn_ioctl_cma_buf_import(filp, pbst_lwnn,
+						    (void __user *)args);
 		break;
 	case BST_LWNN_IOCTL_CMA_BUF_RETURN:
-		ret =
-		    bst_lwnn_ioctl_cma_buf_return(pbst_lwnn,
-						  (void __user *)args);
+		ret = bst_lwnn_ioctl_cma_buf_return(filp, pbst_lwnn,
+						    (void __user *)args);
 		break;
 	case BST_LWNN_IOCTL_DMA_BUF_IMPORT:
-		ret =
-		    bst_lwnn_ioctl_dma_buf_import(pbst_lwnn,
-						  (void __user *)args);
+		ret = bst_lwnn_ioctl_dma_buf_import(filp, pbst_lwnn,
+						    (void __user *)args);
 		break;
 	case BST_LWNN_IOCTL_DMA_BUF_EXPORT:
-		ret =
-		    bst_lwnn_ioctl_dma_buf_export(filp, pbst_lwnn,
-						  (void __user *)args);
+		ret = bst_lwnn_ioctl_dma_buf_export(filp, pbst_lwnn,
+						    (void __user *)args);
 		break;
 	case BST_LWNN_IOCTL_DMA_BUF_RETURN:
-		ret =
-		    bst_lwnn_ioctl_dma_buf_return(pbst_lwnn,
-						  (void __user *)args);
+		ret = bst_lwnn_ioctl_dma_buf_return(filp, pbst_lwnn,
+						    (void __user *)args);
 		break;
 	case BST_LWNN_IOCTL_MSG_XCHG:
 		ret = bst_lwnn_ioctl_msg_xchg(pbst_lwnn, (void __user *)args);
 		break;
 	case BST_LWNN_IOCTL_DSP_INFO_GET:
-		ret =
-		    bst_lwnn_ioctl_dsp_info_get(pbst_lwnn, (void __user *)args);
+		ret = bst_lwnn_ioctl_dsp_info_get(pbst_lwnn,
+						  (void __user *)args);
 		break;
 	case BST_LWNN_IOCTL_VER_INFO_GET:
-		ret =
-		    bst_lwnn_ioctl_ver_info_get(pbst_lwnn, (void __user *)args);
+		ret = bst_lwnn_ioctl_ver_info_get(pbst_lwnn,
+						  (void __user *)args);
 		break;
 	default:
 		ret = -EINVAL;
@@ -613,15 +610,18 @@ static int bst_lwnn_open(struct inode *inode, struct file *filp)
 	if (pbst_lwnn->state == BST_LWNN_ONLINE) {
 		ret = 0;
 	} else if (pbst_lwnn->state == BST_LWNN_INIT) {
-
 		// init bst_lwnn message manager
 		ret = bst_lwnn_msg_manager_init(pbst_lwnn);
 		if (ret < 0) {
-			BST_LWNN_DEV_ERR(&pbst_lwnn->pdev->dev,
-					 "bst_lwnn_msg_manager_init all failed");
+			BST_LWNN_DEV_ERR(
+				&pbst_lwnn->pdev->dev,
+				"bst_lwnn_msg_manager_init all failed");
 			ret = -EFAULT;
 		}
 		BST_LWNN_STAGE_PRINTK("bst_lwnn_msg_manager_init OK");
+
+		//for safety
+		bst_lwnn_msg_psm_enabled_status(pbst_lwnn);
 
 		//setup rt fw
 		ret = bst_lwnn_fw_rt_setup(pbst_lwnn);
@@ -717,9 +717,9 @@ static int bst_lwnn_mmap(struct file *filp, struct vm_area_struct *vma)
 		return -EFAULT;
 	}
 
-	BST_LWNN_TRACE_PRINTK
-	    ("enter, vm_start: 0x%lx, vm_end: 0x%lx, vm_pgoff: 0x%lx",
-	     vma->vm_start, vma->vm_end, vma->vm_pgoff);
+	BST_LWNN_TRACE_PRINTK(
+		"enter, vm_start: 0x%lx, vm_end: 0x%lx, vm_pgoff: 0x%lx",
+		vma->vm_start, vma->vm_end, vma->vm_pgoff);
 
 	//map as cacheable memory into userspace
 	ret = remap_pfn_range(vma, vma->vm_start, vma->vm_pgoff,
@@ -758,12 +758,10 @@ int bst_lwnn_miscdev_init(struct bst_lwnn *pbst_lwnn)
 	// init & register bst_lwnn miscdev
 	pbst_lwnn->miscdev.minor = MISC_DYNAMIC_MINOR;
 	pbst_lwnn->miscdev.fops = &bst_lwnn_fops;
-	pbst_lwnn->miscdev.name =
-	    devm_kstrdup(&pbst_lwnn->pdev->dev, BST_LWNN_DRIVER_NAME,
-			 GFP_KERNEL);
-	pbst_lwnn->miscdev.nodename =
-	    devm_kstrdup(&pbst_lwnn->pdev->dev, BST_LWNN_DRIVER_NAME,
-			 GFP_KERNEL);
+	pbst_lwnn->miscdev.name = devm_kstrdup(
+		&pbst_lwnn->pdev->dev, BST_LWNN_DRIVER_NAME, GFP_KERNEL);
+	pbst_lwnn->miscdev.nodename = devm_kstrdup(
+		&pbst_lwnn->pdev->dev, BST_LWNN_DRIVER_NAME, GFP_KERNEL);
 
 	ret = misc_register(&pbst_lwnn->miscdev);
 	if (ret != 0) {

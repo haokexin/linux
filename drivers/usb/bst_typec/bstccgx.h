@@ -243,6 +243,8 @@ struct ccgx_upgrade_node {
 	/* FW Update Error type which keeps track of current errors */
 	enum fw_update_error error_type;
 	enum fw_device_bootmode fw_image_to_update;
+	int timeout_count;
+	bool update_success_flag;
 };
 
 struct ccgx_data {

@@ -1,57 +1,64 @@
 &deser0 {
-	compatible = "bst,maxim-deser-hub";
-	type = "max96724";
-	ctl-mode = "fad-ctl";
+	compatible = "bst,max96724";
 	reg = <0x2E>;
-	i2c-port = <0>;
-	csi2-port = <0>;
-	lane-speed = <2400>;
-	data-type = <0x2d>;
-	trigger-mode = "external";
-	trigger-fps = <20>;
-	trigger-rx-pin = <0>;
-	maxim,hsync-invert = <0>;
-	maxim,vsync-invert = <0>;
-	maxim,linkrx-rate = <6 3 3 3>;
-	maxim,link-mode = "GMSL2";
+
 	pdb-gpio = <&porte 26 0>;
+	csi-mode = <CSI_MODE_2X4>;
+	i2c-port = <0>;
+
+	fsync-mode = <FSYNC_OUTER>;
+	fsync-fps = <20>;
+	fsync-rx-pin = <0>;
+
+	lock-gpio = <&portd 28 0>;
+	check-lock-period = <500>;
+
+	err-gpio = <&portd 29 0>;
+	check-err-period = <100>;
+
 	status = "okay";
 };
+&deser0_rx0 {
+	rx-rate = <6>;
+};
+
 &deser1 {
-	compatible = "bst,maxim-deser-hub";
-	type = "max96724";
-	ctl-mode = "fad-ctl";
+	compatible = "bst,max96724";
 	reg = <0x4E>;
-	i2c-port = <0>;
-	csi2-port = <0>;
-	lane-speed = <2400>;
-	data-type = <0x2d>;
-	trigger-mode = "external";
-	trigger-fps = <20>;
-	trigger-rx-pin = <0>;
-	maxim,hsync-invert = <0>;
-	maxim,vsync-invert = <0>;
-	maxim,linkrx-rate = <3 3 3 3>;
-	maxim,link-mode = "GMSL2";
+
 	pdb-gpio = <&porte 31 0>;
+	csi-mode = <CSI_MODE_2X4>;
+	i2c-port = <0>;
+
+	fsync-mode = <FSYNC_OUTER>;
+	fsync-fps = <20>;
+	fsync-rx-pin = <0>;
+
+	lock-gpio = <&portd 30 0>;
+	check-lock-period = <500>;
+
+	err-gpio = <&portd 31 0>;
+	check-err-period = <100>;
+
 	status = "okay";
 };
 &deser2 {
-	compatible = "bst,maxim-deser-hub";
-	type = "max96724";
-	ctl-mode = "fad-ctl";
+	compatible = "bst,max96724";
 	reg = <0x4F>;
-	i2c-port = <0>;
-	csi2-port = <0>;
-	lane-speed = <2400>;
-	data-type = <0x2d>;
-	trigger-mode = "external";
-	trigger-fps = <20>;
-	trigger-rx-pin = <0>;
-	maxim,hsync-invert = <0>;
-	maxim,vsync-invert = <0>;
-	maxim,linkrx-rate = <3 3 3 3>;
-	maxim,link-mode = "GMSL2";
+
 	pdb-gpio = <&portf 0 0>;
+	csi-mode = <CSI_MODE_2X4>;
+	i2c-port = <0>;
+
+	fsync-mode = <FSYNC_OUTER>;
+	fsync-fps = <20>;
+	fsync-rx-pin = <0>;
+
+	lock-gpio = <&porte 0 0>;
+	check-lock-period = <500>;
+
+	err-gpio = <&porte 1 0>;
+	check-err-period = <100>;
+
 	status = "okay";
 };

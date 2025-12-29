@@ -175,7 +175,7 @@ static int dwc3_bst_probe(struct platform_device *pdev)
 	struct dwc3_bst *bst;
 	struct device *dev = NULL;
 	struct device_node *np = NULL, *child_np = NULL;
-	int ret;
+	int ret = 0;
 
 	if (pdev == NULL)
 		return -EINVAL;

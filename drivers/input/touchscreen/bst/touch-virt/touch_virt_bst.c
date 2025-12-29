@@ -14,6 +14,7 @@
 
 #include <linux/kernel.h>
 #include <linux/module.h>
+#include <linux/workqueue.h>
 #ifdef CONFIG_DEBUG_FS
 #include <linux/debugfs.h>
 #endif /* CONFIG_DEBUG_FS */
@@ -22,8 +23,15 @@
 #include <touch_virt_bst_cdev.h>
 #endif
 #include "touchclient.h"
+#include "touch_packet_statistic_cli.h"
+#ifdef TOUCH_STATISTICS_PACKET_TIMESTAMP_TOOL_ENABLE
+#include "touch_packet_statistic_tool.h"
+#endif
 
 #define RINGBUF_NUM_PER_SCREEN 200
+#define RECONNECT_RETRY_MAX_COUNT 6
+/* need wait some seconds for reconnect work, if the touch devices of server is not ready */
+#define RECONNET_WORK_DELAY_MS (10 * 1000) // 10 seconds
 
 /* 1k align */
 #define RINGBUF_OFS_PER_SCREEN ALIGN((RINGBUF_NUM_PER_SCREEN * MAX_POINT * ALIGN(sizeof(point_data_t), 2)), 0x400)
@@ -138,10 +146,35 @@ enum client_status_t
 {
 	CLIENT_STATUS_NONE,
 	CLIENT_STATUS_START,
+	CLIENT_STATUS_SUBSCRIPTION_REQUEST,
+	CLIENT_STATUS_SUBSCRIPTION_TIMEOUT,
 	CLIENT_STATUS_SUBSCRIPTION_SUSS,
-	CLIENT_STARTUS_REQUEST_RESOURCE_SUSS,
+	CLIENT_STATUS_REQUEST_RESOURCE_SUSS,
 	CLIENT_STATUS_EINVALID
 };
+
+enum srv_status_t
+{
+	SRV_STATUS_NONE,
+	SRV_STATUS_OFFLINE,
+	SRV_STATUS_ONLINE,
+	SRV_STATUS_EINVALID
+};
+
+/**
+ * Read the 32-bit value (referred to as old) stored at location pointed by p. Compute (status == cmp) ?  new :
+ *   old and store result at location pointed by &status. The function returns old.
+ */
+#define TS_UPDATE_TO_NEXT_STATUS(status, old, new) \
+	do { \
+		atomic_cmpxchg(&(status), old, new); \
+	} while (0)
+#define TS_SET_STATUS(status, val) \
+	do { \
+		atomic_set(&(status), val); \
+	} while (0)
+#define TS_GET_STATUS(status) \
+	atomic_read(&(status))
 
 struct client_info_t
 {
@@ -152,9 +185,12 @@ struct client_info_t
 	struct bst_ts_data **ts_data;
 
 	/* msgbox */
-	uint8_t status;
+	atomic_t status;
+	atomic_t srv_status; /**service status: online and offline */
 	tsclient_data_t ins;
 	tsclient_t *ts_client;
+	int reconnect_retry_count;
+	struct delayed_work reconnect_work;
 	struct task_struct *wait_task; // continue initial until server become ready
 	struct wait_queue_head subscription_waitqueue;
 
@@ -176,6 +212,9 @@ static int bst_ts_init(struct client_info_t *info);
 #else
 #define paddr_64_to_paddr_32(addr) _paddr_64_to_paddr_32(addr, false)
 #endif
+
+static int bst_touch_request_resouce(const uint32_t client_id, const uint32_t screen_id,
+	hw_info_t *info);
 
 static __inline__ char *errcode_msg(int errcode)
 {
@@ -327,10 +366,10 @@ static int wait_for_subscription_finish(struct client_info_t *client_info, uint3
     unsigned long timeout = msecs_to_jiffies(timeout_ms);
     int ret;
 
-    while (client_info->status != CLIENT_STATUS_SUBSCRIPTION_SUSS) {
+    while (TS_GET_STATUS(client_info->status) != CLIENT_STATUS_SUBSCRIPTION_SUSS) {
         if (timeout) {
             ret = wait_event_interruptible_timeout(client_info->subscription_waitqueue,
-                                                   client_info->status == CLIENT_STATUS_SUBSCRIPTION_SUSS,
+				TS_GET_STATUS(client_info->status) == CLIENT_STATUS_SUBSCRIPTION_SUSS,
                                                    timeout);
             if (ret == -ERESTARTSYS) {
                 // Restarted due to signal, handle accordingly
@@ -341,7 +380,7 @@ static int wait_for_subscription_finish(struct client_info_t *client_info, uint3
             }
         } else {
             // Wait indefinitely
-            wait_event_interruptible(client_info->subscription_waitqueue, client_info->status == CLIENT_STATUS_SUBSCRIPTION_SUSS);
+            wait_event_interruptible(client_info->subscription_waitqueue, TS_GET_STATUS(client_info->status) == CLIENT_STATUS_SUBSCRIPTION_SUSS);
         }
     }
 
@@ -400,6 +439,9 @@ static void on_touch_info_received(
 #if (defined REPORT_SWAP_XY) || (defined REPORT_FLIP_X) || (defined REPORT_FLIP_X)
 	struct touchscreen_properties *prop;
 #endif
+
+	STATISTICS_UPDATE_PACKET_COORD_LOOP(screen_id);
+	STATISTICS_UPDATE_PACKET_COORD_TIMESTAMP(screen_id, TIMESTAMP_PACKET_COORD_RECV_MSGBOX_FROM_SRV);
 
 	ts = bst_ts_data_get_by_registered_screen_id(screen_id);
 	if(!ts) {
@@ -603,6 +645,10 @@ static void on_touch_info_received(
 #endif
 	input_sync(input_dev);
 #endif
+
+STATISTICS_UPDATE_PACKET_COORD_TIMESTAMP(screen_id, TIMESTAMP_PACKET_COORD_SEND_EVENT_TO_INPUT_SYNC);
+STATISTICS_UPDATE_PACKET_COORD_DATA(screen_id, plocinfo->point_lists[0].distance, NULL, 0);
+
 #ifdef REPORT_POINTINFO_DEBUG
 #ifdef REPROT_POINTINFO_DEBUG_MSGINX
 	BST_TS_DEBUG_LVL1(&input_dev->dev, "%s (%d/0x%08x), msginx:%d transport_prototype:%s transport_slot_num:%d, touch_count:%d lift_count:%d\n",
@@ -650,12 +696,118 @@ static void on_broadcast_touch_sub_reply(int32_t err, void *ext,
 	 */
     if (err == 0) {
 		if(client_info) {
-			client_info->status = CLIENT_STATUS_SUBSCRIPTION_SUSS;
+			if (TS_GET_STATUS(client_info->status) < CLIENT_STATUS_REQUEST_RESOURCE_SUSS)
+				TS_SET_STATUS(client_info->status, CLIENT_STATUS_SUBSCRIPTION_SUSS);
 			wake_up_interruptible(&client_info->subscription_waitqueue);
 		}
-		pr_info("Subscribe touchscreen success (uuid=0x%04x).\n", info->uuid);
+		pr_debug("Subscribe touchscreen success (uuid=0x%04x).\n", info->uuid);
 	} else {
 		pr_err("Subscribe touchscreen fail (uuid=0x%04x). Ret is %d.\n", info->uuid, err);
+	}
+}
+
+/**
+ * @brief Callback for when touch unsubscription reply is received.
+ *
+ * @param err  Error code.
+ * @param ext  Pointer to extended data.
+ * @param info Pointer to extended info.
+ */
+static void on_broadcast_touch_unsub_reply(int32_t err, void *ext,
+					       const ext_info_t *info)
+{
+	struct client_info_t *client_info = (struct client_info_t *)ext;
+	/*
+	 * uuid = (header.pid << 8) | (header.sid << 4) | (header.fid);
+	 * sid and fid from send-its for IPC_MSG_TYPE_REPLY. Refer to dispatch_message() of server
+	 */
+    if (err == 0) {
+		if(client_info) {
+			TS_SET_STATUS(client_info->status, CLIENT_STATUS_NONE);
+			wake_up_interruptible(&client_info->subscription_waitqueue);
+		}
+		pr_info("Unsubscribe touchscreen success (uuid=0x%04x).\n", info->uuid);
+	} else {
+		pr_err("Unsubscribe touchscreen fail (uuid=0x%04x). Ret is %d.\n", info->uuid, err);
+	}
+}
+
+/**
+ * @brief Callback for reconnection work.
+ */
+static void client_reconnect_work(struct work_struct *work)
+{
+    struct client_info_t *client_info = container_of(to_delayed_work(work), struct client_info_t, reconnect_work);
+    bst_ts_client_t *client = &client_info->ts_client->bst_touch_client;
+    struct bst_ts_data *ts;
+	bool is_retry_reconnect = false;
+	bool is_rework = false;
+    int ret, i;
+
+	pr_debug("Running async client reconnect work\n");
+	// re-subscribe
+    if ((TS_GET_STATUS(client_info->status) == CLIENT_STATUS_SUBSCRIPTION_TIMEOUT) ||
+        ((TS_GET_STATUS(client_info->srv_status) == SRV_STATUS_OFFLINE) &&
+         (TS_GET_STATUS(client_info->status) >= CLIENT_STATUS_SUBSCRIPTION_SUSS))) {
+
+        ret = client->location_info_sub(on_touch_info_received, (void *)client,
+                                        NULL, on_broadcast_touch_sub_reply, (void *)client_info);
+
+        TS_UPDATE_TO_NEXT_STATUS(client_info->status, CLIENT_STATUS_SUBSCRIPTION_TIMEOUT, CLIENT_STATUS_SUBSCRIPTION_REQUEST);
+        if (!ret) {
+            pr_debug("Send subscribe message succeeded (async). ret = %d\n", ret);
+		} else {
+			pr_debug("Send subscribe message failed (async). ret = %d\n", ret);
+			goto retry;
+		}
+    }
+
+	if (client_info->ts_data) {
+		for (i = 0; i < client_info->request_screen_num; i++) {
+			ts = client_info->ts_data[i];
+			if (ts && ts->hwinfo.connected == false) {
+				is_retry_reconnect = true;
+				break;
+			}
+		}
+	}
+
+	/* re-request resource for each screen */
+    if (((is_retry_reconnect == true) || (TS_GET_STATUS(client_info->srv_status) == SRV_STATUS_OFFLINE)) &&
+        (TS_GET_STATUS(client_info->status) >= CLIENT_STATUS_REQUEST_RESOURCE_SUSS)) {
+
+        for (i = 0; i < client_info->request_screen_num; i++) {
+            ts = client_info->ts_data[i];
+			if (!ts) {
+				continue;
+			}
+			if (ts->hwinfo.connected == true) {
+				continue;
+			}
+            ret = bst_touch_request_resouce(client_info->client_id, client_info->request_screen_id[i], &ts->hwinfo);
+            if (ret < 0) {
+                pr_err("Failed to request resource for screen-id: 0x%08x (client-id: 0x%08x). ret = %d\n",
+                       client_info->request_screen_id[i], client_info->client_id, ret);
+				goto retry;
+			}
+
+			if (ts->hwinfo.connected == false)
+				is_rework = true;
+        }
+    }
+
+	TS_SET_STATUS(client_info->srv_status, SRV_STATUS_ONLINE);
+
+	if (is_rework) {
+		goto retry;
+	}
+
+	return;
+retry:
+	if (client_info->reconnect_retry_count < RECONNECT_RETRY_MAX_COUNT) {
+		/* retry to connect to server */
+		schedule_delayed_work(&client_info->reconnect_work, msecs_to_jiffies(RECONNET_WORK_DELAY_MS));
+		client_info->reconnect_retry_count++;
 	}
 }
 
@@ -668,27 +820,31 @@ static void on_broadcast_touch_sub_reply(int32_t err, void *ext,
 static void on_dst_changed(bool flag, void* ext)
 {
 	struct client_info_t *client_info = (struct client_info_t *)ext;
-	bst_ts_client_t *client;
+	struct bst_ts_data *ts;
+    int i;
 
-	if(client_info && client_info->ts_client)
-		client = &client_info->ts_client->bst_touch_client;
+	if (!client_info) {
+		pr_err("%s: Invalid client_info\n", __func__);
+		return;
+	}
 
 	if (flag) {
 		pr_info("Touch server is online\n");
-
-		switch (client_info->status) {
-			case CLIENT_STATUS_START:
-				// re-subscribe
-				if(client)
-					client->location_info_sub(on_touch_info_received, (void *)client, \
-						NULL, on_broadcast_touch_sub_reply, (void *)client_info);
-				break;
-			default:
-				break;
-		}
-
+		schedule_delayed_work(&client_info->reconnect_work, msecs_to_jiffies(RECONNET_WORK_DELAY_MS));
 	} else {
 		pr_info("Touch server is offline\n");
+		cancel_delayed_work_sync(&client_info->reconnect_work);
+		/* Setting connected status of touchsreen to false */
+		if (client_info->ts_data) {
+			for (i = 0; i < client_info->request_screen_num; i++) {
+				ts = client_info->ts_data[i];
+				if (!ts) {
+					continue;
+				}
+				ts->hwinfo.connected = false;
+			}
+		}
+		TS_SET_STATUS(client_info->srv_status, SRV_STATUS_OFFLINE);
 	}
 
 	return;
@@ -748,24 +904,29 @@ static int bst_touch_request_resouce(const uint32_t client_id, const uint32_t sc
 				&touch_des_buf);
 	if (ret < 0 || !server_hwinfo) {
 		if (ret < 0)
-			pr_err("Failed to request touch(client_id:0x%x screen_id:0x%x) resource. (communication failure? ret=%d).", client_id, screen_id, ret);
+			pr_err("Failed to request touch(client_id:0x%x screen_id:0x%x) resource. (communication failure? ret=%d).\n", client_id, screen_id, ret);
 		else
-			pr_err("Failed to request touch(client_id:0x%x screen_id:0x%x) resource. (reason: %s (errcode=%d)).", client_id, screen_id, errcode_msg(err), err);
+			pr_err("Failed to request touch(client_id:0x%x screen_id:0x%x) resource. (reason: %s (errcode=%d)).\n", client_id, screen_id, errcode_msg(err), err);
 		return -EINVAL;
 	}
 	memcpy(info, server_hwinfo, sizeof(hw_info_t)); //for Generator Version: francaidl 3a7f767 msgbx_ipc 001bddd
 
 	if (screen_id != info->screen_id) {
-		pr_err("The retrieved screen_id(0x%x) and the requesting screen_id(0x%x) do not match for client-id(0x%x).",
+		pr_err("The retrieved screen_id(0x%x) and the requesting screen_id(0x%x) do not match for client-id(0x%x).\n",
 			info->screen_id, screen_id, client_id);
 		return -EINVAL;
 	}
 
-	pr_info("%s: client_id:0x%x request touch(screen_id:0x%x) resource get client_uuid:0x%llx "
-		"touchscreen(screen_id:0x%x vendor:%d product:%d versions:%d x_max:%d y_max:%d touch_num_max:%d name:%s phy:%s) err:%d",
+	pr_debug("%s: client_id:0x%x request touch(screen_id:0x%x) resource get client_uuid:0x%llx "
+		"touchscreen(screen_id:0x%x vendor:%d product:%d versions:%d x_max:%d y_max:%d touch_num_max:%d name:%s phy:%s) err:%d\n",
 		__func__, client_id, screen_id, client_uuid,
 		info->screen_id, info->vendor, info->product, info->versions,
 		info->x_max, info->y_max, info->touch_num_max, info->name, info->phys, err);
+
+	if (info->connected == true)
+		pr_info("Touchscreen(screen_id:0x%x phy:%s) is connected.\n", info->screen_id, info->phys);
+	else
+		pr_debug("Touchscreen(screen_id:0x%x phy:%s) is not connected.\n", info->screen_id, info->phys);
 
 	return err;
 }
@@ -972,10 +1133,11 @@ static int bst_configure_input_dev(struct bst_ts_data *ts)
 		return -ENOMEM;
 	}
 	if (ts->hwinfo.name[0] != '\0') {
-		snprintf(ts->name, sizeof(ts->name), "%s%s",
+		/* snprintf(ts->name, sizeof(ts->name), "%s%s",
 			ts->hwinfo.name,
 			ts->hwinfo.connected ? "[connected]" : "");
-		input_dev->name = ts->name;
+		input_dev->name = ts->name; */
+		input_dev->name = ts->hwinfo.name;
 	} else {
 		input_dev->name = "BST Virt TouchScreen";
 	}
@@ -996,13 +1158,13 @@ static int bst_configure_input_dev(struct bst_ts_data *ts)
 	if (ts->hwinfo.product)
 		input_dev->id.product = ts->hwinfo.product;
 	else
-		input_dev->id.vendor = 0x1001;
+		input_dev->id.product = 0x1001;
 	if (ts->hwinfo.versions)
 		input_dev->id.version = ts->hwinfo.versions;
 	else
-		input_dev->id.vendor = 0x1001;
-	if (ts->pdev)
-		input_dev->dev.parent = ts->pdev->dev.parent;
+		input_dev->id.version = 0x1001;
+	//if (ts->pdev)
+	//	input_dev->dev.parent = ts->pdev->dev.parent;
 	input_set_drvdata(input_dev, ts);
 
 	/* Refer to Documentation/input/event-codes.rst */
@@ -1065,7 +1227,6 @@ static int bst_configure_input_dev(struct bst_ts_data *ts)
 	if (error) {
 		dev_err(&input_dev->dev,
 			"Failed to register input device: %d", error);
-		input_dev = NULL;
 		goto err_mt_init_slots;
 	}
 	ts->input_dev = input_dev;
@@ -1095,9 +1256,6 @@ static void bst_remove_input_dev(struct bst_ts_data *ts)
 
 	input_dev = ts->input_dev;
 	input_unregister_device(input_dev);
-	input_mt_destroy_slots(input_dev);
-	input_free_device(input_dev);
-
 	ts->input_dev = NULL;
 	return;
 }
@@ -1114,9 +1272,10 @@ static int thread_ts_init(void *data)
 
 	if(!info)
 		return -EINVAL;
-	wait_event_interruptible(info->subscription_waitqueue, ((info->status == CLIENT_STATUS_SUBSCRIPTION_SUSS) || kthread_should_stop()));
-	if(info->status == CLIENT_STATUS_SUBSCRIPTION_SUSS)
+	wait_event_interruptible(info->subscription_waitqueue, ((TS_GET_STATUS(info->status) == CLIENT_STATUS_SUBSCRIPTION_SUSS) || kthread_should_stop()));
+	if(TS_GET_STATUS(info->status) == CLIENT_STATUS_SUBSCRIPTION_SUSS)
 		bst_ts_init(info);
+	info->wait_task = NULL;
 	return 0;
 }
 
@@ -1141,10 +1300,10 @@ static int bst_configure_msgbox(struct client_info_t *info)
 	if(!info)
 		return -EINVAL;
 
-	info->status = CLIENT_STATUS_NONE;
+	TS_SET_STATUS(info->status, CLIENT_STATUS_NONE);
 
-	touchclient_info->ins.com_data.pid = PID;
-	touchclient = touchclient_init(&touchclient_info->ins);
+	info->ins.com_data.pid = PID;
+	touchclient = touchclient_init(&info->ins);
 	if (!touchclient)
     {
         pr_err("Init touch client failed.\n");
@@ -1155,8 +1314,13 @@ static int bst_configure_msgbox(struct client_info_t *info)
 
     // get version
     version = client->version();
-    pr_info("Interface version: major %d, minor %d.\n", version.major, version.minor);
+    pr_debug("Interface version: major %d, minor %d.\n", version.major, version.minor);
 
+    // subscribe broadcast
+	init_waitqueue_head(&info->subscription_waitqueue);
+
+	// register server available changed callback
+	client->register_avail_changed(on_dst_changed, (void *)info);
     // start touch_client
 	ret = touchclient->start();
     if (ret < 0)
@@ -1164,33 +1328,31 @@ static int bst_configure_msgbox(struct client_info_t *info)
         pr_err("Start touch client failed!\n");
         return -2;
     }else{
-		pr_info("Start touch client success!\n");
+		pr_debug("Start touch client success!\n");
 	}
 
-	info->status = CLIENT_STATUS_START;
-	// register server available changed callback
-	client->register_avail_changed(on_dst_changed, (void *)info);
+	TS_SET_STATUS(info->status, CLIENT_STATUS_START);
 
-    // subscribe broadcast
-	init_waitqueue_head(&info->subscription_waitqueue);
-    ret = client->location_info_sub(on_touch_info_received, (void *)client, NULL, on_broadcast_touch_sub_reply, (void *)info);
-    if (ret < 0)
-    {
-        pr_err("Send subscribe message failed. ret = %d\n", ret);
-		ret = -3;
-		goto err_server_failed;
-    }
-	pr_info("Send subscribe message succeeded. ret = %d\n", ret);
+	if (TS_GET_STATUS(info->status) == CLIENT_STATUS_START) {
+		ret = client->location_info_sub(on_touch_info_received, (void *)client, NULL, on_broadcast_touch_sub_reply, (void *)info);
+		if (ret < 0)
+		{
+			pr_err("Send subscribe message failed. ret = %d\n", ret);
+			ret = -3;
+			goto err_server_failed;
+		}
+		TS_UPDATE_TO_NEXT_STATUS(info->status, CLIENT_STATUS_START, CLIENT_STATUS_SUBSCRIPTION_REQUEST);
+		pr_debug("Send subscribe message succeeded. ret = %d\n", ret);
+	}
 
 	ret = wait_for_subscription_finish(info, 100);
 	if (ret < 0) {
 		if(ret == -ETIMEDOUT)
 			pr_warn("Subscription timeout!\n");
 		/* continue initialization until server is ok */
+		TS_UPDATE_TO_NEXT_STATUS(info->status, CLIENT_STATUS_SUBSCRIPTION_REQUEST, CLIENT_STATUS_SUBSCRIPTION_TIMEOUT);
 		info->wait_task = kthread_run(thread_ts_init, (void *)info, "ts_wait_thread");
 	}
-
-
 
     return 0;
 
@@ -1200,26 +1362,180 @@ err_server_failed:
 	return ret;
 }
 
+/**
+ * @brief Remove the message box for touch client.
+ * 
+ * @param info Pointer to the client info structure.
+ * @return 0 on success, negative error code on failure.
+ */
+static int bst_remove_msgbox(struct client_info_t *info)
+{
+	int ret;
+	tsclient_t *touchclient;
+	bst_ts_client_t *client;
+
+	if(!info)
+		return -EINVAL;
+
+	touchclient = info->ts_client;
+	client = &touchclient->bst_touch_client;
+
+	if (unlikely(info->wait_task)) {
+		kthread_stop(info->wait_task);
+		info->wait_task = NULL;
+	}
+	// unsubscribe broadcast
+	ret = client->location_info_unsub(on_broadcast_touch_unsub_reply, (void *)NULL);
+	if (ret < 0)
+		pr_err("Send unsubscribe message failed. ret = %d\n", ret);
+	else
+		pr_info("Send unsubscribe message succeeded. ret = %d\n", ret);
+
+	// stop touch_client
+	ret = touchclient->stop();
+	if (ret < 0)
+		pr_err("Stop touch client failed!\n");
+	else
+		pr_info("Stop touch client success!\n");
+
+	ret = touchclient_destroy();
+	if (ret < 0)
+		pr_err("Destroy touch client failed!\n");
+	else
+		pr_info("Destroy touch client success!\n");
+
+	return 0;
+}
+
+
 #ifdef CONFIG_DEBUG_FS
 static int bst_ts_debugfs_help_show(struct seq_file *s, void *unused)
 {
 	seq_printf(s, "debug_level: 0-off, 1-point count, 2-pointinfo 3-pointinfo&count\n");
 	return 0;
 }
+DEFINE_SHOW_ATTRIBUTE(bst_ts_debugfs_help);
 
-static int bst_ts_debugfs_help_open(struct inode *inode, struct file *file)
+#define MAX_CMD_LEN 64
+#define RESULT_BUF_SIZE 128
+static char gcmd_result_buf[RESULT_BUF_SIZE];
+static char *gcmd_result_ptr = gcmd_result_buf;
+
+/**
+ * @brief Display the touch shell help information.
+ */
+static void shell_touch_server_help(struct seq_file *s)
 {
-	return single_open(file, bst_ts_debugfs_help_show, inode->i_private);
+    seq_printf(s,
+             "\nUsage: touch <command> [parameter]\n"
+             "  touch help\n"
+             "  touch show\n"
+             "  touch get_route\n"
+             "  touch set_route <value>\n"
+             "        - <value>:\n"
+             "          0 -	LOCATION_SENDTO_NONE\n"
+             "          1 -	LOCATION_SENDTO_TOUCHMANAGER\n"
+             "          2 -	LOCATION_SENDTO_CLIENTS\n"
+    );
+
+    seq_printf(s,
+             "  touch get_tsapp_debug\n"
+             "  touch set_tsapp_debug <value>\n"
+             "        - <value>:\n"
+             "          0 -	disable debug\n"
+             "          1 -	enable debug\n"
+    );
+
+    seq_printf(s,
+             "  touch get_tsdev_debug\n"
+             "  touch set_tsdev_debug <value>\n"
+             "        - <value>:\n"
+             "          0 -	disable debug\n"
+             "          1 -	enable debug for point count\n"
+             "          2 -	enable debug for pointinfo\n"
+             "          3 -	enable debug for pointinfo&count\n"
+    );
+
+    seq_printf(s,
+             "  touch get_tsvirt_debug\n"
+             "  touch set_tsvirt_debug <value>\n"
+             "        - <value>:\n"
+             "          0 -	disable debug\n"
+             "          1 -	enable debug\n"
+    );
+
+    seq_printf(s,
+             "  touch set_pkt_statistics <value>\n"
+             "        - <value>:\n"
+             "          0 -	disable packet statistics\n"
+             "          1 -	enable packet statistics\n"
+             "  touch reset_pkt_statistics\n"
+    );
 }
 
-static const struct file_operations bst_ts_debugfs_help_fops = {
-	.open = bst_ts_debugfs_help_open,
+static int bst_ts_debugfs_cmd_show(struct seq_file *s, void *unused)
+{
+	shell_touch_server_help(s);
+	return 0;
+}
+
+static int bst_ts_debugfs_cmd_open(struct inode *inode, struct file *file)
+{
+	return single_open(file, bst_ts_debugfs_cmd_show, inode->i_private);
+}
+
+static ssize_t bst_ts_debugfs_cmd_write(struct file *file, const char __user *buf, size_t count, loff_t *ppos)
+{
+	int len;
+	char cmd[MAX_CMD_LEN];
+	int ret;
+	char *result_str;
+	bst_touch_ErrorEnum_t err;
+	//struct client_info_t *info = file->private_data;
+	struct seq_file *m = (struct seq_file *)file->private_data;
+	struct client_info_t *info = m ? ((struct client_info_t *) m->private) : NULL;
+	tsclient_t *ts_client = info ? info->ts_client : NULL;
+	bst_ts_client_t *client = ts_client ? &ts_client->bst_touch_client : NULL;
+
+	if (!client)
+		return -EINVAL;
+
+	if (count >= sizeof(cmd))
+		return -EINVAL;
+
+	if (copy_from_user(cmd, buf, count))
+		return -EFAULT;
+
+	cmd[count] = '\0';
+
+	ret = client->touch_debug_cmd_sync(cmd, &result_str, &err, 3000, &touch_des_buf);
+	if (ret < 0 || !result_str) {
+		if (ret < 0)
+			pr_err("Failed to execute command: %s, (communication failure? ret=%d)", cmd, ret);
+		else
+			pr_err("Failed to execute command: %s, (reason: %s (errcode=%d)).", cmd, errcode_msg(err), err);
+		return -EINVAL;
+	}
+	pr_info("%s\n", result_str);
+	len = strlen(result_str) + 1 > RESULT_BUF_SIZE ? RESULT_BUF_SIZE : strlen(result_str) + 1;
+	gcmd_result_buf[RESULT_BUF_SIZE - 1] = '\0';
+	// memset(gcmd_result_buf, 0, sizeof(gcmd_result_buf));
+	memcpy(gcmd_result_buf, result_str, len);
+
+	return count;
+}
+
+static const struct file_operations bst_ts_debugfs_cmd_fops = {
+	.owner = THIS_MODULE,
+	.open = bst_ts_debugfs_cmd_open,
+	//.open = simple_open,
+	.write = bst_ts_debugfs_cmd_write,
 	.read = seq_read,
 	.llseek = seq_lseek,
 	.release = single_release,
 };
 
-static int bst_ts_debugfs_show(struct seq_file *s, void *unused)
+static int bst_ts_debugfs_info_show(struct seq_file *s, void *unused)
 {
 	struct client_info_t *info = s->private;
 	hw_info_t *touch_hwinfo;
@@ -1262,18 +1578,17 @@ static int bst_ts_debugfs_show(struct seq_file *s, void *unused)
 
 	return 0;
 }
+DEFINE_SHOW_ATTRIBUTE(bst_ts_debugfs_info);
 
-static int bst_ts_debugfs_open(struct inode *inode, struct file *file)
+static int bst_ts_buf_show(struct seq_file *s, void *unused)
 {
-	return single_open(file, bst_ts_debugfs_show, inode->i_private);
-}
+	char *buf = (char *)s->private;
 
-static const struct file_operations bst_ts_debugfs_fops = {
-	.open = bst_ts_debugfs_open,
-	.read = seq_read,
-	.llseek = seq_lseek,
-	.release = single_release,
-};
+	seq_printf(s, "%s\n", buf ? buf : "");
+
+	return 0;
+}
+DEFINE_SHOW_ATTRIBUTE(bst_ts_buf);
 
 static int bst_ts_debugfs_init(struct client_info_t *info)
 {
@@ -1291,10 +1606,16 @@ static int bst_ts_debugfs_init(struct client_info_t *info)
 	if (!bst_ts_debugfs_dir)
 		return -EINVAL;
 
-	debugfs_create_file("info", 0444, bst_ts_debugfs_dir, info, &bst_ts_debugfs_fops);
-	debugfs_create_file("help", 0444, bst_ts_debugfs_dir, NULL, &bst_ts_debugfs_help_fops);
-	debugfs_create_u8("debug_level", 0644, bst_ts_debugfs_dir, (uint8_t *)&bst_ts_debug_level);
-
+	debugfs_create_file("info", S_IRUGO, bst_ts_debugfs_dir, info, &bst_ts_debugfs_info_fops);
+	debugfs_create_file("help", S_IRUGO, bst_ts_debugfs_dir, NULL, &bst_ts_debugfs_help_fops);
+	debugfs_create_file("cmd", (S_IWUSR | S_IRUGO), bst_ts_debugfs_dir, info, &bst_ts_debugfs_cmd_fops);
+	debugfs_create_str("cmd_result", S_IRUGO, bst_ts_debugfs_dir, (char **)&gcmd_result_ptr);
+	debugfs_create_x32("client_id", S_IRUGO, bst_ts_debugfs_dir, (uint32_t *)&info->client_id);
+	debugfs_create_u8("request_screen_num", S_IRUGO, bst_ts_debugfs_dir, (uint8_t *)&info->request_screen_num);
+	debugfs_create_u8("debug_level", (S_IWUSR | S_IRUGO), bst_ts_debugfs_dir, (uint8_t *)&bst_ts_debug_level);
+#ifdef TOUCH_STATISTICS_PACKET_TIMESTAMP_TOOL_ENABLE
+	debugfs_create_multi_touch_packet_timestamp_tool(bst_ts_debugfs_dir);
+#endif
 
 #ifdef SUPPORT_PACKET_STATISTICS
 	for (i = 0; i < info->request_screen_num; i++) {
@@ -1303,13 +1624,22 @@ static int bst_ts_debugfs_init(struct client_info_t *info)
 
 		input_dev = info->ts_data[i]->input_dev;
 		input_dir = debugfs_create_dir(dev_name(&input_dev->dev), bst_ts_debugfs_dir);
-		debugfs_create_u16("send_packets_count", 0444, input_dir, (uint16_t *)&info->ts_data[i]->send_packets_count);
-		debugfs_create_u16("received_packets_count", 0644, input_dir, (uint16_t *)&info->ts_data[i]->received_packets_count);
+
+		debugfs_create_u8("connected_status", S_IRUGO, input_dir, (uint8_t *)&info->ts_data[i]->hwinfo.connected);
+		debugfs_create_u16("x_max", S_IRUGO, input_dir, (uint16_t *)&info->ts_data[i]->hwinfo.x_max);
+		debugfs_create_u16("y_max", S_IRUGO, input_dir, (uint16_t *)&info->ts_data[i]->hwinfo.y_max);
+		debugfs_create_x32("screen_id", S_IRUGO, input_dir, (uint32_t *)&info->ts_data[i]->hwinfo.screen_id);
+		debugfs_create_u32("send_packets_count", S_IRUGO, input_dir, (uint32_t *)&info->ts_data[i]->send_packets_count);
+		debugfs_create_u32("received_packets_count", (S_IWUSR | S_IRUGO), input_dir, (uint32_t *)&info->ts_data[i]->received_packets_count);
+		debugfs_create_file("name", S_IRUGO, input_dir, (void *)info->ts_data[i]->hwinfo.name, &bst_ts_buf_fops);
+		debugfs_create_file("phys", S_IRUGO, input_dir, (void *)&info->ts_data[i]->hwinfo.phys, &bst_ts_buf_fops);
+#ifdef TOUCH_STATISTICS_PACKET_TIMESTAMP_TOOL_ENABLE
+		debugfs_create_single_touch_packet_timestamp_tool(input_dir, i);
+#endif
 	}
 #endif
 	return 0;
 }
-
 
 static void bst_ts_debugfs_exit(void)
 {
@@ -1380,6 +1710,7 @@ static int bst_ts_parse_dt(struct device *dev, struct client_info_t *client_info
 static int bst_ts_init(struct client_info_t *info)
 {
 	int ret, i;
+	bool is_retry_reconnect = false;
 	struct bst_ts_data *ts;
 	struct platform_device *pdev;
 
@@ -1419,7 +1750,7 @@ static int bst_ts_init(struct client_info_t *info)
 			ts->shmem_size = RINGBUF_OFS_PER_SCREEN;
 			ts->shmem_paddr = (phys_addr_t) paddr_64_to_paddr_32(info->phys_addr) + (i * ts->shmem_size);
 			ts->shmem_vaddr = (void *)((phys_addr_t)info->shmem_vaddr + (i * ts->shmem_size));
-			pr_info("Screen (%d-0x%x) allocated coherent memory (vaddr: 0x%0llX, paddr: 0x%0llX size: %zu)\n",
+			pr_debug("Screen (%d-0x%x) allocated coherent memory (vaddr: 0x%0llX, paddr: 0x%0llX size: %zu)\n",
 				i, ts->requested_screen_id, (u64)ts->shmem_vaddr, ts->shmem_paddr, ts->shmem_size);
 
 			init_ring_buffer(&ts->buffer, ts->shmem_vaddr, ts->shmem_size);
@@ -1430,6 +1761,9 @@ static int bst_ts_init(struct client_info_t *info)
 		if (ret < 0) {
 			ret = -EINVAL;
 			goto fail_alloc;
+		}
+		if (ts->hwinfo.connected == false) {
+			is_retry_reconnect = true;
 		}
 		// register input device for each screen
 		ret = bst_configure_input_dev(ts);
@@ -1446,10 +1780,20 @@ static int bst_ts_init(struct client_info_t *info)
 		}
 #endif
 	}
+
+#ifdef TOUCH_STATISTICS_PACKET_TIMESTAMP_ENABLE
+	// Initialize touch packet timestamp statistics for debug
+	statistics_packet_timestamp_init(&pdev->dev, info->client_id, (void **)info->ts_data, info->request_screen_num);
+#endif
+
 #ifdef CONFIG_DEBUG_FS
 	(void) bst_ts_debugfs_init(info);
 #endif
-	info->status = CLIENT_STARTUS_REQUEST_RESOURCE_SUSS;
+
+	TS_SET_STATUS(info->status, CLIENT_STATUS_REQUEST_RESOURCE_SUSS);
+	if (is_retry_reconnect) {
+		schedule_delayed_work(&info->reconnect_work, msecs_to_jiffies(RECONNET_WORK_DELAY_MS));
+	}
 	pr_info("Touchscreen %s driver registered\n", dev_name(&pdev->dev));
 	return 0;
 
@@ -1457,10 +1801,10 @@ fail_alloc:
     // Handle memory allocation failure
     for (i = 0; i < info->request_screen_num; i++) {
         if (info->ts_data[i]) {
-			bst_remove_input_dev(info->ts_data[i]);
 #ifdef SUPPORT_CALIBRATION
 			bst_touch_cdev_remove(info->ts_data[i]);
 #endif
+			bst_remove_input_dev(info->ts_data[i]);
             devm_kfree(&pdev->dev, info->ts_data[i]);
             info->ts_data[i] = NULL;
         }
@@ -1483,10 +1827,10 @@ static void bst_ts_remove(struct client_info_t *info)
 
     for (i = 0; i < info->request_screen_num; i++) {
         if (info->ts_data[i]) {
-			bst_remove_input_dev(info->ts_data[i]);
 #ifdef SUPPORT_CALIBRATION
 			bst_touch_cdev_remove(info->ts_data[i]);
 #endif
+			bst_remove_input_dev(info->ts_data[i]);
             devm_kfree(&pdev->dev, info->ts_data[i]);
             info->ts_data[i] = NULL;
         }
@@ -1515,6 +1859,10 @@ static int bst_ts_drv_probe(struct platform_device *pdev)
 		return -ENOMEM;
 
 	touchclient_info = info;
+	atomic_set(&info->status, 0);
+	atomic_set(&info->srv_status, 0);
+	info->reconnect_retry_count = 0;
+	INIT_DELAYED_WORK(&info->reconnect_work, client_reconnect_work);
 
 	rc = bst_configure_msgbox(info);
 	if (rc < 0) {
@@ -1559,11 +1907,11 @@ static int bst_ts_drv_probe(struct platform_device *pdev)
 	info->phys_addr = dma_to_phys(&pdev->dev, dma_paddr);
 	info->use_shmem = true;
 
-	pr_info("Allocated coherent memory (vaddr: 0x%0llX, paddr: 0x%0llX size: %zu aligned size: %zu)\n",
+	pr_debug("Allocated coherent memory (vaddr: 0x%0llX, paddr: 0x%0llX size: %zu aligned size: %zu)\n",
 		(u64)info->shmem_vaddr, info->phys_addr, info->shmem_size, PAGE_ALIGN(info->shmem_size));
 #endif
 
-	if (info->status == CLIENT_STATUS_SUBSCRIPTION_SUSS) {
+	if (TS_GET_STATUS(info->status) == CLIENT_STATUS_SUBSCRIPTION_SUSS) {
 		rc = bst_ts_init(info);
 		if (rc < 0) {
 #ifdef USE_SHAREMEM_POINTINFO
@@ -1602,6 +1950,9 @@ static int bst_ts_drv_remove(struct platform_device *pdev)
 {
 	struct client_info_t *info = platform_get_drvdata(pdev);
 
+#ifdef TOUCH_STATISTICS_PACKET_TIMESTAMP_ENABLE
+	statistics_packet_timestamp_uninit(&pdev->dev, info->client_id, (void **)info->ts_data, info->request_screen_num);
+#endif
 #ifdef CONFIG_DEBUG_FS
 	bst_ts_debugfs_exit();
 #endif
@@ -1610,7 +1961,10 @@ static int bst_ts_drv_remove(struct platform_device *pdev)
 	of_reserved_mem_device_release(&pdev->dev);
 #endif
 	bst_ts_remove(info);
+	bst_remove_msgbox(info);
 	devm_kfree(&pdev->dev, info);
+	touchclient_info = NULL;
+	pr_info("Touchscreen %s driver removed\n", dev_name(&pdev->dev));
     return 0;
 }
 
@@ -1622,8 +1976,8 @@ static int bst_ts_suspend(struct device *dev) {
 		return 0;
 
 	/* optional */
-	if (info->status >= CLIENT_STATUS_START)
-		info->ts_client->stop();
+	//if (info->status >= CLIENT_STATUS_START)
+	//	info->ts_client->stop();
 
 	return 0;
 }
@@ -1640,25 +1994,26 @@ static int bst_ts_resume(struct device *dev)
 		return 0;
 
 	/* optional */
-	if (info->status >= CLIENT_STATUS_START)
-		info->ts_client->start();
+	//if (info->status >= CLIENT_STATUS_START)
+	//	info->ts_client->start();
 
 	/* re-subscribe to server */
-	if (info->status >= CLIENT_STATUS_SUBSCRIPTION_SUSS) {
+	if (TS_GET_STATUS(info->status) >= CLIENT_STATUS_SUBSCRIPTION_SUSS) {
 		client = &info->ts_client->bst_touch_client;
-		ret = client->location_info_sub(on_touch_info_received, (void *)client, NULL, on_broadcast_touch_sub_reply, (void *)info);
-		if (ret < 0)
-		{
+		ret = client->location_info_sub(on_touch_info_received, (void *)client, NULL, on_broadcast_touch_sub_reply, (void *)NULL);
+		if (ret < 0) {
 			pr_err("Send subscribe message failed. ret = %d\n", ret);
 		}
 		pr_info("Send subscribe message succeeded. ret = %d\n", ret);
 	}
 
 	/* re-request resource for each screen */
-	if (info->status >= CLIENT_STARTUS_REQUEST_RESOURCE_SUSS) {
+	if (TS_GET_STATUS(info->status) >= CLIENT_STATUS_REQUEST_RESOURCE_SUSS) {
 		for (i = 0; i < info->request_screen_num; i++) {
 			ts = info->ts_data[i];
-			(void) bst_touch_request_resouce(info->client_id, info->request_screen_id[i], &ts->hwinfo);
+			ret = bst_touch_request_resouce(info->client_id, info->request_screen_id[i], &ts->hwinfo);
+			if (ret < 0)
+				pr_err("Failed to request resource for screen-id: 0x%08x (client-id: 0x%08x). ret = %d\n", info->request_screen_id[i], info->client_id, ret);
 		}
 	}
 
@@ -1668,8 +2023,8 @@ static int bst_ts_resume(struct device *dev)
 static const struct dev_pm_ops bst_ts_dev_pm_ops = {
 	.suspend = bst_ts_suspend,
 	.resume = bst_ts_resume,
-	.freeze = bst_ts_suspend,
-	.restore = bst_ts_resume,
+	//.freeze = bst_ts_suspend,
+	//.restore = bst_ts_resume,
 };
 #endif
 

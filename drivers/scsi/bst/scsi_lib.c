@@ -1970,7 +1970,7 @@ int scsi_mq_setup_tags(struct Scsi_Host *shost)
 	int slot_start = 0;
 
 	#ifdef CONFIG_BST_UFS_UTRD_SLOT_START
-		slot_start = CONFIG_BST_UFS_UTRD_SLOT_START;
+		slot_start = CONFIG_BST_UFS_UTRD_SLOT_START + 1;
 	#endif
 	sgl_size = max_t(unsigned int, sizeof(struct scatterlist),
 				scsi_mq_inline_sgl_size(shost));

@@ -1,0 +1,13 @@
+//virt-bl-client.fdepl
+import "virt-bl-inf.fdepl"
+
+define com.bst.ipc.deployment for provider as BacklightClient {
+    ProviderType = Client
+    RTE = LinuxKernel
+    SrcEndID = CPU_0 //adas: CPU_0 ivi: CPU_4
+    FID = DEF
+    SID = 9
+    instance com.bst.ipc.soc.backlight {
+        DstEndID = SAFETY_0
+    }
+}

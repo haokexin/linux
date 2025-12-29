@@ -6,20 +6,25 @@
 # Rewritten to use lists instead of if-statements.
 #
 
+ifeq ($(CONFIG_AS_HAS_ARMV8_2), y)
+# make sure to pass the newest target architecture to -march.
+KBUILD_CFLAGS += -march=armv8.2-a
+endif
+
 obj-$(CONFIG_BST_CVSMM)		+= bst_cvsmm/
 obj-$(CONFIG_BST_HWCV)		+= bst_hwcv/
 obj-y				+= irqchip/
 obj-y				+= bus/
 
 obj-$(CONFIG_BST_IPC_MSGBX)	+= bst_ipc_msgbx/
-obj-$(CONFIG_BST_COREIP)	+= bst_coreip/
+obj-$(CONFIG_BST_HEALTH_MONITOR)       += bst_health_monitor/
 obj-$(CONFIG_GENERIC_PHY)	+= phy/
 
 obj-$(CONFIG_BST_IPC)	+= bst_ipc/
 obj-$(CONFIG_BSTN)		+= bstn/
 obj-$(CONFIG_BST_LWNN)	+= bst_lwnn/
-obj-$(CONFIG_BST_CV)	+= bst_cv/
 obj-$(CONFIG_BST_GTC)		+= bst_gtc/
+obj-$(CONFIG_BST_BSTNPU)		+= bst-npu/
 
 # GPIO must come after pinctrl as gpios may need to mux pins etc
 obj-$(CONFIG_PINCTRL)		+= pinctrl/
@@ -28,6 +33,8 @@ obj-y				+= pwm/
 
 obj-y				+= pci/
 obj-y				+= firmware/
+
+obj-y				+= bst_timer/
 
 obj-$(CONFIG_PARISC)		+= parisc/
 obj-$(CONFIG_RAPIDIO)		+= rapidio/
@@ -74,6 +81,8 @@ obj-y				+= iommu/
 obj-y				+= gpu/
 
 obj-$(CONFIG_CONNECTOR)		+= connector/
+
+obj-y                           += ufs/
 
 # i810fb and intelfb depend on char/agp/
 obj-$(CONFIG_FB_I810)           += video/fbdev/i810/
@@ -139,7 +148,7 @@ obj-$(CONFIG_PM_OPP)		+= opp/
 obj-$(CONFIG_CPU_FREQ)		+= cpufreq/
 obj-$(CONFIG_CPU_IDLE)		+= cpuidle/
 obj-y				+= mmc/
-obj-y				+= ufs/
+#obj-y				+= ufs/
 obj-$(CONFIG_MEMSTICK)		+= memstick/
 obj-$(CONFIG_NEW_LEDS)		+= leds/
 obj-$(CONFIG_INFINIBAND)	+= infiniband/
@@ -201,3 +210,7 @@ obj-$(CONFIG_PECI)		+= peci/
 obj-$(CONFIG_HTE)		+= hte/
 obj-$(CONFIG_XRP) 		+= xrp/
 obj-$(CONFIG_BST_SQBUFFER)	+= bst_sqbuffer/
+obj-$(CONFIG_BST_STL) += bst_stl/
+obj-$(CONFIG_BST_EEPROM)	+= bst_eeprom/
+obj-$(CONFIG_SECOND_KERNEL)	+= bst_panic/
+obj-$(CONFIG_BST_FUSA_INJECT)       += bst_fusa_inject/

@@ -1326,6 +1326,7 @@ int dwmac4_setup(struct bstgmac_priv *priv)
 
 	if (likely(priv->dev))
 		priv->dev->priv_flags |= IFF_UNICAST_FLT;
+	mac->priv = priv;
 	mac->pcsr = priv->ioaddr;
 	mac->multicast_filter_bins = priv->plat->multicast_filter_bins;
 	mac->unicast_filter_entries = priv->plat->unicast_filter_entries;

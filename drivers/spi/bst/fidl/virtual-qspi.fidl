@@ -1,0 +1,118 @@
+//sample.fidl
+
+//package名，前缀统一为com.bst.ipc，XXX为模块名，由对应模块的开发人员确定，如safety/security/realtime/isp/net等。
+package com.bst.ipc.safety
+
+//为简化使用场景，禁用import。
+//为简化使用场景，降低interface间的耦合度，禁用typeCollection。
+//为简化使用场景，禁用contract。
+
+//interface为一组服务的集合，同一模块下可有一组或多组interface。
+//为简化使用场景，IPC接口描述中，禁用了interface的extends/manages特性
+//interface命名以简洁清晰为准，或以缩写代替，如BST_HSM/BST_DMA。命名时，不建议加入芯片名称，这会对跨芯片移植造成困难，如C1200_HSM等。
+interface st_public {
+    //version为必填项。版本规则为：
+    //1. major改变意味着接口的彻底变化，如method/broadcast的名称变化，参数变化，数量变化等。
+    //2. minor改变意味着有接口中有新增的method/broadcast。
+    //3. 在major不变，minor增加时，只可新增method/broadcast，不可修改/删除原有method/broadcast。
+    version {major 1  minor 0}
+
+    //为简化使用场景，禁用attribute关键字
+
+    // 数据类型定义，分原生数据类型和派生数据类型两类。
+    // 原生数据类型可直接使用，注意大小写。包括：Int8/UInt8/Int16/UInt16/Int32/UInt32/Int64/UInt64/Boolean/Float/Double/String。为简化使用场景，禁用Integer，ByteBuffer类型。ByteBuffer为Int8类型的数组。
+    // 派生数据类型需要定义，包括array, enumeration, struct, union, typedef
+    // 为简化使用场景，禁止使用匿名数组，即Type []，如UInt8 []
+    // 为简化使用场景，禁用map类型，禁用enumeration/struct/union的继承功能（extends关键字），禁用struct的polymorphic关键字
+    // 注意：没有指针类型，没有指针类型，没有指针类型，可以考虑使用ByteBuffer替代
+    // 注意2：类型系统没有隐式类型转换
+    // 注意3：array的基础类型不要是String/ByteBuffer，以及包含String/ByteBuffer的结构体及其typedef。
+    // 注意4：union不要包含String/ByteBuffer，以及包含String/ByteBuffer的结构体及其typedef。
+
+    enumeration ErrorEnum {
+        NO_ERROR = 0
+        SERVER_FAIL = -1
+        ERROR_2 = -2
+        ERROR_3 = -3
+    }
+    struct qspi_cmd_head {
+        UInt32 addr
+        UInt32 maxsize
+        UInt32 offset
+        UInt32 size
+        UInt32 bus_num
+        UInt32 flag
+    }
+
+    //常量定义
+    //原生数据类型常量定义
+    //为简化使用场景，禁用ByteBuffer类型常量
+    //为简化使用场景，禁用复杂数据类型常量，如array, struct, union等。
+    //禁用复杂数据类型常量
+    // const MyArray empty = []
+    // const MyArray full = [ 1, 2, 2+3, 100∗100+100 ]
+    // const MyStruct s1 = { m1: 10, m2: true, m3: [1,2,3], m4: "foo", m5: "" }
+
+    //method定义
+    // 为简化使用场景，禁止method重载及重载标签，即不允许同名method存在。
+
+    // 对于无out和error的method，可附加fireAndForget标识，该标识表明该method无需回复，在client端不会等待响应或触发回调，在server端无需发送此method的reply。
+    // 考虑到IPC丢包的可能性，使用fireAndForget的场景应当经过仔细评估，不建议广泛使用。
+    //method heartBeat fireAndForget {
+    //    in {
+    //        UInt16 health
+    //    }
+    //}
+
+    method timesync_method fireAndForget {
+        in {
+            UInt32 sec
+            UInt32 nsec
+        }
+    }
+
+    method qspi_method {
+        in {
+            qspi_cmd_head head_msg
+        }
+        error ErrorEnum
+    }
+
+    method scmi_method {
+        in {
+            UInt32 addr
+        }
+        error ErrorEnum
+    }
+
+    method gettemp_method {
+        in {
+            UInt32 temp_index
+        }
+        out {
+            UInt32 reply_temp
+        }
+        error ErrorEnum
+    }
+    
+    // broadcast定义
+    // 为简化使用场景，禁用broadcast的selective标签，禁止broadcast重载和重载标签，即不允许同名broadcast。
+    // broadcast默认会在代码生成时生成配套的register/unregister方法。只有调用了register方法的client才会收到server发出的 broadcast。
+    //  broadcast heartbeat {
+    //      // broadcast的输出参数表，输出参数禁止重名。
+    //      out {
+    //          UInt8 status
+    //      }
+    // }
+}
+
+// 注释说明
+// 注释分为非结构化注释和结构化注释。
+// 非结构化注释用于说明fidl/fdepl文件的相关内容，可使用“//”或者“/**/”两种形态。
+// 结构化注释用于生成API文档。它放于每一个等说明元素前，包括interface/array/struct/enumeration/union/typedef/constant/method/broadcast，以及上述元素的成员变量表、参数表等。
+// 结构化注释的格式为：
+// <∗∗ @description : This is the constant MyConst, which is 10 as UInt8.
+//     @author : ding.wang ∗∗>
+// constant UInt8 a = 10
+// 可使用的标签如下：
+// @description, @author, @deprecated, @source−uri, @source−alias, @see, @experimental

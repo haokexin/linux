@@ -1,5 +1,9 @@
 // SPDX-License-Identifier: GPL-2.0+
 /dts-v1/;
+#include <generated/autoconf.h>
+#include <dt-bindings/mailbox/bst_msgbox.h>
+#include <dt-bindings/media/bst-isp.h>
+
 #include "bstc1200.dtsi"
 
 / {
@@ -14,42 +18,7 @@
 	/* This is used to push the total usable DDR to Normal Zone
 	 * DON NOT USE IT !!!
 	 */
-	memory@1000000 {
-	device_type = "memory";
-	reg = <0x0 0x1000000 0x0 0x1000>;
-	};
 
-	memory@c00000000 {
-	device_type = "memory";
-	reg = <0xc 0x40000000 0x1 0x80000000>;
-	};
-
-	memory@800000000 {
-	device_type = "memory";
-	reg = <0x8 0x00000000 0x0 0x20000>;
-	};
-
-	memory@800000000 {
-        device_type = "memory";
-        reg = <0x8 0x6400000 0x0 0x100000>;
-    };
-
-	memory@837000000 {
-        device_type = "memory";
-        reg = <0x8 0x37000000 0x0 0x09000000
-			   0x8 0x50000000 0x0 0x03000000
-			   0xc 0x50000000 0x0 0x03000000
-		>;
-    };
-
-	memory@806a10000 {
-		device_type = "memory";
-		reg = <0x8 0x06a10000 0x0 0x100000>;
-	};
-	memory@80e800000 {
-		device_type = "memory";
-		reg = <0x8 0x0e800000 0x0 0x800000>;
-	};
 	reserved-memory {
 		#address-cells = <2>;
 		#size-cells = <2>;
@@ -57,7 +26,6 @@
 
 		its_table_reserved: its_table@806a10000 {
 			reg = <0x8 0x06a10000 0x0 0x100000>;
-			no-map;
 		};
 
 		bst_ufs_reserved: bst_ufs@800000000 {
@@ -92,24 +60,29 @@
 			reusable;
 		};
 
-		bst_dpu_reserved: bst_dpu_cma@c80000000 {
-			compatible = "shared-dma-pool";
-			reg = <0xc 0x80000000 0x0 0x10000000>;
-			reusable;
-		};
-
-
-		bst_ipc_reserved: bst_ipc@800400000 {
-			compatible = "shared-dma-pool";
-			reg = <0x8 0x00400000 0x0 0x100000>;
+		/* Reserved for exchange message between driver and firmware */
+		isp_fw_msg_rsv: bst_isp_msg@821000000 {
+			reg = <0x8 0x21000000 0x0 0x1000000>;
+			/* Reserved IOVA for fixed map */
+			iommu-addresses = <&isp 0x0 0x3E000000 0x0 0x42000000>;
 			no-map;
 		};
 
+		/* Reserved exclusively for firmware */
+		isp_fw_buf_rsv: bst_isp_buf@822000000 {
+			reg = <0x8 0x22000000 0x0 0x15000000>;
+			no-map;
+		};
 
+		bst_ipc_reserved: bst_ipc@800300000 {
+			compatible = "shared-dma-pool";
+			reg = <0x8 0x300000 0x0 0x400000>;
+			no-map;
+		};
 
 		bst_sramxrp_reserved: bst_sramxrp0@806400000{
             compatible = "shared-dma-pool";
-            reg = <0x8 0x6400000 0x0 0x100000>;
+            reg = <0x8 0x6400000 0x0 0x80000>;
             no-map;
 		};
 
@@ -117,23 +90,11 @@
 			compatible = "shared-dma-pool";
 			reg = <0x8 0x06690000 0x0 0x40000>; //256k
 			no-map;
-		};
+		};	
 
-		bst_minidump_reserved: bst_minidump@d00000000 {
-			compatible = "bst,minidump";
-			reg = <0xd 0x00000000 0x0 0xA00000>;
-			no-map;
-		};
-
-		bst_mrdump_cb_reserved: bst_mrdump@d00a00000 {
-			compatible = "bst,mrdump_cb";
-			reg = <0xd 0xa00000 0x0 0x200000>;
-			no-map;
-		};
-
-		bst_hif_reserved: bst_hif_des@d00c00000 {
+		bst_vmac_reserved: bst_vmac_des@806c10000 {
 			compatible = "shared-dma-pool";
-			reg = <0xd 0xc00000 0x0 0x40000>;
+			reg = <0x8 0x0cc00000 0x0 0x900000>; //9M
 			no-map;
 		};
 
@@ -148,11 +109,40 @@
 		/*reserved for global normal dmabuf */
 		global_dmabuf_normal_reserved: global_normal_dmabuf@837000000 {
 			compatible = "shared-dma-pool";
-			reg = <0x8 0x37000000 0x0 0x09000000>;
+			reg = <0x8 0x53000000 0x0 0x2d000000
+				   0x8 0x37000000 0x0 0x19000000
+				  >;
+		};
+		/*reserved for global hifi dmabuf */
+		global_dmabuf_hifi_reserved: global_hifi_dmabuf@806480000 {
+			compatible = "shared-dma-pool";
+			reg = <0x8 0x06480000 0x0 0x00080000>;
 			no-map;
 		};
-		bst_usb_virt_reserved: usb_virt@80e800000 {
-			reg = <0x8 0x0e800000 0x0 0x800000>;
+		bst_usb_virt_reserved: usb_virt@80e000000 {
+			reg = <0x8 0x0e000000 0x0 0x1000000>;
+			no-map;
+		};
+		bst_dpu_buf_reserved: bst_dpu_buf@806922000 {
+			compatible = "shared-dma-pool";
+			reg = <0x8 0x06922000 0x0 0x1000>;
+			no-map;
+		};
+	
+		bst_hwrng_buf_reserved: bst_hwrng_buf@806d40000 {
+			compatible = "shared-dma-pool";
+			reg = <0x8 0x06d31000 0x0 0x1000>;
+		};
+
+		bst_minidump_reserved: bst_minidump@db0000000 {
+			compatible = "bst,minidump";
+			reg = <0xd 0xb0000000 0x0 0xA00000>;
+			no-map;
+		};
+
+		bst_mrdump_cb_reserved: bst_mrdump@db0a00000 {
+			compatible = "bst,mrdump_cb";
+			reg = <0xd 0xb0a00000 0x0 0x200000>;
 			no-map;
 		};
 	};
@@ -164,89 +154,6 @@
  *	split			4 + 4: c0 0x0 ~ 0x300 + c1 0x0 ~ 0x300
  */
 /****************************************************************************************/
-	cpus {
-		#address-cells = <1>;
-		#size-cells = <0>;
-
-		/* cluster 0 */
-		cpu_l0: cpu@0 {
-			compatible = "arm,cortex-a78", "arm,armv8";
-			device_type = "cpu";
-			enable-method = "psci";
-			next-level-cache = <&l2_0>;
-			reg = <0x0>;
-			freq-domain = <&cpufreq 0>;
-		};
-		cpu_l1: cpu@1 {
-			compatible = "arm,cortex-a78", "arm,armv8";
-			device_type = "cpu";
-			enable-method = "psci";
-			next-level-cache = <&l2_0>;
-			reg = <0x100>;
-			freq-domain = <&cpufreq 0>;
-		};
-		cpu_l2: cpu@2 {
-			compatible = "arm,cortex-a78", "arm,armv8";
-			device_type = "cpu";
-			enable-method = "psci";
-			next-level-cache = <&l2_0>;
-			reg = <0x200>;
-			freq-domain = <&cpufreq 0>;
-		};
-		cpu_l3: cpu@3 {
-			compatible = "arm,cortex-a78", "arm,armv8";
-			device_type = "cpu";
-			enable-method = "psci";
-			next-level-cache = <&l2_0>;
-			reg = <0x300>;
-			freq-domain = <&cpufreq 0>;
-		};
-
-		l2_0: l2-cache-0 {
-			compatible = "cache";
-		};
-		
-
-		/* cluster 1 */
-		/*
-		cpu_b0: cpu@100 {
-			compatible = "arm,cortex-a78", "arm,armv8";
-			device_type = "cpu";
-			enable-method = "psci";
-			next-level-cache = <&l2_1>;
-			reg = <0x10000>;
-			freq-domain = <&cpufreq 1>;
-		};
-		cpu_b1: cpu@101 {
-			compatible = "arm,cortex-a78", "arm,armv8";
-			device_type = "cpu";
-			enable-method = "psci";
-			next-level-cache = <&l2_1>;
-			reg = <0x10100>;
-			freq-domain = <&cpufreq 1>;
-		};
-		cpu_b2: cpu@102 {
-			compatible = "arm,cortex-a78", "arm,armv8";
-			device_type = "cpu";
-			enable-method = "psci";
-			next-level-cache = <&l2_1>;
-			reg = <0x10200>;
-			freq-domain = <&cpufreq 1>;
-		};
-		cpu_b3: cpu@103 {
-			compatible = "arm,cortex-a78", "arm,armv8";
-			device_type = "cpu";
-			enable-method = "psci";
-			next-level-cache = <&l2_1>;
-			reg = <0x10300>;
-			freq-domain = <&cpufreq 1>;
-		};
-
-		l2_1: l2-cache-1 {
-			compatible = "cache";
-		};*/
-	};
-
 	psci {
 		compatible	= "arm,psci-1.0";
 		method		= "smc";
@@ -254,7 +161,6 @@
 		cpu_off		= <0x84000002>;
 		cpu_suspend	= <0xC4000001>;
 	};
-
 
     es8316-sound {
         status = "okay";
@@ -292,24 +198,31 @@
     };
 
     bst_adsp_i2s_codec0:adsp_i2s_codec0 {
-         compatible = "linux,i2s-adsp-codec0";
-         #sound-dai-cells = <0>;
-         status = "disable";
+        compatible = "linux,i2s-adsp-codec0";
+        #sound-dai-cells = <0>;
+        status = "disable";
     };
+
     bst_adsp_i2s_codec1:adsp_i2s_codec1 {
-         compatible = "linux,i2s-adsp-codec1";
-         #sound-dai-cells = <0>;
-         status = "disable";
+        compatible = "linux,i2s-adsp-codec1";
+        #sound-dai-cells = <0>;
+        status = "disable";
     };
+
     bst_adsp_tdm_codec0:adsp_tdm_codec0 {
-         compatible = "linux,tdm-adsp-codec0";
-         #sound-dai-cells = <0>;
-         status = "disable";
+        compatible = "linux,tdm-adsp-codec0";
+        #sound-dai-cells = <0>;
+        status = "disable";
+        tx_slot_cnt = <8>;
+        rx_slot_cnt = <6>;
     };
+
     bst_adsp_tdm_codec1:adsp_tdm_codec1 {
-         compatible = "linux,tdm-adsp-codec1";
-         #sound-dai-cells = <0>;
-         status = "disable";
+        compatible = "linux,tdm-adsp-codec1";
+        #sound-dai-cells = <0>;
+        status = "disable";
+        tx_slot_cnt = <8>;
+        rx_slot_cnt = <6>;
     };
 
     bst_rfkill_bt: rfkill_bt {
@@ -323,15 +236,15 @@
         status = "okay";
         compatible = "simple-audio-card";
         simple-audio-card,format = "i2s";
-        simple-audio-card,name = "everest,adsp21569-codec-tdm0";
+        simple-audio-card,name = "everest,adsp21569-codec-tdm1";
         simple-audio-card,mclk-fs = <256>;
 
         simple-audio-card,cpu {
-            sound-dai = <&tdm0>;
+            sound-dai = <&tdm1>;
         };
 
         simple-audio-card,codec {
-            sound-dai = <&bst_adsp_tdm_codec0>;
+            sound-dai = <&bst_adsp_tdm_codec1>;
         };
     };
 
@@ -339,11 +252,11 @@
         status = "okay";
         compatible = "simple-audio-card";
         simple-audio-card,format = "i2s";
-        simple-audio-card,name = "everest,adsp21569-codec-i2s1";
+        simple-audio-card,name = "everest,adsp21569-codec-i2s0";
         simple-audio-card,mclk-fs = <256>;
 
         simple-audio-card,cpu {
-            sound-dai = <&i2s1>;
+            sound-dai = <&i2s0>;
         };
 
         simple-audio-card,codec {
@@ -376,9 +289,39 @@
 
 
 	status = "okay";
+
+	 scmi_pinctrl: protocol@19 {
+		reg = <0x19>;
+		#pinctrl-cells = <0>;
+
+		isp_pinctrl:isp_pinctrl {
+			mux {
+				pins = "WK_GPIO33", "WK_GPIO34","WK_GPIO35","ISP_FSYNC0","ISP_FSYNC1","ISP_FSYNC2";
+				function = "isp";
+			};
+		};
+		deser_pinctrl: deser_pinctrl {
+				deser_pdb_pins {
+					/* Deser 0 PDB, Deser 1 PDB, Deser 2 PDB */
+					pins = "WK_GPIO15", "WK_GPIO20", "WK_GPIO21";
+					function = "gpio";
+				};
+				deser_status_pins {
+					/* Deser 0 LOCK, ERR, Deser 1 LOCK, ERR, Deser 2 LOCK, ERR */
+					pins = "SC_SDMMC0_WP", "SC_SDMMC1_STROBE", "SC_SDMMC1_CLK", "SC_SDMMC1_CMD", "SC_SDMMC1_DAT0", "SC_SDMMC1_DAT1";
+					function = "gpio";
+					bias-pull-up;
+					input-enable;
+				};
+			};
+        };
 };
 
-
+&hwrng {
+	status = "okay";
+	memory-region = <&bst_hwrng_buf_reserved>;
+	msgbx-pid = <0x10>;
+};
 
 &i2c0 {
 	status = "disable";
@@ -459,18 +402,53 @@
 };
 
 &i2cq0 {
-	status = "disable";
+	uid = <3>;
+	ipc-sem = <3 0 12>;	// Master 3, bank 0, sem 12
+	role = <ROLE_SLAVE>;
 };
-
 &i2cq1 {
-	status = "disable";
+	uid = <3>;
+	ipc-sem = <3 0 12>;	// Master 3, bank 0, sem 12
+	role = <ROLE_SLAVE>;
 };
-
 &i2cq2 {
-	status = "disable";
+	uid = <3>;
+	ipc-sem = <3 0 12>;	// Master 3, bank 0, sem 12
+	role = <ROLE_SLAVE>;
+};
+&csi0 {
+	uid = <3>;
+	ipc-sem = <3 0 13>;	// Master 3, bank 0, sem 13
+};
+&csi1 {
+	uid = <3>;
+	ipc-sem = <3 0 13>;	// Master 3, bank 0, sem 13
+};
+&csi2 {
+	uid = <3>;
+	ipc-sem = <3 0 13>;	// Master 3, bank 0, sem 13
+};
+&isp_bus {
+	dma-ranges = <0x0 0x80000000 0xC 0x90000000 0x0 0x3E000000>,
+		     <0x0 0x3E000000 0x0 0x3E000000 0x0 0x02000000>,	// Reserved to restrict IOVA area
+		     <0x0 0x40000000 0x0 0x20000000 0x0 0x07000000>,	// Outer registers area
+		     <0x0 0x47000000 0x0 0x30000000 0x0 0x01000000>,	// Outer registers area
+		     <0x0 0x50000000 0x0 0x50000000 0x0 0x10000000>,	// ISPCV inner registers
+		     <0x0 0x60000000 0x8 0x00200000 0x0 0x00600000>,	// IPC area, see bst_ipc_reserved, 2MB aligned
+		     <0x0 0x60600000 0x8 0x21000000 0x0 0x16000000>;	// For isp_fw_msg_rsv, isp_fw_buf_rsv
+};
+&isp {
+	uid = <3>;
+	msgbox-cpu = <CPU_1 1 2>;
+	ipc-cpu = <0>;		// ARM0
+	ipc-sem = <3 0 14>;	// Master 3, bank 0, sem 14
+	role = <ROLE_SLAVE>;
 };
 
 &uart0 {
+	dmas = <&gdma0 55>,
+			<&gdma0 54>;
+	dma-names = "tx", "rx";
 	status = "okay";
 };
 &uart1 {
@@ -601,31 +579,71 @@
 
 &gpio0 {
 	status = "okay";
+	pinctrl-names = "default";
+	pinctrl-0 = <&isp_pinctrl &deser_pinctrl>;
 };
+
+&porta {
+	interrupts = <GIC_SPI 218 (IRQ_TYPE_LEVEL_HIGH)>;
+};
+
 &gpio1 {
 	status = "okay";
 };
+
+&portb {
+	interrupts = <GIC_SPI 218 (IRQ_TYPE_LEVEL_HIGH)>;
+};
+
 &gpio2 {
 	status = "okay";
 };
+
+&portc {
+	interrupts = <GIC_SPI 218 (IRQ_TYPE_LEVEL_HIGH)>;
+};
+
 &gpio3 {
 	status = "okay";
 };
+
+&portd {
+	interrupts = <GIC_SPI 218 (IRQ_TYPE_LEVEL_HIGH)>;
+};
+
 &gpio4 {
 	status = "okay";
 	exclusive_gpio = <153>;
 };
+
+&porte {
+	interrupts = <GIC_SPI 218 (IRQ_TYPE_LEVEL_HIGH)>;
+};
+
 &gpio5 {
 	status = "okay";
+};
+
+&portf {
+	interrupts = <GIC_SPI 218 (IRQ_TYPE_LEVEL_HIGH)>;
 };
 &gpio6 {
 	status = "okay";
 };
+
+&portg {
+	interrupts = <GIC_SPI 218 (IRQ_TYPE_LEVEL_HIGH)>;
+};
 &gpio7 {
 	status = "okay";
 };
+
+&porth {
+	interrupts = <GIC_SPI 218 (IRQ_TYPE_LEVEL_HIGH)>;
+};
+
 &gpiokeys {
-	status = "okay";
+	status = "disable";
 	};
 
 &gdma0 {
@@ -698,6 +716,18 @@
 	status = "okay";
 };
 
+
+&timer0 {
+    interrupts = <GIC_SPI 218 IRQ_TYPE_LEVEL_HIGH>; 
+	timer-chan = <0x0>;
+    status = "okay";	                   
+};
+
+&timer1 {
+	status = "disable";
+};
+
+
 &mmc0 {
 	status = "disable";
 };
@@ -720,9 +750,18 @@
 &mmu600_soc {
 	status = "okay";
 };
+#if defined(CONFIG_VIDEO_BST_ISP_MULTI_OS)
+&mmu600_coreip {
+	status = "okay";
+};
+#endif
 
 &ufs {
-    interrupts = <GIC_SPI 184 IRQ_TYPE_LEVEL_HIGH>;
+	reg = <0x0 0x23005f00 0 0x100>,
+		  <0x0 0x20011000 0 0x1000>;
+    interrupts = <GIC_SPI 184 IRQ_TYPE_LEVEL_HIGH
+					GIC_SPI 218 IRQ_TYPE_LEVEL_HIGH>; 
+	ufs-timer = <0x0>;
 	status = "okay";
 };
 
@@ -776,34 +815,35 @@
 
 &bst_dpu0 {
 	status = "disable";
-	memory-region = <&bst_dpu_reserved>;
 };
 &bst_dpu2 {
 	status = "disable";
-	memory-region = <&bst_dpu_reserved>;
 };
 &bst_dpu1 {
 	status = "disable";
-	memory-region = <&bst_dpu_reserved>;
 };
 
 &lvds_conn {
 	status = "disable";
 };
 
-&bst_disp_fw {
-	status = "okay";
+&bst_disp_fw_msgbx {
+	status = "disable";
 	msgbx-pid = "CPU_0"; /* "CPU_0" - "CPU_3" */
+};
+
+&bst_disp_fw_ipc {
+	status = "okay";
+	memory-region = <&bst_dpu_buf_reserved>;
+	ipc-pid = "ARM0";
 };
 
 &bst_virt_dpu0 {
 	status = "okay";
-	memory-region = <&bst_dpu_reserved>;
-	os-type = "IVI_ANDROID";
+	os-type = "IVI";
 	pipeline@0 {
 		status = "okay";
-		dc-type = "DEVICE_TYPE_VIRT_DC_PIPE2";
-		layer-num = <3>;
+		layer-num = <1>;
 		port@0 {
 			virt_pipe0_out: endpoint@0 {
 				remote-endpoint = <&virt_dptx_in>;
@@ -812,8 +852,7 @@
 	};
 	pipeline@1 {
 		status = "okay";
-		dc-type = "DEVICE_TYPE_VIRT_DC_PIPE0";
-		layer-num = <4>;
+		layer-num = <1>;
 		port@0 {
 			virt_pipe1_out: endpoint@0 {
 				remote-endpoint = <&virt_dsi1_in>;
@@ -822,8 +861,7 @@
 	};
 	pipeline@2 {
 		status = "okay";
-		dc-type = "DEVICE_TYPE_VIRT_DC_PIPE4";
-		layer-num = <4>;
+		layer-num = <1>;
 		port@0 {
 			reg = <0>;
 			virt_pipe2_out: endpoint@0 {
@@ -833,7 +871,6 @@
 	};
 	pipeline@3 {
 		status = "okay";
-		dc-type = "DEVICE_TYPE_VIRT_DC_PIPE3";
 		layer-num = <1>;
 		port@0 {
 			reg = <0>;
@@ -846,6 +883,7 @@
 
 &bst_virt_dptx {
 	status = "okay";
+	backlight = <&backlight_edp>;
 	ports {
 		port@0 {
 			virt_dptx_in: endpoint@0 {
@@ -857,6 +895,7 @@
 
 &bst_virt_dsi0 {
 	status = "okay";
+	backlight = <&backlight_dsi0>;
 	ports {
 		port@0 {
 			virt_dsi0_in: endpoint@0 {
@@ -868,6 +907,7 @@
 
 &bst_virt_dsi1 {
 	status = "okay";
+	backlight = <&backlight_dsi1>;
 	ports {
 		port@0 {
 			virt_dsi1_in: endpoint@0 {
@@ -879,6 +919,7 @@
 
 &bst_virt_lvds1 {
 	status = "okay";
+	backlight = <&backlight_lvds1>;
 	ports {
 		port@0 {
 			virt_lvds1_in: endpoint@0 {
@@ -925,7 +966,7 @@
 	memory-region = <&its_table_reserved>;
 };
 
-&hif {
+&vmac {
 	status = "okay";
 	interrupt-parent = <&gic600>;
 	interrupts = <GIC_SPI 480 IRQ_TYPE_LEVEL_HIGH>,
@@ -936,12 +977,14 @@
 			   <GIC_SPI 485 IRQ_TYPE_LEVEL_HIGH>,
 			   <GIC_SPI 486 IRQ_TYPE_LEVEL_HIGH>,
 			   <GIC_SPI 487 IRQ_TYPE_LEVEL_HIGH>;
-	interrupt-names = "hif_irq0", "hif_irq1", "hif_irq2", "hif_irq3",
-		"hif_irq4", "hif_irq5", "hif_irq6", "hif_irq7";
-	mac-address = [52AECD28264B];
+	interrupt-names = "vmac_irq0", "vmac_irq1", "vmac_irq2", "vmac_irq3",
+		"vmac_irq4", "vmac_irq5", "vmac_irq6", "vmac_irq7";
+	//mac-address = [52AECD28264B];
 	channel-bit = <0x00000000 0x00010000>;
 	max-frame-size = <3800>;
-	memory-region = <&bst_hif_reserved>;
+	tx-queues-to-use = <1>;
+	rx-queues-to-use = <1>;
+	memory-region = <&bst_vmac_reserved>;
 };
 
 
@@ -952,6 +995,7 @@
 
 &mbox {
 	status = "okay";
+	ipc-cpus = <0>;
 	memory-region = <&bst_ipc_reserved>;
 };
 
@@ -1020,31 +1064,68 @@
 &virtouch {
 	status = "disable";
 	memory-region = <&bst_touchscreen_reserved>;
-	client-id = <0xBADC2143>;//100, as same as display client id
+	/*
+	 * client-id:
+	 * 0x41444153: "ADAS"
+	 * 0x49564920: "IVI "
+	 * 0x44422020: "DB  "
+	 */
+	client-id = <0x49564920>; //as same as display client id
 	/*
 	 * screens-id:
-	 * 0x43210000: screen_lvds0  adas
-	 * 0x43210001: screen_lvds1  adas/ivi/db
-	 * 0x43210002: screen_dsi0  ivi
-	 * 0x43210003: screen_dsi1  ivi
-	 * 0x43210004: screen_edp   adas/ivi
+	 * 0x9: screen_lvds0  adas
+	 * 0xa: screen_lvds1  adas/ivi/db
+	 * 0x7: screen_dsi0  ivi
+	 * 0x8: screen_dsi1  ivi
+	 * 0x6: screen_edp   adas/ivi
 	 */
-	screens-id = <0x43210001>, <0x43210002>,  <0x43210003>, <0x43210004>;
+	screens-id = <0xa>, <0x7>,  <0x8>, <0x6>;
 };
 
 &backlight_lvds1 {
-	client-id = <0xBADC2143>;
+	client-id = <0x49564920>;
 	status = "okay";
 };
 &backlight_dsi0 {
-	client-id = <0xBADC2143>;
+	client-id = <0x49564920>;
 	status = "okay";
 };
 &backlight_dsi1 {
-	client-id = <0xBADC2143>;
+	client-id = <0x49564920>;
 	status = "okay";
 };
 &backlight_edp {
-	client-id = <0xBADC2143>;
+	client-id = <0x49564920>;
 	status = "okay";
+};
+
+&mmu600_coreip {
+	status = "okay";
+};
+
+&bstn_bus {
+       /*           cpu va          net va         size          */
+       dma-ranges = <0x0 0x80000000 0x0 0x80000000 0x0 0x40000000>; /* ivi msg */
+};
+
+&bstn {
+       status = "okay";
+       iommus = <&mmu600_coreip 1>,<&mmu600_coreip 4>;
+       msgbox-endid = <0x11>;
+       //dma-coherent;
+};
+
+&cv_bus {
+	dma-ranges = <0x0 0x80000000 0xc 0x90000000 0x0 0x40000000>;
+};
+
+&bst_cvsmm {
+	status = "okay";
+	iommus = <&mmu600_coreip 2>;
+};
+
+&hwcv {
+	status = "okay";
+	use-cvsmm;
+	ipc-sem = <3 0 8>; //<master_id bank_id msg_id>
 };

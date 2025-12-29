@@ -150,7 +150,7 @@ static ssize_t b_store(struct kobject *kobj, struct kobj_attribute *attr,
 static ssize_t all_cores_register_show(struct kobject *kobj,
 				       struct kobj_attribute *attr, char *buf)
 {
-	return sprintf(buf, "0x%p\n", g_ipc_all_cores_register_addr_uaddr);
+	return sprintf(buf, "0x%px\n", g_ipc_all_cores_register_addr_uaddr);
 }
 
 static ssize_t log_level_show(struct kobject *kobj, struct kobj_attribute *attr,
@@ -179,8 +179,9 @@ static ssize_t all_cores_register_store(struct kobject *kobj,
 					const char *buf, size_t count)
 {
 	int32_t ret;
-	char *kaddr;
+	char *kaddr,*kaddr_ptr;
 	int32_t i;
+
 
 	ret = kstrtoll(buf, 16, &phy_addr_val);
 	if (ret < 0) {
@@ -195,27 +196,37 @@ static ssize_t all_cores_register_store(struct kobject *kobj,
 		return -ENOMEM;
 	}
 
+
+	kaddr_ptr = (char * )translate_address_by_system(kaddr);
+	if (!kaddr_ptr) {
+		IPC_LOG_WARNING("core not support ipc");
+		return -ENOMEM;
+	}
+
+
+
+
 #define LINE_SIZE 8
 	for (i = 0; i < sizeof(*g_ipc_all_cores_register_addr) / LINE_SIZE;
 	     i++) {
 		IPC_LOG_INFO("0x%llx: %02x%02x%02x%02x%02x%02x%02x%02x    %c%c%c%c%c%c%c%c\n",
 		       phy_addr_val + i * LINE_SIZE,
-		       *(kaddr + i * LINE_SIZE + 0),
-		       *(kaddr + i * LINE_SIZE + 1),
-		       *(kaddr + i * LINE_SIZE + 2),
-		       *(kaddr + i * LINE_SIZE + 3),
-		       *(kaddr + i * LINE_SIZE + 4),
-		       *(kaddr + i * LINE_SIZE + 5),
-		       *(kaddr + i * LINE_SIZE + 6),
-		       *(kaddr + i * LINE_SIZE + 7),
-		       *(kaddr + i * LINE_SIZE + 0),
-		       *(kaddr + i * LINE_SIZE + 1),
-		       *(kaddr + i * LINE_SIZE + 2),
-		       *(kaddr + i * LINE_SIZE + 3),
-		       *(kaddr + i * LINE_SIZE + 4),
-		       *(kaddr + i * LINE_SIZE + 5),
-		       *(kaddr + i * LINE_SIZE + 6),
-		       *(kaddr + i * LINE_SIZE + 7));
+		       *(kaddr_ptr + i * LINE_SIZE + 0),
+		       *(kaddr_ptr + i * LINE_SIZE + 1),
+		       *(kaddr_ptr + i * LINE_SIZE + 2),
+		       *(kaddr_ptr + i * LINE_SIZE + 3),
+		       *(kaddr_ptr + i * LINE_SIZE + 4),
+		       *(kaddr_ptr + i * LINE_SIZE + 5),
+		       *(kaddr_ptr + i * LINE_SIZE + 6),
+		       *(kaddr_ptr + i * LINE_SIZE + 7),
+		       *(kaddr_ptr + i * LINE_SIZE + 0),
+		       *(kaddr_ptr + i * LINE_SIZE + 1),
+		       *(kaddr_ptr + i * LINE_SIZE + 2),
+		       *(kaddr_ptr + i * LINE_SIZE + 3),
+		       *(kaddr_ptr + i * LINE_SIZE + 4),
+		       *(kaddr_ptr + i * LINE_SIZE + 5),
+		       *(kaddr_ptr + i * LINE_SIZE + 6),
+		       *(kaddr_ptr + i * LINE_SIZE + 7));
 	}
 
 	return count;

@@ -1,26 +1,33 @@
-// SPDX-License-Identifier: GPL-2.0 OR BSD-3-Clause
+// SPDX-License-Identifier: GPL-2.0 OR Apache 2.0
 /*
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2 of the License, or
- * (at your option) any later version.
+ * Copyright (c) 2024 Black Sesame Technologies
  *
- * This program is also distributed under the terms of the BSD 3-Clause
+ * This program is also distributed under the terms of the Apache 2.0
  * License.
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
- * Copyright (C) 2023 Black Sesame Technologies. Inc.
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 
-/* This file is auto generated for message box v1.0.0.
+/* This file is auto generated for message box v2.0.0.
  * All manual modifications will be LOST by next generation.
  * It is recommended NOT modify it.
- * Generator Version: francaidl b083072 msgbx_ipc ad2552b
  */
 
 #include "st_public_client.h"
 
 // macro definitions
 #define CID SAFETY_0
+#define CCID 0
+#define CID_MASK (0x1U << 26)
 #define MAJOR 1U
 #define MINOR 0U
 
@@ -38,16 +45,19 @@ static st_public_client_ext_t *s_ext;
 #ifndef IPC_RTE_BAREMETAL
 
 struct _qspi_method_out_t {
+	DECL_SEM(sem)
 	st_public_ErrorEnum_t *err;
 };
 #define qspi_method_out_t struct _qspi_method_out_t
 
 struct _scmi_method_out_t {
+	DECL_SEM(sem)
 	st_public_ErrorEnum_t *err;
 };
 #define scmi_method_out_t struct _scmi_method_out_t
 
 struct _gettemp_method_out_t {
+	DECL_SEM(sem)
 	uint32_t *reply_temp;
 	st_public_ErrorEnum_t *err;
 };
@@ -88,7 +98,7 @@ static int32_t call_timesync_method_fire_and_forget(const uint32_t sec,
 				const uint32_t nsec)
 {
 	int32_t ret = 0;
-#ifdef IPC_RTE_BAREMETAL
+#ifdef IPC_SHARED_SERIALIZER
 	serdes_t *ser = NULL;
 #else
 	serdes_t serdes = { 0 };
@@ -98,7 +108,7 @@ static int32_t call_timesync_method_fire_and_forget(const uint32_t sec,
 
 	if (!data || !s_ext)
 		return -ERR_APP_PARAM;
-#ifdef IPC_RTE_BAREMETAL
+#ifdef IPC_SHARED_SERIALIZER
 	ser = &data->serializer;
 #endif
 	(void)ipc_ser_init(ser);
@@ -112,7 +122,7 @@ static int32_t call_timesync_method_fire_and_forget(const uint32_t sec,
 	// send request
 	ret = send_fire_and_forget_request(data, ser, s_ext->cid, CMD_METHOD_TIMESYNC_METHOD);
 	if (ret < 0) {
-		IPC_LOG_ERR("send method fail %d.\n", ret);
+		IPC_LOG_ERR("send method fail %" PRId32 ".\n", ret);
 		return ret;
 	}
 
@@ -121,13 +131,13 @@ static int32_t call_timesync_method_fire_and_forget(const uint32_t sec,
 
 static inline int32_t serialize_qspi_method(
 				serdes_t *ser,
-				const st_public_qspi_cmd_head_t head_msg
+				const st_public_qspi_cmd_head_t *head_msg
 				)
 {
 	int32_t ret = 0;
 
 	if (ret >= 0)
-		ret = serialize_st_public_qspi_cmd_head(ser, &head_msg);
+		ret = serialize_st_public_qspi_cmd_head(ser, head_msg);
 
 	if (ret < 0)
 		return -ERR_APP_SERDES;
@@ -147,9 +157,11 @@ static void qspi_method_sync_callback(
 	if (!out)
 		return;
 	*out->err = err;
+
+	IPC_SEM_POST(&out->sem);
 }
 
-static int32_t call_qspi_method_sync(const st_public_qspi_cmd_head_t head_msg,
+static int32_t call_qspi_method_sync(const st_public_qspi_cmd_head_t *head_msg,
 				st_public_ErrorEnum_t *err,
 				int64_t timeout_ms,
 				des_buf_t *ext_buf)
@@ -163,6 +175,7 @@ static int32_t call_qspi_method_sync(const st_public_qspi_cmd_head_t head_msg,
 
 	if (!data || !s_ext)
 		return -ERR_APP_PARAM;
+	IPC_SEM_INIT(&out.sem, 0);
 	ser = &serdes;
 	(void)ipc_ser_init(ser);
 
@@ -173,35 +186,35 @@ static int32_t call_qspi_method_sync(const st_public_qspi_cmd_head_t head_msg,
 	}
 
 	// send request
-	ret = send_request(data, ser, s_ext->cid, CMD_METHOD_QSPI_METHOD,
-				qspi_method_sync_callback, &out, ext_buf);
+	ret = send_request(data, s_ext->qspi_method_registry, ser, s_ext->cid,
+			CMD_METHOD_QSPI_METHOD, qspi_method_sync_callback, &out, ext_buf);
 	if (ret < 0 || ret >= IPC_TOKEN_NUM) {
-		IPC_LOG_ERR("send method fail %d.\n", ret);
+		IPC_LOG_ERR("send method fail %" PRId32 ".\n", ret);
 		return ret;
 	}
 
 	//wait for reply
-	reg = &data->method_registry[ret];
+	reg = &s_ext->qspi_method_registry[ret];
 	if (timeout_ms <= 0)
-		ret = wait_on_registry(reg);
+		IPC_SEM_WAIT(&out.sem);
 	else
-		ret = timedwait_on_registry(reg, timeout_ms);
-	if (ret < 0) {
-		clear_registry(reg);
+		IPC_SEM_TIMED_WAIT(&out.sem, timeout_ms);
+	if (ret < 0)
 		IPC_LOG_ERR("wait timeout\n");
-	}
+	clear_registry(reg);
+	IPC_SEM_DESTROY(&out.sem);
 
 	return ret;
 }
 #endif
 
-static int32_t call_qspi_method_async(const st_public_qspi_cmd_head_t head_msg,
+static int32_t call_qspi_method_async(const st_public_qspi_cmd_head_t *head_msg,
 				st_public_qspi_method_callback_t cb,
 				void *ext,
 				des_buf_t *ext_buf)
 {
 	int32_t ret = 0;
-#ifdef IPC_RTE_BAREMETAL
+#ifdef IPC_SHARED_SERIALIZER
 	serdes_t *ser = NULL;
 #else
 	serdes_t serdes = { 0 };
@@ -211,7 +224,7 @@ static int32_t call_qspi_method_async(const st_public_qspi_cmd_head_t head_msg,
 
 	if (!data || !s_ext)
 		return -ERR_APP_PARAM;
-#ifdef IPC_RTE_BAREMETAL
+#ifdef IPC_SHARED_SERIALIZER
 	ser = &data->serializer;
 #endif
 	(void)ipc_ser_init(ser);
@@ -223,67 +236,60 @@ static int32_t call_qspi_method_async(const st_public_qspi_cmd_head_t head_msg,
 	}
 
 	// send request
-	ret = send_request(data, ser, s_ext->cid, CMD_METHOD_QSPI_METHOD,
-				cb, ext, ext_buf);
+	ret = send_request(data, s_ext->qspi_method_registry, ser, s_ext->cid,
+			CMD_METHOD_QSPI_METHOD, cb, ext, ext_buf);
 	if (ret < 0 || ret >= IPC_TOKEN_NUM) {
-		IPC_LOG_ERR("send method fail %d.\n", ret);
+		IPC_LOG_ERR("send method fail %" PRId32 ".\n", ret);
 		return ret;
 	}
 
 	return RESULT_SUCCESS;
 }
 
-static inline int32_t call_qspi_method_callback(serdes_t *des)
+static inline int32_t call_qspi_method_callback(des_buf_t *des)
 {
 	int32_t ret = 0;
 	callback_registration_t *reg = NULL;
 	des_buf_t *buf = NULL;
-	uint32_t len = 0;
 	com_client_data_t *data = s_data;
-	st_public_ErrorEnum_t err = { 0 };
+	st_public_qspi_method_callback_t cb = NULL;
+	st_public_ErrorEnum_t err = 0;
 
 
-	if (!des || !data)
+	if (!des || !data || !s_ext)
 		return -ERR_APP_PARAM;
 
-	reg = &data->method_registry[des->header.tok];
+	reg = &s_ext->qspi_method_registry[des->header.tok];
 	if (!reg->busy) {
 		IPC_LOG_ERR("callback registry is invalid.\n");
 		return -ERR_APP_TOK;
 	}
-	buf = reg->ext_buf ? reg->ext_buf : &data->des_buf;
-	clear_des_buf(buf);
+	if (reg->ext_buf) {
+		buf = reg->ext_buf;
+		(void)ipc_memcpy(buf, des, sizeof(des_buf_t));
+	}
+	else
+		buf = des;
+	// set info (for callback function)
 	data->info.uuid = ipc_msg_get_uuid(des->header);
-	data->info.timestamp = des->recv_end_time;
+	data->info.timestamp = des->timestamp;
 
 	// deserialize arguments
-	len = ipc_des_get_all(des, (uint8_t *)buf->data_buf);
-	if (len <= 0)
+	if (buf->unavail_data_size >= IPC_MAX_DATA_SIZE)
 		return -ERR_APP_SERDES;
-	buf->unavail_data_size = IPC_MAX_DATA_SIZE - len;
 
 	if (ret >= 0)
 		ret = deserialize_st_public_ErrorEnum(buf, &err);
 
 	if (ret < 0)
 		return -ERR_APP_SERDES;
-	if (err == ST_PUBLIC_NO_ERROR) {
-	
-		if (ret < 0)
-			return -ERR_APP_SERDES;
-	}
+
 
 	// call callback function
-	if (reg->busy) {
-		st_public_qspi_method_callback_t cb = (st_public_qspi_method_callback_t)(reg->cb);
+	cb = (st_public_qspi_method_callback_t)(reg->cb);
+	if (cb)
+		cb(err, reg->ext, &data->info);
 
-		if (cb)
-			cb(err, reg->ext, &data->info);
-#ifndef IPC_RTE_BAREMETAL
-		notify_callback_registry(reg);
-#endif
-		clear_registry(reg);
-	}
 	return RESULT_SUCCESS;
 }
 
@@ -315,6 +321,8 @@ static void scmi_method_sync_callback(
 	if (!out)
 		return;
 	*out->err = err;
+
+	IPC_SEM_POST(&out->sem);
 }
 
 static int32_t call_scmi_method_sync(const uint32_t addr,
@@ -331,6 +339,7 @@ static int32_t call_scmi_method_sync(const uint32_t addr,
 
 	if (!data || !s_ext)
 		return -ERR_APP_PARAM;
+	IPC_SEM_INIT(&out.sem, 0);
 	ser = &serdes;
 	(void)ipc_ser_init(ser);
 
@@ -341,23 +350,23 @@ static int32_t call_scmi_method_sync(const uint32_t addr,
 	}
 
 	// send request
-	ret = send_request(data, ser, s_ext->cid, CMD_METHOD_SCMI_METHOD,
-				scmi_method_sync_callback, &out, ext_buf);
+	ret = send_request(data, s_ext->scmi_method_registry, ser, s_ext->cid,
+			CMD_METHOD_SCMI_METHOD, scmi_method_sync_callback, &out, ext_buf);
 	if (ret < 0 || ret >= IPC_TOKEN_NUM) {
-		IPC_LOG_ERR("send method fail %d.\n", ret);
+		IPC_LOG_ERR("send method fail %" PRId32 ".\n", ret);
 		return ret;
 	}
 
 	//wait for reply
-	reg = &data->method_registry[ret];
+	reg = &s_ext->scmi_method_registry[ret];
 	if (timeout_ms <= 0)
-		ret = wait_on_registry(reg);
+		IPC_SEM_WAIT(&out.sem);
 	else
-		ret = timedwait_on_registry(reg, timeout_ms);
-	if (ret < 0) {
-		clear_registry(reg);
+		IPC_SEM_TIMED_WAIT(&out.sem, timeout_ms);
+	if (ret < 0)
 		IPC_LOG_ERR("wait timeout\n");
-	}
+	clear_registry(reg);
+	IPC_SEM_DESTROY(&out.sem);
 
 	return ret;
 }
@@ -369,7 +378,7 @@ static int32_t call_scmi_method_async(const uint32_t addr,
 				des_buf_t *ext_buf)
 {
 	int32_t ret = 0;
-#ifdef IPC_RTE_BAREMETAL
+#ifdef IPC_SHARED_SERIALIZER
 	serdes_t *ser = NULL;
 #else
 	serdes_t serdes = { 0 };
@@ -379,7 +388,7 @@ static int32_t call_scmi_method_async(const uint32_t addr,
 
 	if (!data || !s_ext)
 		return -ERR_APP_PARAM;
-#ifdef IPC_RTE_BAREMETAL
+#ifdef IPC_SHARED_SERIALIZER
 	ser = &data->serializer;
 #endif
 	(void)ipc_ser_init(ser);
@@ -391,67 +400,60 @@ static int32_t call_scmi_method_async(const uint32_t addr,
 	}
 
 	// send request
-	ret = send_request(data, ser, s_ext->cid, CMD_METHOD_SCMI_METHOD,
-				cb, ext, ext_buf);
+	ret = send_request(data, s_ext->scmi_method_registry, ser, s_ext->cid,
+			CMD_METHOD_SCMI_METHOD, cb, ext, ext_buf);
 	if (ret < 0 || ret >= IPC_TOKEN_NUM) {
-		IPC_LOG_ERR("send method fail %d.\n", ret);
+		IPC_LOG_ERR("send method fail %" PRId32 ".\n", ret);
 		return ret;
 	}
 
 	return RESULT_SUCCESS;
 }
 
-static inline int32_t call_scmi_method_callback(serdes_t *des)
+static inline int32_t call_scmi_method_callback(des_buf_t *des)
 {
 	int32_t ret = 0;
 	callback_registration_t *reg = NULL;
 	des_buf_t *buf = NULL;
-	uint32_t len = 0;
 	com_client_data_t *data = s_data;
-	st_public_ErrorEnum_t err = { 0 };
+	st_public_scmi_method_callback_t cb = NULL;
+	st_public_ErrorEnum_t err = 0;
 
 
-	if (!des || !data)
+	if (!des || !data || !s_ext)
 		return -ERR_APP_PARAM;
 
-	reg = &data->method_registry[des->header.tok];
+	reg = &s_ext->scmi_method_registry[des->header.tok];
 	if (!reg->busy) {
 		IPC_LOG_ERR("callback registry is invalid.\n");
 		return -ERR_APP_TOK;
 	}
-	buf = reg->ext_buf ? reg->ext_buf : &data->des_buf;
-	clear_des_buf(buf);
+	if (reg->ext_buf) {
+		buf = reg->ext_buf;
+		(void)ipc_memcpy(buf, des, sizeof(des_buf_t));
+	}
+	else
+		buf = des;
+	// set info (for callback function)
 	data->info.uuid = ipc_msg_get_uuid(des->header);
-	data->info.timestamp = des->recv_end_time;
+	data->info.timestamp = des->timestamp;
 
 	// deserialize arguments
-	len = ipc_des_get_all(des, (uint8_t *)buf->data_buf);
-	if (len <= 0)
+	if (buf->unavail_data_size >= IPC_MAX_DATA_SIZE)
 		return -ERR_APP_SERDES;
-	buf->unavail_data_size = IPC_MAX_DATA_SIZE - len;
 
 	if (ret >= 0)
 		ret = deserialize_st_public_ErrorEnum(buf, &err);
 
 	if (ret < 0)
 		return -ERR_APP_SERDES;
-	if (err == ST_PUBLIC_NO_ERROR) {
-	
-		if (ret < 0)
-			return -ERR_APP_SERDES;
-	}
+
 
 	// call callback function
-	if (reg->busy) {
-		st_public_scmi_method_callback_t cb = (st_public_scmi_method_callback_t)(reg->cb);
+	cb = (st_public_scmi_method_callback_t)(reg->cb);
+	if (cb)
+		cb(err, reg->ext, &data->info);
 
-		if (cb)
-			cb(err, reg->ext, &data->info);
-#ifndef IPC_RTE_BAREMETAL
-		notify_callback_registry(reg);
-#endif
-		clear_registry(reg);
-	}
 	return RESULT_SUCCESS;
 }
 
@@ -485,6 +487,8 @@ static void gettemp_method_sync_callback(
 		return;
 	*out->reply_temp = reply_temp;
 	*out->err = err;
+
+	IPC_SEM_POST(&out->sem);
 }
 
 static int32_t call_gettemp_method_sync(const uint32_t temp_index,
@@ -497,12 +501,13 @@ static int32_t call_gettemp_method_sync(const uint32_t temp_index,
 	serdes_t serdes = { 0 };
 	serdes_t *ser = NULL;
 	gettemp_method_out_t out = {.reply_temp = reply_temp,
-.err = err};
+				.err = err};
 	callback_registration_t *reg = NULL;
 	com_client_data_t *data = s_data;
 
 	if (!data || !s_ext)
 		return -ERR_APP_PARAM;
+	IPC_SEM_INIT(&out.sem, 0);
 	ser = &serdes;
 	(void)ipc_ser_init(ser);
 
@@ -513,23 +518,23 @@ static int32_t call_gettemp_method_sync(const uint32_t temp_index,
 	}
 
 	// send request
-	ret = send_request(data, ser, s_ext->cid, CMD_METHOD_GETTEMP_METHOD,
-				gettemp_method_sync_callback, &out, ext_buf);
+	ret = send_request(data, s_ext->gettemp_method_registry, ser, s_ext->cid,
+			CMD_METHOD_GETTEMP_METHOD, gettemp_method_sync_callback, &out, ext_buf);
 	if (ret < 0 || ret >= IPC_TOKEN_NUM) {
-		IPC_LOG_ERR("send method fail %d.\n", ret);
+		IPC_LOG_ERR("send method fail %" PRId32 ".\n", ret);
 		return ret;
 	}
 
 	//wait for reply
-	reg = &data->method_registry[ret];
+	reg = &s_ext->gettemp_method_registry[ret];
 	if (timeout_ms <= 0)
-		ret = wait_on_registry(reg);
+		IPC_SEM_WAIT(&out.sem);
 	else
-		ret = timedwait_on_registry(reg, timeout_ms);
-	if (ret < 0) {
-		clear_registry(reg);
+		IPC_SEM_TIMED_WAIT(&out.sem, timeout_ms);
+	if (ret < 0)
 		IPC_LOG_ERR("wait timeout\n");
-	}
+	clear_registry(reg);
+	IPC_SEM_DESTROY(&out.sem);
 
 	return ret;
 }
@@ -541,7 +546,7 @@ static int32_t call_gettemp_method_async(const uint32_t temp_index,
 				des_buf_t *ext_buf)
 {
 	int32_t ret = 0;
-#ifdef IPC_RTE_BAREMETAL
+#ifdef IPC_SHARED_SERIALIZER
 	serdes_t *ser = NULL;
 #else
 	serdes_t serdes = { 0 };
@@ -551,7 +556,7 @@ static int32_t call_gettemp_method_async(const uint32_t temp_index,
 
 	if (!data || !s_ext)
 		return -ERR_APP_PARAM;
-#ifdef IPC_RTE_BAREMETAL
+#ifdef IPC_SHARED_SERIALIZER
 	ser = &data->serializer;
 #endif
 	(void)ipc_ser_init(ser);
@@ -563,45 +568,48 @@ static int32_t call_gettemp_method_async(const uint32_t temp_index,
 	}
 
 	// send request
-	ret = send_request(data, ser, s_ext->cid, CMD_METHOD_GETTEMP_METHOD,
-				cb, ext, ext_buf);
+	ret = send_request(data, s_ext->gettemp_method_registry, ser, s_ext->cid,
+			CMD_METHOD_GETTEMP_METHOD, cb, ext, ext_buf);
 	if (ret < 0 || ret >= IPC_TOKEN_NUM) {
-		IPC_LOG_ERR("send method fail %d.\n", ret);
+		IPC_LOG_ERR("send method fail %" PRId32 ".\n", ret);
 		return ret;
 	}
 
 	return RESULT_SUCCESS;
 }
 
-static inline int32_t call_gettemp_method_callback(serdes_t *des)
+static inline int32_t call_gettemp_method_callback(des_buf_t *des)
 {
 	int32_t ret = 0;
 	callback_registration_t *reg = NULL;
 	des_buf_t *buf = NULL;
-	uint32_t len = 0;
 	com_client_data_t *data = s_data;
+	st_public_gettemp_method_callback_t cb = NULL;
 	uint32_t reply_temp = 0;
-	st_public_ErrorEnum_t err = { 0 };
+	st_public_ErrorEnum_t err = 0;
 
 
-	if (!des || !data)
+	if (!des || !data || !s_ext)
 		return -ERR_APP_PARAM;
 
-	reg = &data->method_registry[des->header.tok];
+	reg = &s_ext->gettemp_method_registry[des->header.tok];
 	if (!reg->busy) {
 		IPC_LOG_ERR("callback registry is invalid.\n");
 		return -ERR_APP_TOK;
 	}
-	buf = reg->ext_buf ? reg->ext_buf : &data->des_buf;
-	clear_des_buf(buf);
+	if (reg->ext_buf) {
+		buf = reg->ext_buf;
+		(void)ipc_memcpy(buf, des, sizeof(des_buf_t));
+	}
+	else
+		buf = des;
+	// set info (for callback function)
 	data->info.uuid = ipc_msg_get_uuid(des->header);
-	data->info.timestamp = des->recv_end_time;
+	data->info.timestamp = des->timestamp;
 
 	// deserialize arguments
-	len = ipc_des_get_all(des, (uint8_t *)buf->data_buf);
-	if (len <= 0)
+	if (buf->unavail_data_size >= IPC_MAX_DATA_SIZE)
 		return -ERR_APP_SERDES;
-	buf->unavail_data_size = IPC_MAX_DATA_SIZE - len;
 
 	if (ret >= 0)
 		ret = deserialize_st_public_ErrorEnum(buf, &err);
@@ -616,23 +624,17 @@ static inline int32_t call_gettemp_method_callback(serdes_t *des)
 	}
 
 	// call callback function
-	if (reg->busy) {
-		st_public_gettemp_method_callback_t cb = (st_public_gettemp_method_callback_t)(reg->cb);
+	cb = (st_public_gettemp_method_callback_t)(reg->cb);
+	if (cb)
+		cb(reply_temp, err, reg->ext, &data->info);
 
-		if (cb)
-			cb(reply_temp, err, reg->ext, &data->info);
-#ifndef IPC_RTE_BAREMETAL
-		notify_callback_registry(reg);
-#endif
-		clear_registry(reg);
-	}
 	return RESULT_SUCCESS;
 }
 
 // broadcast
 
 // dispatch_broadcast
-static inline int32_t dispatch_broadcast(serdes_t *des)
+static inline int32_t dispatch_broadcast(des_buf_t *des)
 {
 	int32_t ret = 0;
 
@@ -643,7 +645,6 @@ static inline int32_t dispatch_broadcast(serdes_t *des)
 
 	default:
 		ret = -ERR_APP_UNKNOWN_CMD;
-		IPC_LOG_ERR("unknown broadcast message %d.\n", des->header.cmd);
 		break;
 	}
 
@@ -651,7 +652,7 @@ static inline int32_t dispatch_broadcast(serdes_t *des)
 }
 
 // dispatch_reply
-static inline int32_t dispatch_reply(serdes_t *des)
+static inline int32_t dispatch_reply(des_buf_t *des)
 {
 	int32_t ret = 0;
 
@@ -671,7 +672,6 @@ static inline int32_t dispatch_reply(serdes_t *des)
 
 	default:
 		ret = -ERR_APP_UNKNOWN_CMD;
-		IPC_LOG_ERR("unknown reply message %d.\n", des->header.cmd);
 		break;
 	}
 
@@ -681,7 +681,12 @@ static inline int32_t dispatch_reply(serdes_t *des)
 // register availablity changed callback function
 static int32_t register_avail_changed_cb(avail_changed_callback_t cb, void *ext)
 {
-	return reg_avail_changed_cb(s_data, cb, ext);
+	if (!s_ext)
+		return -ERR_APP_PARAM;
+
+	s_ext->avail_changed_cb = cb;
+	s_ext->avail_ext = ext;
+	return 0;
 }
 
 // initialize client
@@ -702,22 +707,27 @@ int32_t st_public_client_init(com_client_data_t *data, st_public_client_t *clien
 	client->qspi_method_sync = call_qspi_method_sync;
 #endif
 	client->qspi_method_async = call_qspi_method_async;
-#ifndef IPC_RTE_BAREMETAL
+(void)init_registry(ext->qspi_method_registry);
+	#ifndef IPC_RTE_BAREMETAL
 	client->scmi_method_sync = call_scmi_method_sync;
 #endif
 	client->scmi_method_async = call_scmi_method_async;
-#ifndef IPC_RTE_BAREMETAL
+(void)init_registry(ext->scmi_method_registry);
+	#ifndef IPC_RTE_BAREMETAL
 	client->gettemp_method_sync = call_gettemp_method_sync;
 #endif
 	client->gettemp_method_async = call_gettemp_method_async;
+(void)init_registry(ext->gettemp_method_registry);
 
 
 	client->dispatch_broadcast = dispatch_broadcast;
 	client->dispatch_reply = dispatch_reply;
 
 	// set ext
-	if (ext->cid == 0)
-		ext->cid = CID;
+	ext->cid = CID;
+	ext->ccid = CCID;
+	ext->cid_mask = CID_MASK;
+	ext->status = false;
 
 	return 0;
 }

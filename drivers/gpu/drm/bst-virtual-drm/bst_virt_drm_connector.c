@@ -34,7 +34,7 @@ int bst_virt_drm_get_edid_block(void *data, u8 *buf, unsigned int block,
 	u8 *edid = (u8 *)vconn->edid;
 
 	if (len > EDID_LENGTH) return -EINVAL;
-	if (block > 2) {
+	if (block >= 2) {
 		DRM_ERROR("Error, virt conn(%s) edid block num = %d", conn->name, block);
 		return -EINVAL;
 	}
@@ -50,10 +50,7 @@ int bst_virt_drm_connector_get_edid(struct bst_virt_connector *vconn)
 	struct bst_virt_component *c = &vconn->base;
 	struct drm_connector *conn = &vconn->bconn->base;
 	uint32_t subdev_session = c->subdev_session;
-	uint32_t client_id = c->client_id;
-	struct bst_display_edid_req edid = {
-		.client_id = client_id,
-		.subdev_session = subdev_session};
+	struct bst_display_edid_req edid;
 	struct bst_display_edid_info edid_info = {};
 	uint8_t edid_data[EDID_LENGTH];
 	uint8_t *v_edid = vconn->edid;
@@ -62,18 +59,16 @@ int bst_virt_drm_connector_get_edid(struct bst_virt_connector *vconn)
 	int ret, count, pos;
 
 	edid.type = EDID_BLOCK_TOP;
-	ret = bst_display_glb_cmd_get_edid(&edid, &edid_info);
+	ret = bst_display_conn_cmd_get_edid(subdev_session, &edid, &edid_info);
 	if (ret) {
 		DRM_ERROR("Failed to get %s edid top info from FW, ret(%d)\n", conn->name, ret);
 		return -1;
 	}
 	memcpy(&edid_data[0], &edid_info.edid[0], sizeof(edid_info.edid));
 	edid.type = EDID_BLOCK_BOTTOM;
-	ret = bst_display_glb_cmd_get_edid(&edid, &edid_info);
+	ret = bst_display_conn_cmd_get_edid(subdev_session, &edid, &edid_info);
 	if (ret) {
-	DRM_ERROR(
-			"Failed to get %s edid bottom info from FW, ret(%d)\n", conn->name,
-			ret);
+		DRM_ERROR("Failed to get %s edid bottom info from FW, ret(%d)\n", conn->name, ret);
 		return -1;
 	}
 	memcpy(&edid_data[64], &edid_info.edid[0], sizeof(edid_info.edid));
@@ -82,23 +77,25 @@ int bst_virt_drm_connector_get_edid(struct bst_virt_connector *vconn)
 	} else {
 		ext_blocks = edid_data[0x7e];
 	}
+	if (((ext_blocks + 1) * 2) > EDID_MAX_BLOCK_NUM) {
+		DRM_WARN("conn[%s]: cann't support ext blocks num [%d].\n",
+			conn->name, ext_blocks);
+		ext_blocks = (EDID_MAX_BLOCK_NUM / 2) - 1;
+	}
+
 	memcpy(v_edid, edid_data, sizeof(edid_data));
 	memset(edid_data, 0, EDID_LENGTH);
 	for (count = 1; count <= ext_blocks * 2; count++) {
 		edid.type = count + 1;
 		pos = edid.type % 2 ? 64 : 0;
-		ret = bst_display_glb_cmd_get_edid(&edid, &edid_info);
+		ret = bst_display_conn_cmd_get_edid(subdev_session, &edid, &edid_info);
 		if (ret) {
-			DRM_ERROR(
-				"Failed to get %s edid bottom info from FW, ret(%d)\n", conn->name,
-				ret);
+			DRM_ERROR("Failed to get %s edid bottom info from FW, ret(%d)\n", conn->name, ret);
 			goto out;
 		}
-		memcpy(&edid_data[pos], &edid_info.edid[0],
-		       sizeof(edid_info.edid));
+		memcpy(&edid_data[pos], &edid_info.edid[0], sizeof(edid_info.edid));
 		if (pos == 64) {
-			memcpy(&v_edid[EDID_LENGTH * blocks], edid_data,
-			       sizeof(edid_data));
+			memcpy(&v_edid[EDID_LENGTH * blocks], edid_data, sizeof(edid_data));
 			memset(edid_data, 0, EDID_LENGTH);
 			blocks++;
 		}
@@ -464,7 +461,6 @@ static int bst_virt_conn_bind(struct device *dev, struct device *master,
 	struct bst_virt_device *subdev;
 	struct bst_virt_platform_info plat_info = {
 		.platform_id = super_dev->super_info.platform_id,
-		.client_id = super_dev->super_info.guest_os_client_id
 	};
 	u32 pipe_idx = 0;
 	int ret = 0;
@@ -550,12 +546,28 @@ static int bst_virt_connectors_probe(struct platform_device *pdev)
 {
 	struct device *dev = &pdev->dev;
 	struct bst_connector *bst_conn = NULL;
+	struct backlight_device *bd = NULL;
+	struct device_node *backlight_node = NULL;
+
+	backlight_node = of_parse_phandle(dev->of_node, "backlight", 0);
+	if (!backlight_node) {
+		dev_info(dev, "No backlight node specified in connector DTS.\n");
+	} else {
+		bd = of_find_backlight_by_node(backlight_node);
+		of_node_put(backlight_node);
+		backlight_node = NULL;
+		if (!bd) {
+			dev_info(dev, "backlight device not available, deferring probe\n");
+			return -EPROBE_DEFER;
+		}
+	}
 
 	bst_conn = devm_kzalloc(dev, sizeof(*bst_conn), GFP_KERNEL);
 	if (!bst_conn)
 		return	-ENOMEM;
 
-	dev_set_drvdata(dev, bst_conn);
+	bst_conn->bd = bd;
+
 	platform_set_drvdata(pdev, bst_conn);
 
 	return component_add(&pdev->dev, &bst_virt_conn_ops);

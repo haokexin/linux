@@ -187,9 +187,12 @@ SYM_FUNC_ALIAS(dcache_clean_poc, __pi_dcache_clean_poc)
  *	- end     - virtual end address of region
  */
 SYM_FUNC_START(__pi_dcache_clean_pop)
-	alternative_if_not ARM64_HAS_DCPOP
-	b	dcache_clean_poc
-	alternative_else_nop_endif
+/*	Force execution of dcache_by_line_op cvap
+ *	Remove the check for ARM64_HAS_DCPOP feature
+ *	alternative_if_not ARM64_HAS_DCPOP
+ *	b	dcache_clean_poc
+ *	alternative_else_nop_endif
+ */
 	dcache_by_line_op cvap, sy, x0, x1, x2, x3
 	ret
 SYM_FUNC_END(__pi_dcache_clean_pop)

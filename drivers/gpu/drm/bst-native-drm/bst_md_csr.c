@@ -45,6 +45,11 @@ static void bst_disp_mux_sel(struct device *dev, u32 reg, u32 disp_id, u32 pipel
     writel(val, csr_base + reg);
 }
 
+void bst_disp_vout_mux_sel(struct device *dev, u32 disp_id, u32 pipeline_id, u32 link_id)
+{
+    return bst_disp_mux_sel(dev, MD_CSR_VOUT_CFG, disp_id, pipeline_id, link_id);
+}
+
 void bst_disp_edp_mux_sel(struct device *dev, u32 disp_id, u32 pipeline_id, u32 link_id)
 {
     return bst_disp_mux_sel(dev, MD_CSR_EDP_CFG, disp_id, pipeline_id, link_id);

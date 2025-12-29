@@ -31,6 +31,7 @@
 #include "bst_virt_mipi/virt_mipi_dev.h"
 #include "bst_virt_drm_debugfs.h"
 #include "bst_virt_drm_kms.h"
+#include "bst-fw-msg/firmware_cmdsets/bst_display_cmdset_api.h"
 
 struct bst_str {
 	char *str;
@@ -216,14 +217,25 @@ static const struct file_operations bst_crtc_fops = {
 };
 static int bst_drm_subdev_info_read(struct seq_file *sf, void *x)
 {
-	int i;
+	struct bst_all_subdev_topo_req request = {0};
+	struct bst_all_subdev_topo result = {0};
+	int i, j;
 	int ret;
 
+	ret = bst_display_glb_cmd_get_all_subdev_topo(&request, &result);
+	if (ret)
+		return -EINVAL;
+
 	for (i = BST_SUBDEV_DC0_PIPE0; i < BST_SUBDEV_MAX; i++) {
-		ret = bst_virt_subdev_dump_info(sf, i);
-		if (ret) {
-			seq_printf(sf, "Error, dump subdev(%d) info!\n", i);
-			continue;
+		for (j = 0; j < result.num; j++) {
+			if ((result.topo[j].dc_subdev == i) ||
+			    (result.topo[j].conn_subdev == i)) {
+				ret = bst_virt_subdev_dump_info(sf, i);
+				if (ret) {
+					seq_printf(sf, "Error, dump subdev(%d) info!\n", i);
+					continue;
+				}
+			}
 		}
 	}
 	return 0;
@@ -309,19 +321,16 @@ static int bst_force_writeback_show(struct seq_file *sf, void *x)
 	mode = (struct drm_display_mode *)(&dc_dev->bcrtc->base.mode);
 	seq_printf(sf, "crtc hdisplay(%d) vdisplay(%d)\n", mode->hdisplay, mode->vdisplay);
 
-	wb_cfg.client_id = bst_vir_dev->this_pipe->dc_crtc->base.client_id;
-	wb_cfg.valid_input_id = SUBMODULE_ID_DC_COMPOSER;
+	wb_cfg.input_id = SUBMODULE_ID_DC_COMPOSER;
 	wb_cfg.frame_mode = DC_LAYER_WB_FRAME_MODE_ONE;
 	wb_cfg.precision_reduce_mode = DC_LAYER_WB_PRECISION_REDUCE_MODE_ROUNDING;
-	wb_cfg.layer.client_id = wb_cfg.client_id;
-	wb_cfg.layer.hsize = mode->hdisplay;
-	wb_cfg.layer.vsize = mode->vdisplay;
-	wb_cfg.layer.pixel_format = DC_LOCAL_FMT_RGB_888; //RGB888
-	wb_cfg.layer.p0_stride = mode->hdisplay * 3;
-	wb_cfg.layer.fw_layer_id = SUBMODULE_ID_DC_WB_LAYER;
-	wb_cfg.layer.num_planars = 1;
-	wb_cfg.layer.layer_en = 1;
-	wb_cfg.layer.pixel_format_standard = BIT(DC_PIX_FMT_STD_TYPE_LOCAL);
+	wb_cfg.hsize = mode->hdisplay;
+	wb_cfg.vsize = mode->vdisplay;
+	wb_cfg.pixel_format = DC_LOCAL_FMT_RGB_888; //RGB888
+	wb_cfg.p0_stride = mode->hdisplay * 3;
+	wb_cfg.num_planars = 1;
+	wb_cfg.layer_en = 1;
+	wb_cfg.pixel_format_standard = BIT(DC_PIX_FMT_STD_TYPE_LOCAL);
 
 	size = mode->hdisplay * mode->vdisplay * 3;
 	align_size = ALIGN(size, PAGE_SIZE);
@@ -331,9 +340,9 @@ static int bst_force_writeback_show(struct seq_file *sf, void *x)
         goto out;
     }
 
-	wb_cfg.layer.p0_ptr = dma_addr;
+	wb_cfg.p0_ptr = dma_addr;
 	ret = bst_display_dc_cmd_update_wb_layer(bst_vir_dev->subdev_session, &wb_cfg, &reply);
-	if (ret || reply.status != DISP_COMM_REPLAY_OK)
+	if (ret || reply.base.status != DISP_COMM_REPLAY_OK)
 		DRM_ERROR("wirteback layer update falied!!\n");
 
 	dc_dev->bcrtc->force_wb_flag = 1;
@@ -521,28 +530,6 @@ static bool layer_format_mod_supported(const struct bst_format_caps *caps,
 	return true;
 }
 
-static int get_dc_type_to_virt_dc_pipe(const char* type)
-{
-	u32 value;
-
-	if (!strcmp(type, "DEVICE_TYPE_VIRT_DC_PIPE0")) {
-		value = DEVICE_TYPE_VIRT_DC_PIPE0;
-	} else if(!strcmp(type, "DEVICE_TYPE_VIRT_DC_PIPE1")) {
-		value = DEVICE_TYPE_VIRT_DC_PIPE1;
-	} else if(!strcmp(type, "DEVICE_TYPE_VIRT_DC_PIPE2")) {
-		value = DEVICE_TYPE_VIRT_DC_PIPE2;
-	} else if(!strcmp(type, "DEVICE_TYPE_VIRT_DC_PIPE3")) {
-		value = DEVICE_TYPE_VIRT_DC_PIPE3;
-	} else if(!strcmp(type, "DEVICE_TYPE_VIRT_DC_PIPE4")) {
-		value = DEVICE_TYPE_VIRT_DC_PIPE4;
-	} else {
-		DRM_ERROR("dc type is wrong!");
-		return DEVICE_TYPE_VIRT_NONE;
-	}
-
-	return value;
-}
-
 static void bst_virt_init_fmt_tbl(struct bst_super_device *sdev)
 {
 	struct bst_format_caps_table *table = &sdev->fmt_tbl;
@@ -560,6 +547,18 @@ const struct bst_virt_pipe_funcs pipe_funcs = {
 	.dump_log = dc_pipe_dump_log,
 };
 
+static struct sub_dev_topo *get_subdev_topo(uint8_t subdev, struct bst_all_subdev_topo *topo) {
+	int i;
+
+	for (i = 0; i < topo->num; i++) {
+		if (topo->topo[i].dc_subdev == subdev ||
+		    topo->topo[i].conn_subdev == subdev) {
+			return &topo->topo[i];
+		}
+	}
+	return NULL;
+}
+
 static int bst_drm_parse_pipeline_and_components(struct device *dev,
 					   struct bst_super_device *super_dev)
 {
@@ -567,37 +566,49 @@ static int bst_drm_parse_pipeline_and_components(struct device *dev,
 	struct device_node *child, *np = dev->of_node;
 	struct device_node *parent;
 	const char *os_type;
-	const char *dc_type;
 	u32 layer_num;
 	u32 virt_dc_type = 0, virt_conn_type = 0;
 	u32 pipe_id = U32_MAX;
+	struct bst_all_subdev_topo_req request = {0};
+	struct bst_all_subdev_topo result = {0};
 	int ret;
+	int i;
 
-	memset(info, 0, sizeof(&info));
+	memset(info, 0, sizeof(struct bst_super_device_info));
 
-	ret = of_reserved_mem_device_init(dev);
-	if (ret && ret != -ENODEV)
-		return ret;
+	/* Using the global cma pool */
+	/*
+	 * ret = of_reserved_mem_device_init(dev);
+	 * if (ret && ret != -ENODEV)
+	 * 	return ret;
+	 */
 
 	ret = of_property_read_string(np, "os-type", &os_type);
 	if (ret) {
 		DRM_ERROR("os-type property is not exist!");
 		goto fail;
 	}
-	if (!strcmp(os_type, "IVI_ANDROID")) {
-		info->guest_os_client_id = IVI_ANDROID_OS_MAGIC;
-	} else if(!strcmp(os_type, "ADAS_LINUX")) {
-		info->guest_os_client_id = ADAS_LINUX_OS_MAGIC;
-	} else if(!strcmp(os_type, "DB_LINUX")) {
-		info->guest_os_client_id = DB_LINUX_OS_MAGIC;
-	} else {
-		DRM_ERROR("os type is Wrong!");
-		return -EINVAL;
+	info->client_id = 0x20202020;
+	for (i = 0; i < 4; i++) {
+		if (os_type[i] == 0) {
+			break;
+		} else {
+			info->client_id &= ~(0xff << ((3 - i) * 8));
+			info->client_id |= (os_type[i] << ((3 - i) * 8));
+		}
 	}
 
 	info->platform_id = *(u32 *)of_device_get_match_data(dev);
 
+	display_ipc_client_init(info->client_id, info->platform_id);
+
+	ret = bst_display_glb_cmd_get_all_subdev_topo(&request, &result);
+	if (ret)
+		return -EINVAL;
+
 	for_each_available_child_of_node(np, child) {
+		u8 conn_subdev;
+		struct sub_dev_topo *dev_topo = NULL;
 		if (of_node_name_eq(child, "pipeline")) {
 			ret = of_property_read_u32(child, "reg", &pipe_id);
 			if (ret) {
@@ -607,23 +618,8 @@ static int bst_drm_parse_pipeline_and_components(struct device *dev,
 
 			info->pipe_np_port0[pipe_id] = of_graph_get_remote_node(of_node_get(child),
 				BST_DRM_OF_PORT_OUTPUT, 0);
-			info->pipe_np_port0[pipe_id] = of_graph_get_remote_node(of_node_get(child),
-				BST_DRM_OF_PORT_OUTPUT, 0);
-
-			ret = of_property_read_string(child, "dc-type", &dc_type);
-			if (ret) {
-				DRM_ERROR("dc-type property is not exist!");
-				goto fail;
-			}
-
-			virt_dc_type = get_dc_type_to_virt_dc_pipe(dc_type);
-			if (is_dc_device(virt_dc_type)) {
-				info->device_map[pipe_id][BST_VIRT_DC_IDX] = virt_dc_type;
-				info->n_pipelines++;
-			} else {
-				DRM_ERROR("dc type is invalid!");
-				return -EINVAL;
-			}
+			info->pipe_np_port1[pipe_id] = of_graph_get_remote_node(of_node_get(child),
+				BST_DRM_OF_PORT_OUTPUT, 1);
 
 			parent = of_graph_get_remote_node(child, 0, 0);
 			if (parent) {
@@ -632,8 +628,23 @@ static int bst_drm_parse_pipeline_and_components(struct device *dev,
 				DRM_ERROR("get remote subdevice failed!");
 				return -EINVAL;
 			}
-
+			conn_subdev = to_fw_subdev_type(virt_conn_type);
+			dev_topo = get_subdev_topo(conn_subdev, &result);
+			if (!dev_topo) {
+				DRM_ERROR("connector subdev-%d is not valid!\n", conn_subdev);
+				of_node_put(parent);
+				continue;
+			}
 			info->device_map[pipe_id][BST_VIRT_CONN_IDX] = virt_conn_type;
+			virt_dc_type = to_virt_device_type(dev_topo->dc_subdev);
+			if (is_dc_device(virt_dc_type)) {
+				info->device_map[pipe_id][BST_VIRT_DC_IDX] = virt_dc_type;
+				info->n_pipelines++;
+			} else {
+				DRM_ERROR("connector type(%d) related dc type(%d) is invalid!", virt_conn_type, virt_dc_type);
+				of_node_put(parent);
+				continue;
+			}
 			of_property_read_u32(child, "layer-num", &layer_num);
 			info->want_layers_num[pipe_id] = layer_num;
 			of_node_put(parent);
@@ -698,7 +709,6 @@ struct bst_super_device *bst_virt_dev_create(struct device *dev)
 
 	super_info = &super_dev->super_info;
 	plat_info.platform_id = super_info->platform_id;
-	plat_info.client_id = super_info->guest_os_client_id;
 	bst_virt_init_fmt_tbl(super_dev);
 
 	for (pipe_idx = 0; pipe_idx < super_info->n_pipelines; pipe_idx++) {
@@ -801,9 +811,6 @@ int bst_virt_dev_resume(struct bst_super_device *super_dev)
 	for (i = 0; i < super_dev->n_pipelines; i++) {
 		for (j = 0; j < BST_VIRT_MAX_SUBDEV_OF_1PIPE; j++) {
 			vdev = super_dev->subdevs[i][j];
-			if (vdev && vdev->funcs && vdev->funcs->enable_irq)
-				vdev->funcs->enable_irq(vdev);
-
 			if (vdev && vdev->iommu && vdev->funcs->connect_iommu)
 				if (vdev->funcs->connect_iommu(vdev))
 					DRM_ERROR("connect iommu failed.\n");
@@ -813,38 +820,76 @@ int bst_virt_dev_resume(struct bst_super_device *super_dev)
 	return 0;
 }
 
-int bst_virt_dev_suspend(struct bst_super_device *super_dev)
-{
-	int i, j;
+int bst_virt_connector_suspend(struct bst_super_device *super_dev) {
+	int i;
 	struct bst_virt_device *vdev;
+
 	if(!super_dev){
 		DRM_ERROR("super_dev is null.\n");
 		return -1;
 	}
+
+	for (i = 0; i < super_dev->n_pipelines; i++) {
+		vdev = super_dev->subdevs[i][BST_VIRT_CONN_IDX];
+		if (vdev && vdev->funcs && vdev->funcs->disable_irq)
+			vdev->funcs->disable_irq(vdev);
+	}
+
+	return 0;
+}
+
+int bst_virt_connector_resume(struct bst_super_device *super_dev) {
+	int i;
+	struct bst_virt_device *vdev;
+
+	if(!super_dev){
+		DRM_ERROR("super_dev is null.\n");
+		return -1;
+	}
+
+	for (i = 0; i < super_dev->n_pipelines; i++) {
+		vdev = super_dev->subdevs[i][BST_VIRT_CONN_IDX];
+		if (vdev && vdev->funcs && vdev->funcs->enable_irq)
+			vdev->funcs->enable_irq(vdev);
+	}
+
+	return 0;
+}
+
+int bst_virt_dev_suspend(struct bst_super_device *super_dev)
+{
+	int i, j;
+	struct bst_virt_device *vdev;
+
+	if(!super_dev){
+		DRM_ERROR("super_dev is null.\n");
+		return -1;
+	}
+
 	for (i = 0; i < super_dev->n_pipelines; i++) {
 		for (j = 0; j < BST_VIRT_MAX_SUBDEV_OF_1PIPE; j++) {
 			vdev = super_dev->subdevs[i][j];
 			if (vdev && vdev->iommu && vdev->funcs->connect_iommu)
 				if (vdev->funcs->connect_iommu(vdev))
 					DRM_ERROR("disconnect iommu failed.\n");
-			if (vdev && vdev->funcs && vdev->funcs->enable_irq)
-				vdev->funcs->disable_irq(vdev);
 		}
 	}
 	return 0;
 }
 
 int bst_virt_dev_request_irq(struct bst_super_device *super_dev) {
+	int i;
 	struct bst_virt_device *vdev;
-	int i, j;
-	int ret = 0;
+
+	if(!super_dev){
+		DRM_ERROR("super_dev is null.\n");
+		return -1;
+	}
 
 	for (i = 0; i < super_dev->n_pipelines; i++) {
-		for (j = 0; j < BST_VIRT_MAX_SUBDEV_OF_1PIPE; j++) {
-			vdev = super_dev->subdevs[i][j];
-			if (vdev && vdev->funcs && vdev->funcs->enable_irq)
-				ret = vdev->funcs->enable_irq(vdev);
-		}
+		vdev = super_dev->subdevs[i][BST_VIRT_CONN_IDX];
+		if (vdev && vdev->funcs && vdev->funcs->enable_irq)
+			vdev->funcs->enable_irq(vdev);
 	}
-	return ret;
+	return 0;
 }

@@ -23,6 +23,9 @@
 #include <sound/dmaengine_pcm.h>
 #include "local1.h"
 #include <linux/debugfs.h>
+#include <linux/pinctrl/pinctrl.h>
+#include <linux/pinctrl/pinmux.h>
+#include "../../../drivers/pinctrl/core.h"
 
 static int i2s_num = 1;
 static int dma_num = 0;
@@ -254,42 +257,39 @@ static void dw_i2s_config(struct dw_i2s_dev *dev, int stream)
 {
 	u32 ch_reg;
 
-	struct i2s_clk_config_data *config = &dev->config;
+	//struct i2s_clk_config_data *config = &dev->config;
 
 	i2s_disable_channels(dev, stream);
-
-	for (ch_reg = 0; ch_reg < (config->chan_nr / 2); ch_reg++) {
-		if (stream == SNDRV_PCM_STREAM_PLAYBACK) {
-			i2s_write_reg(dev->i2s_base, TCR(ch_reg),
-				      dev->xfer_resolution);
-			i2s_write_reg(dev->i2s_base, TFCR(ch_reg),
-				      dev->fifo_th - 1);
-			i2s_write_reg(dev->i2s_base, TER(ch_reg), 1);
-		} else {
-			i2s_write_reg(dev->i2s_base, RCR(ch_reg),
-				      dev->xfer_resolution);
-			i2s_write_reg(dev->i2s_base, RFCR(ch_reg),
-				      dev->fifo_th - 1);
-			i2s_write_reg(dev->i2s_base, RER(ch_reg), 1);
-		}
-	}
 
 	if (dev->use_dma) {
 		u32 dmacr_reg = i2s_read_reg(dev->i2s_base, DMACR);
 
 		if (stream == SNDRV_PCM_STREAM_PLAYBACK)
-			i2s_write_reg(dev->i2s_base, DMACR, dmacr_reg | BIT(17) | BIT(8));
+			i2s_write_reg(dev->i2s_base, DMACR, dmacr_reg | BIT(17) | BIT(8) | BIT(9) | BIT(10) | BIT(11));
 		else if (stream == SNDRV_PCM_STREAM_CAPTURE)
-			i2s_write_reg(dev->i2s_base, DMACR, dmacr_reg | BIT(16) | BIT(0));
+			i2s_write_reg(dev->i2s_base, DMACR, dmacr_reg | BIT(16) | BIT(0) | BIT(1) | BIT(2) | BIT(3));
 
 		dmacr_reg = i2s_read_reg(dev->i2s_base, DMACR);
 		pr_info("%s DMACR == (0x%x)\n", __func__, dmacr_reg);
+	}
+
+	for (ch_reg = 0; ch_reg < 4; ch_reg++) {
+		if (stream == SNDRV_PCM_STREAM_PLAYBACK) {
+			i2s_write_reg(dev->i2s_base, TCR(ch_reg), dev->xfer_resolution);
+			i2s_write_reg(dev->i2s_base, TFCR(ch_reg), dev->fifo_th - 1);
+			i2s_write_reg(dev->i2s_base, TER(ch_reg), 1);
+		} else {
+			i2s_write_reg(dev->i2s_base, RCR(ch_reg), dev->xfer_resolution);
+			i2s_write_reg(dev->i2s_base, RFCR(ch_reg), dev->fifo_th - 1);
+			i2s_write_reg(dev->i2s_base, RER(ch_reg), 1);
+		}
 	}
 }
 
 static int bst_set_i2s_sclk(unsigned int freq, int lsp_crm, int sequence)
 {
-	u32 tmp, clk_div;
+	u32 tmp = 0;
+	u32 clk_div = 0;
 
 	if (freq) {
 		if ((lsp_crm == 0) && (sequence == 0)) {
@@ -517,7 +517,6 @@ static const struct snd_soc_dai_ops dw_i2s_dai_ops = {
 static int dw_i2s_runtime_suspend(struct device *dev)
 {
 	struct dw_i2s_dev *dw_dev = dev_get_drvdata(dev);
-
 	if (dw_dev->capability & DW_I2S_MASTER)
 		clk_disable(dw_dev->clk);
 	return 0;
@@ -526,7 +525,6 @@ static int dw_i2s_runtime_suspend(struct device *dev)
 static int dw_i2s_runtime_resume(struct device *dev)
 {
 	struct dw_i2s_dev *dw_dev = dev_get_drvdata(dev);
-
 	if (dw_dev->capability & DW_I2S_MASTER)
 		clk_enable(dw_dev->clk);
 	return 0;
@@ -535,7 +533,7 @@ static int dw_i2s_runtime_resume(struct device *dev)
 static int dw_i2s_suspend(struct snd_soc_component *component)
 {
 	struct dw_i2s_dev *dev = snd_soc_component_get_drvdata(component);
-
+	dev->pin->state = NULL;
 	if (dev->capability & DW_I2S_MASTER)
 		clk_disable(dev->clk);
 	return 0;
@@ -549,6 +547,8 @@ static int dw_i2s_resume(struct snd_soc_component *component)
 
 	if (dev->capability & DW_I2S_MASTER)
 		clk_enable(dev->clk);
+
+	pinctrl_pm_select_default_state(dev->dev);
 
 	for_each_component_dais(component, dai) {
 		for_each_pcm_streams(stream)
@@ -677,6 +677,7 @@ static int dw_configure_dai_by_pd(struct dw_i2s_dev *dev,
 	u32 comp1 = i2s_read_reg(dev->i2s_base, dev->i2s_reg_comp1);
 	u32 idx = COMP1_APB_DATA_WIDTH(comp1);
 	int ret;
+	u32 chan_num;
 
 	if (WARN_ON(idx >= ARRAY_SIZE(bus_widths)))
 		return -EINVAL;
@@ -687,11 +688,16 @@ static int dw_configure_dai_by_pd(struct dw_i2s_dev *dev,
 
 	if (dev->quirks & DW_I2S_QUIRK_16BIT_IDX_OVERRIDE)
 		idx = 1;
+
+	chan_num = dev->multichan_value;
+	//pr_info("I2S_REG_RXDMA_CH_BASE(%d) = 0x%X\n", chan_num, I2S_REG_RXDMA_CH_BASE(chan_num));
+	//pr_info("I2S_REG_TXDMA_CH_BASE(%d) = 0x%X\n", chan_num, I2S_REG_TXDMA_CH_BASE(chan_num));
+
 	/* Set DMA slaves info */
 	dev->play_dma_data.pd.data = pdata->play_dma_data;
 	dev->capture_dma_data.pd.data = pdata->capture_dma_data;
-	dev->play_dma_data.pd.addr = res->start + I2S_REG_TXDMA_CH_BASE;
-	dev->capture_dma_data.pd.addr = res->start + I2S_REG_RXDMA_CH_BASE;
+	dev->play_dma_data.pd.addr = res->start + I2S_REG_TXDMA_CH_BASE(chan_num);
+	dev->capture_dma_data.pd.addr = res->start + I2S_REG_RXDMA_CH_BASE(chan_num);
 	dev->play_dma_data.pd.max_burst = 16;
 	dev->capture_dma_data.pd.max_burst = 16;
 	dev->play_dma_data.pd.addr_width = bus_widths[idx];
@@ -722,6 +728,7 @@ static int dw_configure_dai_by_dt(struct dw_i2s_dev *dev,
 	u32 idx = COMP1_APB_DATA_WIDTH(comp1);
 	u32 idx2;
 	int ret;
+	u32 chan_num;
 
 	if (WARN_ON(idx >= ARRAY_SIZE(bus_widths)))
 		return -EINVAL;
@@ -733,11 +740,15 @@ static int dw_configure_dai_by_dt(struct dw_i2s_dev *dev,
 	if (dev->use_dma)
 		dw_i2s_dai->probe = bst_i2s_dai_probe;
 
+	chan_num = dev->multichan_value;
+	//pr_info("I2S_REG_RXDMA_CH_BASE(%d) = 0x%X\n", chan_num, I2S_REG_RXDMA_CH_BASE(chan_num));
+	//pr_info("I2S_REG_TXDMA_CH_BASE(%d) = 0x%X\n", chan_num, I2S_REG_TXDMA_CH_BASE(chan_num));
+
 	if (COMP1_TX_ENABLED(comp1)) {
 		idx2 = COMP1_TX_WORDSIZE_0(comp1);
 
 		dev->capability |= DWC_I2S_PLAY;
-		dev->play_dma_data.dt.addr = res->start + I2S_REG_TXDMA_CH_BASE;
+		dev->play_dma_data.dt.addr = res->start + I2S_REG_TXDMA_CH_BASE(chan_num);
 		dev->play_dma_data.dt.addr_width = bus_widths[idx];
 		dev->play_dma_data.dt.fifo_size = fifo_depth *
 		    (fifo_width[idx2]) >> 8;
@@ -747,7 +758,7 @@ static int dw_configure_dai_by_dt(struct dw_i2s_dev *dev,
 		idx2 = COMP2_RX_WORDSIZE_0(comp2);
 
 		dev->capability |= DWC_I2S_RECORD;
-		dev->capture_dma_data.dt.addr = res->start + I2S_REG_RXDMA_CH_BASE;
+		dev->capture_dma_data.dt.addr = res->start + I2S_REG_RXDMA_CH_BASE(chan_num);
 		dev->capture_dma_data.dt.addr_width = bus_widths[idx];
 		dev->capture_dma_data.dt.fifo_size = fifo_depth *
 		    (fifo_width[idx2] >> 8);
@@ -866,7 +877,6 @@ static int dw_i2s_probe(struct platform_device *pdev)
 	const char *clk_id;
 	u32 tmp_data;
 
-	//u32 irq_remap[2];
 
 	dev = devm_kzalloc(&pdev->dev, sizeof(*dev), GFP_KERNEL);
 	if (!dev){
@@ -907,7 +917,7 @@ static int dw_i2s_probe(struct platform_device *pdev)
 			iowrite32((tmp_data & (~(0xffff << 0))) | (0x240 << 0), c1200_sc_lsp0_crm_base + 0x16c);
 			iowrite32(0x900, c1200_sc_lsp0_crm_base + 0x158);
 			dev->slave_mode = false;
-			dev_info(&pdev->dev, "set i2s0 sclk\n");
+			//dev_info(&pdev->dev, "set i2s0 sclk\n");
 		}
 		dev->sequence = 0;
 	} else if (dev->phy_base == 0x2000c000) {
@@ -915,7 +925,7 @@ static int dw_i2s_probe(struct platform_device *pdev)
 		iowrite32((tmp_data & (~(0xffff << 0))) | (0x240 << 0), c1200_sc_lsp0_crm_base + 0x174);
 		dev->slave_mode = false;
 		dev->sequence = 1;
-		dev_info(&pdev->dev, "set i2s1 sclk\n");
+		//dev_info(&pdev->dev, "set i2s1 sclk\n");
 	} else if (dev->phy_base == 0x2002b000) {
 		if (device_property_read_bool(dev->dev, "slave-mode")) {
 			dev->slave_mode = true;
@@ -924,7 +934,7 @@ static int dw_i2s_probe(struct platform_device *pdev)
 			iowrite32((tmp_data & (~(0xffff << 0))) | (0x240 << 0), c1200_sc_lsp1_crm_base + 0x16c);
 			iowrite32(0x900, c1200_sc_lsp1_crm_base + 0x158);
 			dev->slave_mode = false;
-			dev_info(&pdev->dev, "set i2s2 sclk\n");
+			//dev_info(&pdev->dev, "set i2s2 sclk\n");
 		}
 		dev->sequence = 2;
 	} else if (dev->phy_base == 0x2002c000) {
@@ -932,7 +942,7 @@ static int dw_i2s_probe(struct platform_device *pdev)
 		iowrite32((tmp_data & (~(0xffff << 0))) | (0x240 << 0), c1200_sc_lsp1_crm_base + 0x174);
 		dev->slave_mode = false;
 		dev->sequence = 3;
-		dev_info(&pdev->dev, "set i2s3 sclk\n");
+		//dev_info(&pdev->dev, "set i2s3 sclk\n");
 	} else {
 		return -ENXIO;
 	}
@@ -948,8 +958,6 @@ static int dw_i2s_probe(struct platform_device *pdev)
 	if (device_property_read_bool(dev->dev, "use-dma"))
 		dev->use_dma = true;
 
-	pr_info(" %s, use_dma: %d\n", __func__, dev->use_dma);
-
 	if (!dev->use_dma) {
 		irq = platform_get_irq(pdev, 0);
 		if (irq >= 0) {
@@ -962,6 +970,13 @@ static int dw_i2s_probe(struct platform_device *pdev)
 				return ret;
 			}
 		}
+	}
+
+	if (device_property_read_u32(dev->dev, "multichan", &dev->multichan_value) == 0) {
+		dev_info(&pdev->dev, "multichan value: %u\n", dev->multichan_value);
+	} else {
+		dev_info(&pdev->dev, "no multichan property config, default mode\n");
+		dev->multichan_value = 0;
 	}
 
 	dev->i2s_reg_comp1 = I2S_COMP_PARAM_1;
@@ -983,27 +998,28 @@ static int dw_i2s_probe(struct platform_device *pdev)
 		clk_id = "i2sclk";
 		ret = dw_configure_dai_by_dt(dev, dw_i2s_dai, res);
 	}
+
 	if (ret < 0){
 		return ret;
-	}		
+	}
 
 	if (dev->capability & DW_I2S_MASTER) {
 		if (dev->phy_base == 0x2000b000) {
 			tmp_data = ioread32(c1200_sc_lsp0_crm_base + 0x168);
-			iowrite32((tmp_data & (~(0xffff << 0))) | (0x30 << 0), c1200_sc_lsp0_crm_base + 0x168);  //设置初始的 i2s0 mclk = 18.432MHZ
-			dev_info(&pdev->dev, "set i2s0 mclk\n");
+			iowrite32((tmp_data & (~(0xffff << 0))) | (0x30 << 0), c1200_sc_lsp0_crm_base + 0x168);
+			//dev_info(&pdev->dev, "set i2s0 mclk\n");
 		} else if (dev->phy_base == 0x2000c000) {
 			tmp_data = ioread32(c1200_sc_lsp0_crm_base + 0x170);
-			iowrite32((tmp_data & (~(0xffff << 0))) | (0x30 << 0), c1200_sc_lsp0_crm_base + 0x170);  //设置初始的 i2s1 mclk = 18.432MHZ
-			dev_info(&pdev->dev, "set i2s1 mclk\n");
+			iowrite32((tmp_data & (~(0xffff << 0))) | (0x30 << 0), c1200_sc_lsp0_crm_base + 0x170);
+			//dev_info(&pdev->dev, "set i2s1 mclk\n");
 		} else if (dev->phy_base == 0x2002b000) {
 			tmp_data = ioread32(c1200_sc_lsp1_crm_base + 0x168);
-			iowrite32((tmp_data & (~(0xffff << 0))) | (0x30 << 0), c1200_sc_lsp1_crm_base + 0x168);  //设置初始的 i2s2 mclk = 18.432MHZ
-			dev_info(&pdev->dev, "set i2s2 mclk\n");
+			iowrite32((tmp_data & (~(0xffff << 0))) | (0x30 << 0), c1200_sc_lsp1_crm_base + 0x168);
+			//dev_info(&pdev->dev, "set i2s2 mclk\n");
 		} else if (dev->phy_base == 0x2002c000) {
 			tmp_data = ioread32(c1200_sc_lsp1_crm_base + 0x170);
-			iowrite32((tmp_data & (~(0xffff << 0))) | (0x30 << 0), c1200_sc_lsp1_crm_base + 0x170);  //设置初始的 i2s3 mclk = 18.432MHZ
-			dev_info(&pdev->dev, "set i2s3 mclk\n");
+			iowrite32((tmp_data & (~(0xffff << 0))) | (0x30 << 0), c1200_sc_lsp1_crm_base + 0x170);
+			//dev_info(&pdev->dev, "set i2s3 mclk\n");
 		} else {
 			return -ENXIO;
 		}
@@ -1031,7 +1047,7 @@ static int dw_i2s_probe(struct platform_device *pdev)
 			return PTR_ERR(dev->clk);
 
 		//clk_set_rate(dev->clk, I2S_MCLK);
-		dev_info(&pdev->dev, "I2S-SCLK:%lu\n", clk_get_rate(dev->clk));
+		//dev_info(&pdev->dev, "I2S-SCLK:%lu\n", clk_get_rate(dev->clk));
 
 		ret = clk_prepare_enable(dev->clk);
 		if (ret < 0) {
@@ -1062,6 +1078,12 @@ static int dw_i2s_probe(struct platform_device *pdev)
 			dev_err(&pdev->dev, "could not register pcm: %d\n", ret);
 			goto err_clk_disable;
 		}
+	}
+
+	dev->pin = devm_pinctrl_get(&pdev->dev);
+	if (IS_ERR(dev->pin)) {
+		dev_err(&pdev->dev, "error get i2s pinmux\n");
+		return 0;
 	}
 
 	dw_i2s_debugfs_init(dev->debugfs);

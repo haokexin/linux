@@ -198,7 +198,7 @@ __init void mrdump_cblock_init(void)
 			sizeof(mrdump_cblock->sig));
 
 	machdesc_p = &mrdump_cblock->machdesc;
-	machdesc_p->nr_cpus = AEE_BST_CPU_NUMS;
+	machdesc_p->nr_cpus = NR_CPUS;
 	machdesc_p->page_offset = (uint64_t)PAGE_OFFSET;
 	machdesc_p->high_memory = (uintptr_t)high_memory;
 
@@ -235,15 +235,15 @@ __init void mrdump_cblock_init(void)
 	mrdump_cblock->machdesc_crc = crc32(0, machdesc_p,
 			sizeof(struct mrdump_machdesc));
 
-	pr_notice("%s: done.\n", __func__);
+	pr_debug("%s: done.\n", __func__);
 
 end:
 	__inner_flush_dcache_all();
 }
 
-int mrdump_cb_reserve_memory(struct reserved_mem *rmem)
+static int __init mrdump_cb_reserve_memory(struct reserved_mem *rmem)
 {
-	pr_info("[memblock]%s: 0x%llx - 0x%llx (0x%llx)\n",
+	pr_debug("[memblock]%s: 0x%llx - 0x%llx (0x%llx)\n",
 		"bst,mrdump_cb",
 		 (unsigned long long)rmem->base,
 		 (unsigned long long)rmem->base +

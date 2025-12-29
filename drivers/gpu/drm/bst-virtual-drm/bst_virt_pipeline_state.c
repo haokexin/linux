@@ -34,7 +34,7 @@ bst_virt_pipe_get_state(struct bst_virt_pipe *pipe,
 	return priv_to_pipe_st(priv_st);
 }
 
-struct bst_virt_pipe_state *
+static struct bst_virt_pipe_state *
 bst_virt_pipe_get_old_state(struct bst_virt_pipe *pipe,
 			    struct drm_atomic_state *state)
 {
@@ -110,6 +110,7 @@ bst_virt_component_get_state(struct bst_virt_component *c,
 	return priv_to_comp_st(priv_st);
 }
 
+#if 0
 static struct bst_virt_component_state *
 bst_virt_component_get_old_state(struct bst_virt_component *c,
 				 struct drm_atomic_state *state)
@@ -121,6 +122,7 @@ bst_virt_component_get_old_state(struct bst_virt_component *c,
 		return priv_to_comp_st(priv_st);
 	return NULL;
 }
+#endif
 
 static struct bst_virt_component_state *
 bst_virt_component_get_state_and_set_user(struct bst_virt_component *c,
@@ -308,6 +310,7 @@ static int bst_virt_layer_validate(struct bst_virt_layer *layer,
 		st->afbc_crop.afbc_crop_r = kfb->aligned_w - dflow->in_x - dflow->in_w;
 		st->afbc_crop.afbc_crop_t = dflow->in_y;
 		st->afbc_crop.afbc_crop_b = kfb->aligned_h - dflow->in_y - dflow->in_h;
+		st->afbc_crop.crop_type = DC_LAYER_CROP_TYPE_AFBC;
 	} else {
 		st->hsize = dflow->in_w;
 		st->vsize = dflow->in_h;
@@ -315,7 +318,15 @@ static int bst_virt_layer_validate(struct bst_virt_layer *layer,
 		st->afbc_crop.afbc_crop_r = 0;
 		st->afbc_crop.afbc_crop_t = 0;
 		st->afbc_crop.afbc_crop_b = 0;
+		st->afbc_crop.crop_type = DC_LAYER_CROP_TYPE_NORMAL;
 	}
+
+	st->cin.hsize = dflow->out_w;
+	st->cin.vsize = dflow->out_h;
+	st->cin.hoffset = dflow->out_x;
+	st->cin.voffset = dflow->out_y;
+	st->cin.pixel_blend_mode = dflow->pixel_blend_mode;
+	st->cin.layer_alpha = dflow->layer_alpha;
 
 	for (i = 0; i < fb->format->num_planes; i++)
 		st->addr[i] =
@@ -334,6 +345,7 @@ static int bst_virt_layer_validate(struct bst_virt_layer *layer,
 	return 0;
 }
 
+#ifdef DISPLAY_SUPPORT_SCALE
 static int downscaling_clk_check( struct drm_display_mode *mode,
 				     unsigned long aclk_rate,
 				     struct bst_data_flow_cfg *dflow)
@@ -347,8 +359,8 @@ static int downscaling_clk_check( struct drm_display_mode *mode,
 		fraction = h_in;
 		denominator = mode->hdisplay - 3;
 	} else {
-		fraction = h_in * v_in;
-		denominator = (mode->htotal - 1) * v_out -  2 * v_in;
+		fraction = (u64)(h_in) * v_in;
+		denominator = (mode->htotal - 1) * (u64)(v_out) -  2 * v_in;
 	}
 
 	return aclk_rate * denominator >= mode->crtc_clock * 1000 * fraction ?
@@ -461,6 +473,7 @@ bst_virt_scaler_data_build(struct bst_virt_layer *layer,
 
 	return err;
 }
+#endif
 
 static int bst_wb_layer_validate(struct bst_virt_layer *wb_layer,
 				 struct drm_connector_state *conn_st,
@@ -513,9 +526,7 @@ static int bst_virt_crtc_set_input(struct bst_virt_dc_crtc *crtc,
 				     struct bst_data_flow_cfg *dflow)
 {
 	struct drm_atomic_state *drm_st = bcrtc_st->base.state;
-	struct bst_virt_component_state *c_st, *old_st;
-	struct bst_virt_crtc_input_cfg *cin;
-	struct bst_virt_dc_crtc_state *st;
+	struct bst_virt_component_state *c_st;
 	u16 crtc_w, crtc_h;
 	int idx = dflow->blending_zorder;
 
@@ -537,19 +548,12 @@ static int bst_virt_crtc_set_input(struct bst_virt_dc_crtc *crtc,
 
 	if (bst_virt_component_check_input(c_st, &dflow->input, idx))
 		return -EINVAL;
-	st = to_dc_crtc_st(c_st);
-	cin = &(to_dc_crtc_st(c_st)->cins[idx]);
-	cin->enable = true;
-	cin->hsize = dflow->out_w;
-	cin->vsize = dflow->out_h;
-	cin->hoffset = dflow->out_x;
-	cin->voffset = dflow->out_y;
-	cin->pixel_blend_mode = dflow->pixel_blend_mode;
-	cin->layer_alpha = dflow->layer_alpha;
-	old_st = bst_virt_component_get_old_state(&crtc->base, drm_st);
-	WARN_ON(!old_st);
-	if (memcmp(&(to_dc_crtc_st(old_st)->cins[idx]), cin, sizeof(*cin)))
+
+	/* Scaling changes require updating crtc */
+	if (bcrtc_st->en_scaling != dflow->en_scaling) {
+		bcrtc_st->en_scaling = dflow->en_scaling;
 		c_st->changed_active_inputs |= BIT(idx);
+	}
 
 	bst_virt_component_add_input(c_st, &dflow->input, idx);
 	bst_virt_component_set_output(&dflow->input, &crtc->base, 0);
@@ -615,19 +619,19 @@ static int bst_virt_dc_crtc_validate(struct bst_virt_dc_crtc *dc_crtc,
 
 	bst_virt_pipe_dc_crtc_size(bcrtc_st, &st->hsize, &st->vsize);
 
-	if (dflow) {
-		dflow->in_w = st->hsize;
-		dflow->in_h = st->vsize;
-		dflow->out_w = dflow->in_w;
-		dflow->out_h = dflow->in_h;
-		dflow->pixel_blend_mode = DRM_MODE_BLEND_PIXEL_NONE;
-		dflow->layer_alpha = 0xFF;
-		dflow->blending_zorder = 0;
-	}
+	dflow->in_w = st->hsize;
+	dflow->in_h = st->vsize;
+	dflow->out_w = dflow->in_w;
+	dflow->out_h = dflow->in_h;
+	dflow->pixel_blend_mode = DRM_MODE_BLEND_PIXEL_NONE;
+	dflow->layer_alpha = 0xFF;
+	dflow->blending_zorder = 0;
 
 	return 0;
 }
 
+#if 0
+//#ifdef DISPLAY_SUPPORT_SCALE
 static void print_scaler_slot(struct bst_virt_layer *layer, bool is_add)
 {
 	uint8_t scaler_num = layer->base.pipe->max_scaler_num, i;
@@ -684,6 +688,7 @@ static int add_scaler_to_slot(struct bst_virt_layer *layer)
 	DRM_ERROR("not support scaler.\n");
 	return -1;
 }
+#endif
 
 int bst_complete_data_flow_cfg(struct bst_virt_layer *layer,
 				struct bst_data_flow_cfg *dflow,
@@ -691,7 +696,7 @@ int bst_complete_data_flow_cfg(struct bst_virt_layer *layer,
 {
 	u32 w = dflow->in_w;
 	u32 h = dflow->in_h;
-	int err = 0;
+	int ret = 0;
 
 	dflow->total_in_w = dflow->in_w;
 	dflow->total_in_h = dflow->in_h;
@@ -703,20 +708,21 @@ int bst_complete_data_flow_cfg(struct bst_virt_layer *layer,
 	if (drm_rotation_90_or_270(dflow->rot))
 		swap(w, h);
 
+#ifdef DISPLAY_SUPPORT_SCALE
 	dflow->en_scaling = (w != dflow->out_w) || (h != dflow->out_h);
-	if (dflow->en_scaling) {
-		err = add_scaler_to_slot(layer);
-		if (err)
-			goto out;
-	} else
-		remove_scaler_from_slot(layer);
+	//if (dflow->en_scaling) {
+	//	ret = add_scaler_to_slot(layer);
+	//	if (ret)
+	//		return ret;
+	//} else
+	//	remove_scaler_from_slot(layer);
+#endif
 
 	dflow->is_yuv = fb->format->is_yuv;
-
 	dflow->en_img_enhancement = dflow->out_w >= 2 * w ||
 				    dflow->out_h >= 2 * h;
-out:
-	return err;
+
+	return ret;
 }
 
 int bst_build_layer_data_flow(struct bst_virt_layer *layer,
@@ -738,9 +744,13 @@ int bst_build_layer_data_flow(struct bst_virt_layer *layer,
 	if (err)
 		return err;
 
+#ifdef DISPLAY_SUPPORT_SCALE
 	err = bst_virt_scaler_data_build(layer, bplane_st, bcrtc_st, dflow);
-	if (err)
+	if (err) {
+		DRM_ERROR("bst_virt_scaler_data_build err:%d\n", err);
 		return err;
+	}
+#endif
 
 	err = bst_virt_crtc_set_input(pipe->dc_crtc, bcrtc_st, dflow);
 	return err;

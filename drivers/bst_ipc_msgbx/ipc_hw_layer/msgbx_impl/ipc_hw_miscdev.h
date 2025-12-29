@@ -11,14 +11,27 @@
  */
 #ifndef _IPC_HW_MISCDEV_H
 #define _IPC_HW_MISCDEV_H
+
 #include <linux/types.h>
+#include "ipc_msgbox_controller.h"
+
+struct handle_list {
+	struct list_head list;
+	char comm[TASK_COMM_LEN];
+	uint8_t handle;
+	uint8_t endid;
+	uint8_t mapped_flag;
+	pid_t pid;
+	uint8_t close_flag;
+	void* map_addr;
+};
 
 extern struct ipc_msgbox *g_ipc_msgbx;
+
 extern ST_MSGBX_END_PARA msg_end_para[MAX_END_NUM];
-extern IPC_SHARE_BUFF *g_ipc_end_array[MAX_END_NUM];
-extern IPC_SHARE_MSG_BUFF **g_ipc_end_ses_map[MAX_END_NUM];
+extern msgbx_end_device_t *g_ipc_end_array[MAX_END_NUM];
+extern libipc_hw_compat_ops_t ipc_hw_ops;
 extern struct platform_device *g_ipc_msgbx_pdev;
-void per_msgbx_end_register(void *per_data);
 
 #define for_each_ends(endid, total) \
 	for (endid = g_start_pid; endid< total; endid++)

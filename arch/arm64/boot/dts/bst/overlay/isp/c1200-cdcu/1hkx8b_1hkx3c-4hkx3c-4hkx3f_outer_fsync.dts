@@ -1,28 +1,72 @@
 /dts-v1/;
 /plugin/;
-#include "1hkx8b_1hkx3c-4hkx3c-4hkx3f.dts"
-&isp {
-	isp-fsync@0 {
-		source = <FSYNC_OUTER0>;
-		rx-fps = <10>;
-		rx-pin = <0>;
-		pulse-width = <4000>;
-	};
-	isp-fsync@1 {
-		source = <FSYNC_OUTER1>;
-		rx-fps = <40>;
-		rx-pin = <1>;
-		pulse-width = <4000>;
 
-	};
-	isp-fsync@2 {
-		source = <FSYNC_OUTER2>;
-		tx-fps = <25>;
-		rx-fps = <25>;
-		rx-pin = <2>;
-		pulse-width = <4000>;
-	};
+#include "../common/isp-csi-map.dtsi"
+#include "base-isp.dtsi"
+#include "base-csi-deser-camera.dtsi"
+#include "base-desers-3max96724.dtsi"
+
+&isp {
+	slab = "isp/common/slab-1x8b-4x3c-4x3f-1x3c.bin";
+	usage = "Front, Rear, Side, Around, 10V model with outer trigger";
 };
-&deser2 {
-	trigger-mode = "external";
+
+&fsync0 {
+	source = <FSYNC_OUTER0>;
+	rx-fps = <10>;
+	rx-pin = <0>;
+	pulse-width = <4000>;
+};
+&fsync1 {
+	source = <FSYNC_OUTER1>;
+	rx-fps = <40>;
+	rx-pin = <1>;
+	pulse-width = <4000>;
+};
+&fsync2 {
+	source = <FSYNC_OUTER2>;
+	tx-fps = <25>;
+	rx-fps = <25>;
+	rx-pin = <2>;
+};
+
+&camera0 {
+	#include "../cameras/ox08b_raw14_hk_1920x1080.dtsi"
+	status = "okay";
+};
+&camera1 {
+	#include "../cameras/ox03c_raw14_hk_1920x1080.dtsi"
+	status = "okay";
+};
+&camera4 {
+	#include "../cameras/ox03c_raw14_hk_1920x1080.dtsi"
+	status = "okay";
+};
+&camera5 {
+	#include "../cameras/ox03c_raw14_hk_1920x1080.dtsi"
+	status = "okay";
+};
+&camera6 {
+	#include "../cameras/ox03c_raw14_hk_1920x1080.dtsi"
+	status = "okay";
+};
+&camera7 {
+	#include "../cameras/ox03c_raw14_hk_1920x1080.dtsi"
+	status = "okay";
+};
+&camera8 {
+	#include "../cameras/ox03f_raw12_hk_1920x1536.dtsi"
+	status = "okay";
+};
+&camera9 {
+	#include "../cameras/ox03f_raw12_hk_1920x1536.dtsi"
+	status = "okay";
+};
+&camera10 {
+	#include "../cameras/ox03f_raw12_hk_1920x1536.dtsi"
+	status = "okay";
+};
+&camera11 {
+	#include "../cameras/ox03f_raw12_hk_1920x1536.dtsi"
+	status = "okay";
 };

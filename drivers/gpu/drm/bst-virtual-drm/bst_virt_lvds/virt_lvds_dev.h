@@ -8,7 +8,6 @@
 
 #include "bst_display_platform.h"
 #include "bst_display_global_api.h"
-#include "bst_display_lvds_cmdset.h"
 #include "bst_virt_drm_device.h"
 
 struct virt_lvds_dev {

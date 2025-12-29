@@ -23,6 +23,10 @@
 
 #include "../../pci.h"
 #include "pcie-bst-phy.h"
+#ifdef CONFIG_PCIE_BST_DIAGNOSTIC
+#include "pcie-bst-diagnostic.h"
+extern int send_dtc_to_safety_svc(u32 dtc);
+#endif
 
 struct phy_init_state {
 	struct list_head list;
@@ -36,6 +40,10 @@ void c1200_write_phy_cr(struct pcie_phy *phy, int ctrl, u16 addr, u16 val)
 {
 	u32 cr = (addr << 16) | val;
 	u32 tmp;
+#ifdef CONFIG_PCIE_BST_DIAGNOSTIC
+	u16 rd_data;
+	struct bst_pcie *bst_pcie = phy->bst_pcie;
+#endif
 	int timeout = 100;
 
 	if (ctrl == 0) {
@@ -79,6 +87,23 @@ void c1200_write_phy_cr(struct pcie_phy *phy, int ctrl, u16 addr, u16 val)
 			udelay(100);
 		} while (tmp & 1);
 	}
+
+#ifdef CONFIG_PCIE_BST_DIAGNOSTIC
+	if(bst_pcie->pcie_diagnostic_init_done)
+	{
+		if(bst_pcie->bst_pcie_diag->cr_check_safety_monitor_psm 
+			&& bst_pcie->bst_pcie_diag->cr_check_safety_monitor_enable
+			&& addr < PHY_ADDR_SPACE_LIMIT_UPPER) // exclude rom/sram addr space <refer:dwc_ap_16g_lp_phyxxxx databoot table6-24>
+			{
+				c1200_read_phy_cr(phy, ctrl, addr, &rd_data);
+				if(rd_data != val)
+				{
+					pr_err("phy r/w mismatch val:0x%x rd_data:0x%x\n", val, rd_data);
+					send_dtc_to_safety_svc(PSM_ID_PHY_REG_CHECK_DTC);
+				}
+			}
+	}
+#endif
 }
 
 void c1200_read_phy_cr(struct pcie_phy *phy, int ctrl, u16 addr, u16 *val)
@@ -285,7 +310,7 @@ static int c1200_pcie_phyinit(struct pcie_phy *phy)
 		timeout--;
 		if (!timeout) {
 			pr_err("Wait PCIe Phy sram init done timeout: 0x%X\n", tmp);
-			return -1;
+			return -ETIMEDOUT;
 		}
 		udelay(100);
 	} while ((tmp & reg_val) != reg_val);
@@ -296,6 +321,7 @@ static int c1200_pcie_phyinit(struct pcie_phy *phy)
 	pcie_phy_cfg(phy, PHY_CTRL0, reg_val, GENMASK(3, 2));
 
 	if (phy->pcie_ctl0) {
+		pcie_phy_cfg(phy, X4_MISC_FUNC_CTRL0, 0x3f, GENMASK(13, 8));
 
 		/* Release button_rst power_up_rst perst_n */
 		pcie_phy_cfg(phy, CRM_CTRL, 0x1, BIT(4));
@@ -309,6 +335,8 @@ static int c1200_pcie_phyinit(struct pcie_phy *phy)
 	}
 
 	if (phy->pcie_ctl1) {
+		pcie_phy_cfg(phy, X2_MISC_FUNC_CTRL0, 0x3f, GENMASK(13, 8));
+
 		/* Release button_rst power_up_rst perst_n */
 		pcie_phy_cfg(phy, CRM_CTRL, 0x1, BIT(5));
 		pcie_phy_cfg(phy, CRM_CTRL, 0x1, BIT(3));
@@ -336,11 +364,11 @@ static void c1200_pcie_phydeinit(struct pcie_phy *phy)
 
 int bst_pcie_phyinit(struct pcie_phy *phy)
 {
-	int ret;
+	int ret = 0;
 	struct device *dev = phy->dev;
 	struct device_node *np = dev->of_node;
 	struct device_node *phy_np = NULL;
-	void * __iomem *phy_base;
+	void * __iomem *phy_base = NULL;
 
 	phy_np = of_parse_phandle(np, "pcie-phy", 0);
 	if (!phy_np) {
@@ -350,11 +378,9 @@ int bst_pcie_phyinit(struct pcie_phy *phy)
 
 	strscpy(phy->name, phy_np->full_name, sizeof(phy->name));
 
-	if (!phy_base) {
-		phy_base = of_iomap(phy_np, 0);
-		if (!phy_base)
-			return -ENOMEM;
-	}
+	phy_base = of_iomap(phy_np, 0);
+	if (!phy_base)
+		return -ENOMEM;
 	phy->phy_base = phy_base;
 
 	ret = of_property_read_u32(phy_np, "dmc-mode", &phy->dmc_mode);
@@ -401,7 +427,7 @@ int bst_pcie_phyinit(struct pcie_phy *phy)
 	if (!*phy->is_pre_init) {
 		switch (*phy->chip_type) {
 		case PCIE_C1200_SERIES:
-			c1200_pcie_phyinit(phy);
+			ret = c1200_pcie_phyinit(phy);
 			break;
 		default:
 			pr_err("unkonw PCIe chip type\n");
@@ -409,7 +435,7 @@ int bst_pcie_phyinit(struct pcie_phy *phy)
 		}
 	}
 
-	return 0;
+	return ret;
 }
 
 void bst_pcie_phydeinit(struct pcie_phy *phy)

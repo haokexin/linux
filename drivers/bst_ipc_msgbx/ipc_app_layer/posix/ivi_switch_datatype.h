@@ -17,10 +17,9 @@
  * limitations under the License.
  */
 
-/* This file is auto generated for message box v1.1.0.
+/* This file is auto generated for message box v2.0.0.
  * All manual modifications will be LOST by next generation.
  * It is recommended NOT modify it.
- * Generator Version: francaidl c4b9707 msgbx_ipc de48071
  */
 
 #ifndef IVI_SWITCH_DATATYPE_H
@@ -30,6 +29,17 @@
 #include <bst/ipc_app_common.h>
 #else
 #include "ipc_app_common.h"
+#endif
+
+#if __has_include(<inttypes.h>)
+  #include <inttypes.h>
+#else
+#ifndef PRId32
+#define PRId32 "d"
+#endif
+#ifndef PRIu8
+#define PRIu8 "u"
+#endif
 #endif
 
 #ifdef __cplusplus
@@ -90,7 +100,6 @@ static inline int32_t deserialize_ivi_switch_MyArray(
 							des_buf_t *buf,
 							ivi_switch_MyArray_t *out)
 {
-	int32_t ret = 0;
 	uint32_t size = 0;
 	uint32_t *size_ptr = NULL;
 
@@ -107,7 +116,7 @@ static inline int32_t deserialize_ivi_switch_MyArray(
 	if (size > 0 && !out->data)
 		return -1;
 
-	return ret >= 0 ? 0 : -1;
+	return 0;
 }
 
 /**

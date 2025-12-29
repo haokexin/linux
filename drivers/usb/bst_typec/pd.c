@@ -416,12 +416,37 @@ static int add_pdo(struct usb_power_delivery_capabilities *cap, u32 pdo, int pos
 
 		name = apdo_supply_name[pdo_apdo_type(pdo)];
 	} else {
-		if (is_source(cap->role))
-			type = source_type[pdo_type(pdo)];
-		else
-			type = sink_type[pdo_type(pdo)];
-
-		name = supply_name[pdo_type(pdo)];
+		int type_index = pdo_type(pdo);
+		
+		
+		if (is_source(cap->role)){
+			if (type_index >= ARRAY_SIZE(source_type)) {
+				dev_warn(&cap->dev,
+						"Illegal PDO type (%d) for source_type PDO 0x%08x at position %d\n",
+						type_index, pdo, position);
+				kfree(p);
+				return 0;
+			}
+			type = source_type[type_index];
+		}
+		else{
+			if (type_index >= ARRAY_SIZE(sink_type)) {
+				dev_warn(&cap->dev,
+						"Illegal PDO type (%d) for sink_type PDO 0x%08x at position %d\n",
+						type_index, pdo, position);
+				kfree(p);
+				return 0;
+			}
+			type = sink_type[type_index];
+		}
+		if (type_index >= ARRAY_SIZE(supply_name)) {
+			dev_warn(&cap->dev,
+					"Illegal PDO type (%d) for supply_name PDO 0x%08x at position %d\n",
+					type_index, pdo, position);
+			kfree(p);
+			return 0;
+		}
+		name = supply_name[type_index];
 	}
 
 	p->dev.parent = &cap->dev;

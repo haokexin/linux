@@ -4,9 +4,18 @@
 VAR_CFLAGS := $(shell pkg-config --cflags libtracefs 2>/dev/null)
 VAR_LDLIBS := $(shell pkg-config --libs libtracefs 2>/dev/null)
 
+DESTDIR := $(O)/tools/tracing/latency/
+export DESTDIR
+
 TARGETS = latency-collector
 CFLAGS = -Wall -Wextra -g -O2 $(VAR_CFLAGS)
 LDFLAGS = -lpthread $(VAR_LDLIBS)
+
+CFLAGS += -I$(objtree)/tools/tracing/libtraceevent/usr/local/include/traceevent/ \
+	  -I$(objtree)/tools/tracing/libtracefs/usr/local/include/tracefs/ \
+	  -I$(objtree)/tools/tracing/libtraceevent/usr/local/include/ \
+	  -I$(objtree)/tools/tracing/libtracefs/usr/local/include/
+LDFLAGS += -L$(objtree)/tools/tracing/libtraceevent/usr/local/lib64/ -L$(objtree)/tools/tracing/libtracefs/usr/local/lib64/ -ltraceevent -ltracefs
 
 all: $(TARGETS)
 

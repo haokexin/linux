@@ -1,0 +1,12 @@
+#include <dt-bindings/media/bst-isp.h>
+
+compatible = "bst,hk_ox03f";
+sensor-addr = <0x36>;
+data-type = <DT_RAW12>;
+sensor-fps = <25>;
+reg-width = <WORD_REG_BYTE_VAL>;
+algo-bin = "isp/algo/ox03f/OX03F10_raw12_HK_h190_SVS_AlgoParam.bin";
+iq-bin = "isp/algo/ox03f/OX03F10_raw12_HK_h190_SVS_IqParam.bin";
+
+ser-addr = <0x40>;
+ser-fsync-tx-pin = <0>;

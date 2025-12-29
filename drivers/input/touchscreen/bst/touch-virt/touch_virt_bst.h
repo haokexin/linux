@@ -58,11 +58,11 @@
 #define MAX_SCREEN			TC_IPC(MAX_SCREEN)
 #define MAX_CLIENT			TC_IPC(MAX_CLIENT)
 #define MAX_POINT			TC_IPC(MAX_POINT_NUM)
-#define SCREENID_0			TC_IPC(SCREENID_0)
-#define SCREENID_1			TC_IPC(SCREENID_1)
-#define SCREENID_2			TC_IPC(SCREENID_2)
-#define SCREENID_3			TC_IPC(SCREENID_3)
-#define SCREENID_4			TC_IPC(SCREENID_4)
+#define SCREENID_LVDS0			TC_IPC(SCREENID_LVDS0)
+#define SCREENID_LVDS1			TC_IPC(SCREENID_LVDS1)
+#define SCREENID_DSI0			TC_IPC(SCREENID_DSI0)
+#define SCREENID_DSI1			TC_IPC(SCREENID_DSI1)
+#define SCREENID_EDP			TC_IPC(SCREENID_EDP)
 #define VENDOR_ID_SYNA			TC_IPC(VENDOR_ID_SYNA)
 #define VENDOR_ID_HIMAX			TC_IPC(VENDOR_ID_HIMAX)
 #define PRODUCT_ID_SYNA_DEF		TC_IPC(PRODUCT_ID_SYNA_DEF)
@@ -111,7 +111,7 @@ typedef struct {
 struct bst_ts_data {
 	int requested_screen_inx;
 	uint32_t requested_screen_id;
-	char name[64];
+	/* char name[64]; */
 	char uniq[32]; /* @uniq: unique identification code for the device (if device has it) */
 #ifdef USE_SHAREMEM_POINTINFO
 	point_info_t locinfo;

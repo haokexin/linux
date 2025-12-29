@@ -1,14 +1,20 @@
-/* SPDX-License-Identifier: GPL-2.0 OR BSD-3-Clause
+/* SPDX-License-Identifier: GPL-2.0 OR Apache 2.0
  *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2 of the License, or
- * (at your option) any later version.
+ * Copyright (c) 2024 Black Sesame Technologies
  *
- * This program is also distributed under the terms of the BSD 3-Clause
+ * This program is also distributed under the terms of the Apache 2.0
  * License.
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
- * Copyright (C) 2023 Black Sesame Technologies. Inc.
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 
 /**
@@ -22,14 +28,9 @@
 #ifndef IPC_APP_LAYER_COMMON_H
 #define IPC_APP_LAYER_COMMON_H
 
-#include <bst/bstipc_cfg.h>
-#include <bst/ipc_serdes.h>
-
-#define IPC_MAX_SUBSCRIPTION 34U
-#define IPC_TOKEN_NUM 256U
-#define IPC_TOKEN_GC_TIMES 2U
-#define IPC_MAX_DATA_SIZE (IPC_MAX_SUB_MSG_NUM * IPC_PAYLOAD_SIZE)
-#define IPC_OBJ_BUF_SIZE 512U
+#include "bstipc_cfg.h"
+#include "ipc_serdes.h"
+#include "ipc_lflist_siso.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -74,6 +75,8 @@ struct _des_buf_t {
 	uint16_t unavail_data_size; /**< Unavailable data size. */
 	uint16_t obj_buf_offset; /**< Offset in the object buffer. */
 	uint16_t unavail_obj_size; /**< Unavailable object size. */
+	rw_msg_header_t header; /**< Message header. */
+	uint64_t timestamp; /**< Timestamp. */
 };
 #define des_buf_t struct _des_buf_t
 
@@ -91,6 +94,7 @@ struct _des_buf_t {
 #define IPC_SEM_TIMED_WAIT(sem, timeout)
 #define IPC_SEM_POST(sem)
 #define IPC_SEM_DESTROY(sem)
+#define IPC_YIELD
 #else
 #if defined IPC_RTE_POSIX
 #define DECL_TASK(task)	pthread_t task;
@@ -134,7 +138,7 @@ struct _des_buf_t {
 #define IPC_SEM_DESTROY(sem) 	do { \
 	(void)sem_destroy(sem); \
 } while (0)
-
+#define IPC_YIELD sched_yield()
 #elif defined IPC_RTE_KERNEL
 #define DECL_TASK(task)	struct task_struct *task;
 #define DECL_MUTEX(mtx)	struct mutex mtx;
@@ -167,7 +171,41 @@ struct _des_buf_t {
 	up(sem); \
 } while (0)
 #define IPC_SEM_DESTROY(sem)
-
+#define IPC_YIELD schedule()
+#elif defined IPC_RTE_RTOS
+#define DECL_TASK(task) task_handle_t task;
+#define DECL_MUTEX(mtx)	mutex_osal_t mtx;
+#define DECL_SEM(sem) sem_osal_t sem;
+#define IPC_MUTEX_INIT(mtx) do { \
+	(void)CreateResource(mtx); \
+} while (0)
+#define IPC_MUTEX_LOCK(mtx) do { \
+	(void)GetResource(mtx); \
+} while (0)
+#define IPC_MUTEX_UNLOCK(mtx) do { \
+	(void)ReleaseResource(mtx); \
+} while (0)
+#define IPC_MUTEX_DESTROY(mtx) do { \
+	(void)DeleteResource(mtx); \
+} while (0)
+#define IPC_SEM_INIT(sem, val)	do { \
+	(void)SemCountCreate(sem, val, 32); \
+} while (0)
+#define IPC_SEM_RESET(sem)
+#define IPC_SEM_WAIT(sem) do { \
+	(sem)->wait_ms = 0;		\
+	SemCountWait(sem); \
+} while (0)
+#define IPC_SEM_TIMED_WAIT(sem, timeout) do { \
+	(sem)->wait_ms = timeout;	\
+	ret = SemCountWait(sem); \
+} while (0)
+#define IPC_SEM_POST(sem) do { \
+	(void)SemCountPost(sem); \
+} while (0)
+#define IPC_SEM_DESTROY(sem) do { \
+	(void)SemCountDelete(sem); \
+} while (0)
 #endif
 #endif
 
@@ -179,14 +217,20 @@ struct _des_buf_t {
 	bool initialized;                                                       \
 	_Atomic uint8_t token;                                                  \
 	uint8_t res[2];                                                         \
+	bst_msg_queue_t *queue;													\
 	des_buf_t des_buf;                                                      \
 	serdes_t serializer;                                                    \
 	serdes_t deserializer;                                                  \
 	ext_info_t info;                                                        \
 	_Atomic bool bRunning;                                                  \
-	DECL_TASK(route_task)                                                  \
+	DECL_TASK(route_task)                                                   \
 	DECL_MUTEX(send_mtx)
 
+// #define KERNEL_2_USER(ptr, k_base, u_base) kernel_2_user((ptr), (k_base), (u_base))
+#define KERNEL_2_USER(ptr, k_base, u_base) \
+(ptr) ? ((uintptr_t)(k_base) == (uintptr_t)(u_base) ? (ptr) \
+		: (void*)((uintptr_t)(ptr) - (uintptr_t)(k_base) + (uintptr_t)(u_base))) \
+		: NULL;
 /**
  * @brief Callback function for availability change.
  *

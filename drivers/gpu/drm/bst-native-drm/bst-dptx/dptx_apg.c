@@ -46,7 +46,7 @@ int dptx_apg_enable(struct dptx *dptx)
 		dptx_write_reg(dptx, apg_base, I2S0_REG_TCR, 0x5);
 		dptx_write_reg(dptx, apg_base, I2S0_REG_IER, 0x1);
 		dptx_write_reg(dptx, apg_base, I2S0_REG_ITER, 0x1);
-		udelay(100);
+		usleep_range(100, 150);
 		dptx_write_reg(dptx, apg_base, I2S0_REG_CER, 0x0);
 		dptx_write_reg(dptx, apg_base, I2S0_REG_CCR, 0x10);
 		dptx_write_reg(dptx, apg_base, I2S0_REG_TXFFR, 0X1);

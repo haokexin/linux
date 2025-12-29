@@ -202,8 +202,9 @@ scmi_device_create(struct device_node *np, struct device *parent, int protocol,
 
 	return scmi_dev;
 put_dev:
-	kfree_const(scmi_dev->name);
+	//kfree_const(scmi_dev->name);
 	put_device(&scmi_dev->dev);
+	kfree(scmi_dev);
 	ida_free(&scmi_bus_id, id);
 	return NULL;
 }

@@ -111,7 +111,10 @@ static int32_t ipc_ioctl_session_create(struct file *filp,
 		return -EFAULT;
 	}
 	IPC_LOG_INFO("init src = %d, dst = %d", init.src, init.dst);
-	session_id = ipc_init(init.dst, init.src, NULL);
+
+	if((init.dst<IPC_CORE_MAX)&&(init.src<IPC_CORE_MAX))
+		session_id = ipc_init(init.dst, init.src, NULL);
+	
 	IPC_LOG_INFO("session id %d", session_id);
 
 	if (session_id < 0) {

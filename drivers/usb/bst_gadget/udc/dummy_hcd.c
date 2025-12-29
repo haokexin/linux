@@ -57,6 +57,8 @@ static const char	driver_desc[] = "USB Host+Gadget Emulator";
 
 static const char	gadget_name[] = "dummy_udc";
 
+static unsigned long	dummy_last_io;
+
 MODULE_DESCRIPTION(DRIVER_DESC);
 MODULE_AUTHOR("David Brownell");
 MODULE_LICENSE("GPL");
@@ -1430,6 +1432,7 @@ top:
 		 * (length mod maxpacket zero, and 'zero' flag); they always
 		 * terminate reads.
 		 */
+
 		host_len = urb->transfer_buffer_length - urb->actual_length;
 		dev_len = req->req.length - req->req.actual;
 		len = min(host_len, dev_len);
@@ -1448,7 +1451,7 @@ top:
 				break;
 
 			/* send multiple of maxpacket first, then remainder */
-			if (len >= ep->ep.maxpacket) {
+			if (len > ep->ep.maxpacket) {
 				is_short = 0;
 				if (len % ep->ep.maxpacket)
 					rescan = 1;
@@ -1535,6 +1538,14 @@ top:
 		if (rescan)
 			goto top;
 	}
+
+	if (usb_urb_dir_in(urb) &&  (*status == -EINPROGRESS) && (urb->actual_length > 0)) {
+		pr_debug("urb->actual_length %x  jiffies %ld dummy_last_io %ld \n", urb->actual_length, jiffies, dummy_last_io);
+		if (jiffies - dummy_last_io > 1) {
+			*status = 0;
+		}
+	}
+
 	return sent;
 }
 
@@ -1793,7 +1804,6 @@ static enum hrtimer_restart dummy_timer(struct hrtimer *t)
 	unsigned long		flags;
 	int			limit, total;
 	int			i;
-	static unsigned long	dummy_last_io;
 
 	/* simplistic model for one frame's bandwidth */
 	/* FIXME: account for transaction and packet overhead */
@@ -1821,7 +1831,7 @@ static enum hrtimer_restart dummy_timer(struct hrtimer *t)
 	spin_lock_irqsave(&dum->lock, flags);
 
 	if (!dum_hcd->udev) {
-		dev_err(dummy_dev(dum_hcd),
+		dev_dbg(dummy_dev(dum_hcd),
 				"timer fired with no URBs pending?\n");
 		spin_unlock_irqrestore(&dum->lock, flags);
 		return HRTIMER_NORESTART;

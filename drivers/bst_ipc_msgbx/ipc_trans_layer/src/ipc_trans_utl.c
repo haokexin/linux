@@ -1,106 +1,26 @@
-// SPDX-License-Identifier: GPL-2.0 OR BSD-3-Clause
-/*
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2 of the License, or
- * (at your option) any later version.
+/* SPDX-License-Identifier: GPL-2.0 OR Apache 2.0
  *
- * This program is also distributed under the terms of the BSD 3-Clause
+ * Copyright (c) 2024 Black Sesame Technologies
+ *
+ * This program is also distributed under the terms of the Apache 2.0
  * License.
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
- * Copyright (C) 2023 Black Sesame Technologies. Inc.
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 
 #include "../include/config.h"
 #include "ipc_trans_utl.h"
 
-const uint8_t end_id_idx[MSGBX_END_COUNT_MAX] = {
-	((1U << 4) | 0U), ((1U << 4) | 1U), ((1U << 4) | 2U),  ((1U << 4) | 3U),
-	((1U << 4) | 4U), ((1U << 4) | 5U), ((1U << 4) | 6U),  ((1U << 4) | 7U),
-	((2U << 4) | 0U), ((2U << 4) | 1U), ((3U << 4) | 0U),  ((3U << 4) | 1U),
-	((3U << 4) | 2U), ((3U << 4) | 3U), ((3U << 4) | 4U),  ((4U << 4) | 0U),
-	((5U << 4) | 0U), ((5U << 4) | 1U), ((6U << 4) | 0U),  ((6U << 4) | 1U),
-	((6U << 4) | 2U), ((6U << 4) | 3U), ((6U << 4) | 4U),  ((6U << 4) | 5U),
-	((7U << 4) | 0U), ((7U << 4) | 1U), ((8U << 4) | 0U),  ((8U << 4) | 1U),
-	((9U << 4) | 0U), ((9U << 4) | 1U), ((9U << 4) | 2U),  ((9U << 4) | 3U),
-	((9U << 4) | 4U), ((9U << 4) | 5U), ((10U << 4) | 0U),
-};
-
-int32_t end_is_valid(const uint8_t end_id)
-{
-	if (end_id == CPU_0)
-		return 1;
-	else if (end_id == CPU_1)
-		return 1;
-	else if (end_id == CPU_2)
-		return 1;
-	else if (end_id == CPU_3)
-		return 1;
-	else if (end_id == CPU_4)
-		return 1;
-	else if (end_id == CPU_5)
-		return 1;
-	else if (end_id == CPU_6)
-		return 1;
-	else if (end_id == CPU_7)
-		return 1;
-	else if (end_id == CPUMP2_0)
-		return 1;
-	else if (end_id == CPUMP2_1)
-		return 1;
-	else if (end_id == ISPCV_0)
-		return 1;
-	else if (end_id == ISPCV_1)
-		return 1;
-	else if (end_id == ISPCV_2)
-		return 1;
-	else if (end_id == ISPCV_3)
-		return 1;
-	else if (end_id == ISPCV_4)
-		return 1;
-	else if (end_id == NET_0)
-		return 1;
-	else if (end_id == DMA_0)
-		return 1;
-	else if (end_id == DMA_1)
-		return 1;
-	else if (end_id == SWITCH_0)
-		return 1;
-	else if (end_id == SWITCH_1)
-		return 1;
-	else if (end_id == SWITCH_2)
-		return 1;
-	else if (end_id == SWITCH_3)
-		return 1;
-	else if (end_id == SWITCH_4)
-		return 1;
-	else if (end_id == SWITCH_5)
-		return 1;
-	else if (end_id == SECURE_0)
-		return 1;
-	else if (end_id == SECURE_1)
-		return 1;
-	else if (end_id == SAFETY_0)
-		return 1;
-	else if (end_id == SAFETY_1)
-		return 1;
-	else if (end_id == REALTIME_0)
-		return 1;
-	else if (end_id == REALTIME_1)
-		return 1;
-	else if (end_id == REALTIME_2)
-		return 1;
-	else if (end_id == REALTIME_3)
-		return 1;
-	else if (end_id == REALTIME_4)
-		return 1;
-	else if (end_id == REALTIME_5)
-		return 1;
-	else if (end_id == MEDIA_0)
-		return 1;
-	else
-		return 0;
-}
+const uint8_t end_id_idx[MSGBX_END_COUNT_MAX] = MSGBX_END_VALUES_DEF;
 
 int32_t query_end_id_idx(uint8_t end_id)
 {

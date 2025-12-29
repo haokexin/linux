@@ -63,5 +63,7 @@ struct af_alg_iv {
 #define ALG_OP_VERIFY			3
 #define ALG_OP_KEYGEN			4
 #define ALG_OP_SSGEN			5
+#define ALG_OP_MACGEN           6
+#define ALG_OP_MACVER           7
 
 #endif	/* _LINUX_IF_ALG_H */

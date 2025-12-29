@@ -120,6 +120,9 @@ int of_dma_configure_id(struct device *dev, struct device_node *np,
 	u64 dma_start = 0;
 	u64 mask, end, size = 0;
 	bool coherent;
+#ifdef CONFIG_BST_OF_DMA_NEED_SYNC_TO_POP
+	bool flag_sync_to_pop;
+#endif
 	int ret;
 
 	if (np == dev->of_node)
@@ -202,6 +205,12 @@ int of_dma_configure_id(struct device *dev, struct device_node *np,
 	dev_dbg(dev, "device is%sdma coherent\n",
 		coherent ? " " : " not ");
 
+#ifdef CONFIG_BST_OF_DMA_NEED_SYNC_TO_POP
+	flag_sync_to_pop = of_dma_is_flag_sync_to_pop(np);
+	dev_dbg(dev, "device is%s flag sync to pop\n",
+		flag_sync_to_pop ? " " : " not ");
+#endif
+
 	iommu = of_iommu_configure(dev, np, id);
 	if (PTR_ERR(iommu) == -EPROBE_DEFER) {
 		/* Don't touch range map if it wasn't set from a valid dma-ranges */
@@ -214,7 +223,12 @@ int of_dma_configure_id(struct device *dev, struct device_node *np,
 	dev_dbg(dev, "device is%sbehind an iommu\n",
 		iommu ? " " : " not ");
 
+#ifdef CONFIG_BST_OF_DMA_NEED_SYNC_TO_POP
+	bst_arch_setup_dma_ops(dev, dma_start, size, iommu, flag_sync_to_pop);
 	arch_setup_dma_ops(dev, dma_start, size, iommu, coherent);
+#else /* CONFIG_BST_OF_DMA_NEED_SYNC_TO_POP */
+	arch_setup_dma_ops(dev, dma_start, size, iommu, coherent);
+#endif
 
 	if (!iommu)
 		of_dma_set_restricted_buffer(dev, np);

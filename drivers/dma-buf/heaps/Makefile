@@ -12,3 +12,4 @@ obj-$(CONFIG_DMABUF_HEAPS_CMA)		+= cma_heap.o
 obj-$(CONFIG_DMABUF_HEAPS_SECURE)	+= secure_heap.o
 obj-$(CONFIG_DMABUF_HEAPS_CMA_BST)	+= system_heap_ipc.o
 obj-$(CONFIG_DMABUF_MSGBX_R5MEM)	+= dmabuf-ipc-src-gen/r5mem_client.o dmabuf-ipc-src-gen/dmabuf_ipc_client.o
+obj-$(CONFIG_DMABUF_HEAPS_SRAM)		+= sram_heap.o

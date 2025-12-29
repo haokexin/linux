@@ -1,0 +1,40 @@
+# SPDX-License-Identifier: GPL-2.0-only
+#
+# BST Fusa Inject
+#
+
+menuconfig BST_FUSA_INJECT
+	bool "BST Fusa Inject"
+	default y
+	help
+	  This selects the function of inject cache ecc error for FUSA.
+
+if BST_FUSA_INJECT
+
+config FUSA_INJECT_MODULE
+	tristate "BST FUSA Inject Module"
+	default m
+	help
+	  This selects the module of inject cache ecc error for FUSA.
+	  It includes some function as fallowing:
+	  1. receive msg from r5 then inject error for cache ecc.
+
+config FUSA_INJECT_BLOCK_ID
+	int
+	depends on BST_FUSA_INJECT
+	default 116 if BST_C1200_ADAS || BST_C1200_IVI
+	default 109 if BST_C1200_DB
+
+config FUSA_INJECT_LSM_ID
+	int
+	depends on BST_FUSA_INJECT
+	default 0 if BST_C1200_ADAS || BST_C1200_IVI
+	default 0 if BST_C1200_DB
+
+config FUSA_INJECT_PID
+	int
+	default 20 if BST_C1200_ADAS
+	default 17 if BST_C1200_IVI
+	default 32 if BST_C1200_DB
+
+endif

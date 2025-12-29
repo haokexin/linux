@@ -186,6 +186,7 @@ obj-$(CONFIG_CRYPTO_USER_API_SKCIPHER) += algif_skcipher.o
 obj-$(CONFIG_CRYPTO_USER_API_RNG) += algif_rng.o
 obj-$(CONFIG_CRYPTO_USER_API_AEAD) += algif_aead.o
 obj-$(CONFIG_CRYPTO_USER_API_AKCIPHER) += algif_akcipher.o
+obj-$(CONFIG_CRYPTODEV) += cryptodev/
 algif_kpp-y += ecdh_helper.o
 obj-$(CONFIG_CRYPTO_USER_API_KPP) += algif_kpp.o
 

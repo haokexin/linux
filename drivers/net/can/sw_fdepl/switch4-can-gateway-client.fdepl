@@ -1,11 +1,5 @@
 //Brief: 此IPC client和VCAN逻辑强耦合，必须在VCAN初始化前进行初始化，所以暂时采用单独的clinet
-
 //Note: switch0-can-gateway.fdepl位于can_firmware仓库中，生成时需要从can_firmware中拷贝最新的sample-inf
-
-
-
-
-
 import "switch0-can-gateway.fdepl"
 
 define com.bst.ipc.deployment for provider as adas5_can_gateway_client {
@@ -14,6 +8,8 @@ define com.bst.ipc.deployment for provider as adas5_can_gateway_client {
     SrcEndID = CPU_5
     FID = F4
     SID = 0
+    EnableRouterRealtimeSched = true
+    RouterPriority = 98
     instance com.bst.ipc.switch.switch0_can_gateway {
         DstEndID = SWITCH_0
     }

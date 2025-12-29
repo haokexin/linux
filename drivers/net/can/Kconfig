@@ -219,6 +219,7 @@ source "drivers/net/can/softing/Kconfig"
 source "drivers/net/can/spi/Kconfig"
 source "drivers/net/can/usb/Kconfig"
 source "drivers/net/can/bst/Kconfig"
+source "drivers/net/can/bst_vcan/Kconfig"
 
 endif #CAN_NETLINK
 

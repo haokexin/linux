@@ -1,0 +1,28 @@
+/dts-v1/;
+/plugin/;
+
+#include "aps-1hkx8b_1hkx3c-4hkx3c-splitter-master.dts"
+
+&isp {
+	slab = "bev/slab-1x8b-4x3c-1x3c_view0_qHD.bin";
+	usage = "[BEV SPLITTER] slave for bev app, view0: 960*540";
+};
+
+&camera0 {
+	role = <ROLE_SLAVE>;
+};
+&camera1 {
+	role = <ROLE_SLAVE>;
+};
+&camera4 {
+	role = <ROLE_SLAVE>;
+};
+&camera5 {
+	role = <ROLE_SLAVE>;
+};
+&camera6 {
+	role= <ROLE_SLAVE>;
+};
+&camera7 {
+	role = <ROLE_SLAVE>;
+};

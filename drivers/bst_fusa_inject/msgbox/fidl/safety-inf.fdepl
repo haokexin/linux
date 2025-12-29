@@ -1,0 +1,24 @@
+//xxx-inf.fdepl
+import "platform:/plugin/com.bst.os.idl/deployment/ipc_spec.fdepl"
+import "safety.fidl"
+
+define com.bst.ipc.deployment for interface com.bst.ipc.safety.safetylib {
+    MaxMethodNum = 255
+    MaxBroadcastNum = 255
+
+    EnableSection = false
+
+    method fusacoreip_method {
+        MethodID = 76
+    }
+    
+    method fusaenable_method {
+        MethodID = 77
+    }
+
+    broadcast fusalsm_method {
+        SubscribeMethodID = 93
+        UnsubscribeMethodID = 94
+        BroadcastID = 78
+    }
+}

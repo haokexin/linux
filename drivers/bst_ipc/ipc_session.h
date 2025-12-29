@@ -42,6 +42,7 @@ struct ipc_session {
 	enum ipc_core_e dest;
 	struct completion rx_complete;
 	struct completion tx_complete;
+	struct mutex session_mutex;
 	uint32_t waiting_reply_msg_token; //now is deprecated
 	struct ipc_client_info *cl_info;
 	uint16_t token;

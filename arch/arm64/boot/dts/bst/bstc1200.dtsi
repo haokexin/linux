@@ -62,22 +62,43 @@
 
 		bst_hfe: hfe@0x2300b000 {
 			compatible = "bst,c1200-hfe";
+			status = "disable";
 			reg = <0x0 0x2300b000 0x0 0x1000>;
 			interrupt-parent = <&gic600>;
 			interrupts = <GIC_SPI 193 IRQ_TYPE_LEVEL_HIGH>;
 		};
 		bst_ske: ske@0x2300a000 {
 			compatible = "bst,c1200-ske";
+			status = "disable";
 			reg = <0x0 0x2300a000 0x0 0x1000>;
 			interrupt-parent = <&gic600>;
 			interrupts = <GIC_SPI 194 IRQ_TYPE_LEVEL_HIGH>;
 		};
 		bst_pke: pke@0x23008000 {
 			compatible = "bst,c1200-pke";
+			status = "disable";
 			reg = <0x0 0x23008000 0x0 0x2000>;
 			interrupt-parent = <&gic600>;
 			interrupts = <GIC_SPI 195 IRQ_TYPE_LEVEL_HIGH>;
 		};
+
+		msgbox: bst-msgbox {
+			status = "disable";
+			compatible = "bst,bst-msgbox";
+			reg =   <0x0 0x32a00000 0 0x100000>;
+			interrupt-parent = <&gic600>;
+			#mbox-cells = <0x1>;
+		};
+
+		hwrng: bst-rng {
+			status = "disable";
+			compatible = "bst,c1200-rng";
+		};
+
+	safety_command:safety{
+        compatible = "bst,safety_command";
+        status = "disable";
+    };
 
 	firmware_scmi:scmi {
 		compatible = "arm,scmi-msgbox";
@@ -107,6 +128,24 @@
 		scmi_pinctrl: protocol@19 {
 			reg = <0x19>;
 			#pinctrl-cells = <0>;
+			i2c5_pinctrl: i2c5_pinctrl {
+				mux {
+					pins = "SC_I2C5_SCL", "SC_I2C5_SDA";
+					function = "i2c5";
+				};
+			};
+			i2c6_pinctrl: i2c6_pinctrl {
+				mux {
+					pins = "SC_I2C6_SCL", "SC_I2C6_SDA";
+					function = "i2c6";
+				};
+			};
+			i2c7_pinctrl: i2c7_pinctrl {
+				mux {
+					pins = "SC_I2C7_SCL", "SC_I2C7_SDA";
+					function = "i2c7";
+				};
+			};
         };
 
 		
@@ -138,7 +177,7 @@
                                                          23 22 21 20 19 18 17 16
                                                          15 14 13 12 11 10  9  8
                                                           7  6  5  4  3  2  1  0>;
-                        snps,axi-max-burst-len = <16>;
+                        snps,axi-max-burst-len = <15>;
                         interrupt-parent = <&gic600>;
 			interrupts = <            GIC_SPI 385 (GIC_CPU_MASK_SIMPLE(8) | IRQ_TYPE_LEVEL_HIGH)
                                                   GIC_SPI 386 (GIC_CPU_MASK_SIMPLE(8) | IRQ_TYPE_LEVEL_HIGH)
@@ -189,7 +228,8 @@
 			i2c-sda-hold-time-ns = <560>;
 			i2c-sda-falling-time-ns = <560>;
 			i2c-scl-falling-time-ns = <560>;
-
+			i2c-digital-filter-width-ns = <50>;
+			
 			clocks= <&scmi_clk GATE_LSP0_I2C0_PCLK_EN>,
 			<&scmi_clk GATE_LSP0_I2C0_WCLK_EN>;
 			clock-names = "pclk","wclk";
@@ -211,6 +251,7 @@
 			i2c-sda-hold-time-ns = <560>;
 			i2c-sda-falling-time-ns = <560>;
 			i2c-scl-falling-time-ns = <560>;
+			i2c-digital-filter-width-ns = <50>;
 
 			clocks= <&scmi_clk GATE_LSP0_I2C1_PCLK_EN>,
 			<&scmi_clk GATE_LSP0_I2C1_WCLK_EN>;
@@ -233,7 +274,7 @@
 			i2c-sda-hold-time-ns = <560>;
 			i2c-sda-falling-time-ns = <560>;
 			i2c-scl-falling-time-ns = <560>;
-
+			i2c-digital-filter-width-ns = <50>;
 
 			clocks= <&scmi_clk GATE_LSP0_I2C2_PCLK_EN>,
 			<&scmi_clk GATE_LSP0_I2C2_WCLK_EN>;
@@ -258,6 +299,7 @@
 			i2c-sda-hold-time-ns = <560>;
 			i2c-sda-falling-time-ns = <560>;
 			i2c-scl-falling-time-ns = <560>;
+			i2c-digital-filter-width-ns = <50>;
 
 			clocks= <&scmi_clk GATE_LSP0_I2C3_PCLK_EN>,
 			<&scmi_clk GATE_LSP0_I2C3_WCLK_EN>;
@@ -280,6 +322,7 @@
 			i2c-sda-hold-time-ns = <560>;
 			i2c-sda-falling-time-ns = <560>;
 			i2c-scl-falling-time-ns = <560>;
+			i2c-digital-filter-width-ns = <50>;
 
 			clocks= <&scmi_clk GATE_LSP1_I2C0_PCLK_EN>,
 			<&scmi_clk GATE_LSP1_I2C0_WCLK_EN>;
@@ -302,6 +345,7 @@
 			i2c-sda-hold-time-ns = <560>;
 			i2c-sda-falling-time-ns = <560>;
 			i2c-scl-falling-time-ns = <560>;
+			i2c-digital-filter-width-ns = <50>;
 
 			clocks= <&scmi_clk GATE_LSP1_I2C1_PCLK_EN>,
 			<&scmi_clk GATE_LSP1_I2C1_WCLK_EN>;
@@ -310,6 +354,9 @@
 			reset-names = "i2c0_reset";
 
 			i2c-nr = <5>;
+			ipc-sem = <1 1 7>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&i2c5_pinctrl>;
 			status = "disable";
 		};
 
@@ -324,6 +371,7 @@
 			i2c-sda-hold-time-ns = <560>;
 			i2c-sda-falling-time-ns = <560>;
 			i2c-scl-falling-time-ns = <560>;
+			i2c-digital-filter-width-ns = <50>;
 
 			clocks= <&scmi_clk GATE_LSP1_I2C2_PCLK_EN>,
 			<&scmi_clk GATE_LSP1_I2C2_WCLK_EN>;
@@ -332,6 +380,9 @@
 			reset-names = "i2c0_reset";
 
 			i2c-nr = <6>;
+			ipc-sem = <1 1 8>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&i2c6_pinctrl>;
 			status = "disable";
 		};
 
@@ -346,6 +397,7 @@
 			i2c-sda-hold-time-ns = <560>;
 			i2c-sda-falling-time-ns = <560>;
 			i2c-scl-falling-time-ns = <560>;
+			i2c-digital-filter-width-ns = <50>;
 
 			clocks= <&scmi_clk GATE_LSP1_I2C3_PCLK_EN>,
 			<&scmi_clk GATE_LSP1_I2C3_WCLK_EN>;
@@ -354,50 +406,13 @@
 			reset-names = "i2c0_reset";
 
 			i2c-nr = <7>;
+			ipc-sem = <1 1 9>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&i2c7_pinctrl>;
 			status = "disable";
 		};
 
-		i2cq0: i2cq@5203f000 {
-			#address-cells = <1>;
-			#size-cells = <0>;
-			i2c-nr = <8>;
-			compatible = "bst,isp-i2cq";
-			reg = <0x0 0x5203f000 0 0x800>;
-			interrupt-parent = <&gic600>;
-			interrupts = <GIC_SPI 382 IRQ_TYPE_LEVEL_HIGH>;
-			clock-frequency = <937500>;
-			resets = <&scmi_reset RST_ISP_SW>;
-			reset-names = "i2cq-reset";
-			status = "disable";
-		};
 
-		i2cq1: i2cq@5203e000 {
-			#address-cells = <1>;
-			#size-cells = <0>;
-			i2c-nr = <9>;
-			compatible = "bst,isp-i2cq";
-			reg = <0x0 0x5203e000 0 0x800>;
-			interrupt-parent = <&gic600>;
-			interrupts = <GIC_SPI 380 IRQ_TYPE_LEVEL_HIGH>;
-			clock-frequency = <937500>;
-			resets = <&scmi_reset RST_ISP_SW>;
-			reset-names = "i2cq-reset";
-			status = "disable";
-		};
-
-		i2cq2: i2cq@5203e800 {
-			#address-cells = <1>;
-			#size-cells = <0>;
-			i2c-nr = <10>;
-			compatible = "bst,isp-i2cq";
-			reg = <0x0 0x5203e800 0 0x800>;
-			interrupt-parent = <&gic600>;
-			interrupts = <GIC_SPI 381 IRQ_TYPE_LEVEL_HIGH>;
-			clock-frequency = <937500>;
-			resets = <&scmi_reset RST_ISP_SW>;
-			reset-names = "i2cq-reset";
-			status = "disable";
-		};
         i3c0: i3c@20012000 {
             reg = <0x0 0x20012000 0 0x1000>;
             compatible = "silvaco,i3c-master";
@@ -794,12 +809,12 @@
 			compatible = "snps,dw-wdt";
 			reg = <0x0 0x32068000 0 0x1000>;
 			interrupt-parent = <&gic600>;
-                        interrupts = <GIC_PPI 0 IRQ_TYPE_EDGE_RISING>;
+                        interrupts = <GIC_PPI 0 IRQ_TYPE_LEVEL_HIGH>;
                         clocks= <&scmi_clk GATE_LB_CPU_PERIP_SYSNOC_APB_PCLK_EN>,
                                 <&scmi_clk GATE_LB_CPU_PERIP_CLK_EN>;
                         clock-names = "pclk","wclk";
 
-			response-mode = <0x1>;
+			response-mode = <0x0>;
 			bst_wdt_name = "soc_a78_wdt0";
 			status = "disable";
 		};
@@ -808,8 +823,8 @@
 			compatible = "snps,dw-wdt";
 			reg = <0x0 0x32069000 0 0x1000>;
 			interrupt-parent = <&gic600>;
-			response-mode = <0x1>;
-                        interrupts = <GIC_PPI 0 IRQ_TYPE_EDGE_RISING>;
+			response-mode = <0x0>;
+                        interrupts = <GIC_PPI 0 IRQ_TYPE_LEVEL_HIGH>;
                         clocks= <&scmi_clk GATE_LB_CPU_PERIP_SYSNOC_APB_PCLK_EN>,
                                 <&scmi_clk GATE_LB_CPU_PERIP_CLK_EN>;
                         clock-names = "pclk","wclk";
@@ -821,11 +836,11 @@
 			compatible = "snps,dw-wdt";
 			reg = <0x0 0x3206a000 0 0x1000>;
 			interrupt-parent = <&gic600>;
-                        interrupts = <GIC_PPI 0 IRQ_TYPE_EDGE_RISING>;
+                        interrupts = <GIC_PPI 0 IRQ_TYPE_LEVEL_HIGH>;
                         clocks= <&scmi_clk GATE_LB_CPU_PERIP_SYSNOC_APB_PCLK_EN>,
                                 <&scmi_clk GATE_LB_CPU_PERIP_CLK_EN>;
                         clock-names = "pclk","wclk";
-			response-mode = <0x1>;
+			response-mode = <0x0>;
 			bst_wdt_name = "soc_a78_wdt2";
 			status = "disable";
 		};
@@ -834,11 +849,11 @@
 			compatible = "snps,dw-wdt";
 			reg = <0x0 0x3206b000 0 0x1000>;
 			interrupt-parent = <&gic600>;
-                        interrupts = <GIC_PPI 0 IRQ_TYPE_EDGE_RISING>;
+                        interrupts = <GIC_PPI 0 IRQ_TYPE_LEVEL_HIGH>;
                         clocks= <&scmi_clk GATE_LB_CPU_PERIP_SYSNOC_APB_PCLK_EN>,
                                 <&scmi_clk GATE_LB_CPU_PERIP_CLK_EN>;
                         clock-names = "pclk","wclk";
-			response-mode = <0x1>;
+			response-mode = <0x0>;
 			bst_wdt_name = "soc_a78_wdt3";
 			status = "disable";
 		};
@@ -847,11 +862,11 @@
 			compatible = "snps,dw-wdt";
 			reg = <0x0 0x3206c000 0 0x1000>;
 			interrupt-parent = <&gic600>;
-                        interrupts = <GIC_PPI 0 IRQ_TYPE_EDGE_RISING>;
+                        interrupts = <GIC_PPI 0 IRQ_TYPE_LEVEL_HIGH>;
                         clocks= <&scmi_clk GATE_LB_CPU_PERIP_SYSNOC_APB_PCLK_EN>,
                                 <&scmi_clk GATE_LB_CPU_PERIP_CLK_EN>;
                         clock-names = "pclk","wclk";
-			response-mode = <0x1>;
+			response-mode = <0x0>;
 			bst_wdt_name = "soc_a78_wdt0";
 			status = "disable";
 		};
@@ -860,11 +875,11 @@
 			compatible = "snps,dw-wdt";
 			reg = <0x0 0x3206d000 0 0x1000>;
 			interrupt-parent = <&gic600>;
-                        interrupts = <GIC_PPI 0 IRQ_TYPE_EDGE_RISING>;
+                        interrupts = <GIC_PPI 0 IRQ_TYPE_LEVEL_HIGH>;
                         clocks= <&scmi_clk GATE_LB_CPU_PERIP_SYSNOC_APB_PCLK_EN>,
                                 <&scmi_clk GATE_LB_CPU_PERIP_CLK_EN>;
                         clock-names = "pclk","wclk";
-			response-mode = <0x1>;
+			response-mode = <0x0>;
 			bst_wdt_name = "soc_a78_wdt1";
 			status = "disable";
 		};
@@ -873,11 +888,11 @@
 			compatible = "snps,dw-wdt";
 			reg = <0x0 0x3206e000 0 0x1000>;
 			interrupt-parent = <&gic600>;
-                        interrupts = <GIC_PPI 0 IRQ_TYPE_EDGE_RISING>;
+                        interrupts = <GIC_PPI 0 IRQ_TYPE_LEVEL_HIGH>;
                         clocks= <&scmi_clk GATE_LB_CPU_PERIP_SYSNOC_APB_PCLK_EN>,
                                 <&scmi_clk GATE_LB_CPU_PERIP_CLK_EN>;
                         clock-names = "pclk","wclk";
-			response-mode = <0x1>;
+			response-mode = <0x0>;
 			bst_wdt_name = "soc_a78_wdt2";
 			status = "disable";
 		};
@@ -886,11 +901,11 @@
 			compatible = "snps,dw-wdt";
 			reg = <0x0 0x3206f000 0 0x1000>;
 			interrupt-parent = <&gic600>;
-                        interrupts = <GIC_PPI 0 IRQ_TYPE_EDGE_RISING>;
+                        interrupts = <GIC_PPI 0 IRQ_TYPE_LEVEL_HIGH>;
                         clocks= <&scmi_clk GATE_LB_CPU_PERIP_SYSNOC_APB_PCLK_EN>,
                                 <&scmi_clk GATE_LB_CPU_PERIP_CLK_EN>;
                         clock-names = "pclk","wclk";
-			response-mode = <0x1>;
+			response-mode = <0x0>;
 			bst_wdt_name = "soc_a78_wdt3";
 			status = "disable";
 		};
@@ -899,7 +914,7 @@
 			compatible = "snps,dw-wdt";
 			reg = <0x0 0x33002000 0 0x1000>;
 			interrupt-parent = <&gic600>;
-			interrupts = <GIC_SPI 16 IRQ_TYPE_EDGE_RISING>;
+			interrupts = <GIC_SPI 16 IRQ_TYPE_LEVEL_HIGH>;
 			response-mode = <0x0>;
 			bst_wdt_name = "db_a78_wdt0";
 			timeout-sec = <10>;
@@ -910,7 +925,7 @@
 			compatible = "snps,dw-wdt";
 			reg = <0x0 0x33003000 0 0x1000>;
 			interrupt-parent = <&gic600>;
-			interrupts = <GIC_SPI 18 IRQ_TYPE_EDGE_RISING>;
+			interrupts = <GIC_SPI 18 IRQ_TYPE_LEVEL_HIGH>;
 			response-mode = <0x0>;
 			bst_wdt_name = "db_a78_wdt1";
 			timeout-sec = <10>;
@@ -921,7 +936,7 @@
 			compatible = "snps,dw-wdt";
 			reg = <0x0 0x33004000 0 0x1000>;
 			interrupt-parent = <&gic600>;
-			interrupts = <GIC_SPI 16 IRQ_TYPE_EDGE_RISING>;
+			interrupts = <GIC_SPI 16 IRQ_TYPE_LEVEL_HIGH>;
 			response-mode = <0x0>;
 			bst_wdt_name = "db_a78_wdt2";
 			timeout-sec = <10>;
@@ -932,7 +947,7 @@
 			compatible = "snps,dw-wdt";
 			reg = <0x0 0x33005000 0 0x1000>;
 			interrupt-parent = <&gic600>;
-			interrupts = <GIC_SPI 18 IRQ_TYPE_EDGE_RISING>;
+			interrupts = <GIC_SPI 18 IRQ_TYPE_LEVEL_HIGH>;
 			response-mode = <0x0>;
 			bst_wdt_name = "db_a78_wdt3";
 			timeout-sec = <10>;
@@ -1330,6 +1345,24 @@
 		};
 
 
+        timer0:lsp_timer0@20011000 {
+			status = "disable";
+			#address-cells = <1>;
+			#size-cells = <0>;
+            compatible = "bst,bst-lsp-timer"; 
+            reg = <0x0 0x20011000 0 0x1000>;                      
+            interrupt-parent = <&gic600>;                     
+        };
+
+        timer1:lsp_timer1@20031000 {
+			status = "disable";
+			#address-cells = <1>;
+			#size-cells = <0>;
+            compatible = "bst,bst-lsp-timer"; 
+            reg = <0x0 0x20031000 0 0x1000>;                      
+            interrupt-parent = <&gic600>;                     
+        };
+
 		mmc0:dwmmc0@22200000 {
 			status = "okay";
 			compatible = "bst,dwcmshc-sdhci";
@@ -1346,6 +1379,12 @@
 
 			clocks = <&scmi_clk GATE_LB_SDEMMC0_M_HCLK_EN>, <&scmi_clk GATE_LB_SDEMMC0_W_BCLK_EN>;
 			clock-names = "core","bus";
+
+			resets = <&scmi_reset RST_SDEMMC0_SW>;
+			reset-names = "mmc_reset";
+
+
+
 			clock-frequency = <200000000>;
 			max-frequency = <200000000>;
 			min-frequency = <400000>;
@@ -1356,7 +1395,7 @@
 			clear-tarns-mode;
 			fifo-depth = <0x400>;
 			card-detect-delay = <200>;
-			broken-adma;
+			//broken-adma;
 			bus-width = <8>;
 			#cap-mmc-highspeed;
 			mmc-hs200-1_8v;
@@ -1386,7 +1425,12 @@
 			fifo-watermark-aligned;
 			
 			clocks = <&scmi_clk GATE_LB_SDEMMC1_M_HCLK_EN>, <&scmi_clk GATE_LB_SDEMMC1_W_BCLK_EN>;
-			clock-names = "core","bus";			
+			clock-names = "core","bus";		
+
+			resets = <&scmi_reset RST_SDEMMC1_SW>;
+			reset-names = "mmc_reset";
+
+
 			clock-frequency = <100000000>;
 			max-frequency = <200000000>;
 			min-frequency = <400000>;
@@ -1441,7 +1485,7 @@
 			#iommu-cells = <1>;
 			#cmn_dev_offset  = <1>;	// dev-->ddr: 1 :offset 0x10--, 0 :offset 0
 			#cmn_tcu_offset = <1>;	// tcu-->ddr: 1 :offset 0x10--, 0 :offset 0
-			#multi_os = <0>;	// multi_os: 1 :shared use of multiple systems , 0 :single system use
+			#multi_os = <1>;	// multi_os: 1 :shared use of multiple systems , 0 :single system use
 		};
 
 		mmu600_coreip: iommu@53600000 {
@@ -1452,9 +1496,10 @@
 			interrupts = <GIC_SPI 374 IRQ_TYPE_LEVEL_HIGH>; // non-secure irq
 			interrupt-names = "combined";
 			#iommu-cells = <1>;
-			#cmn_dev_offset = <1>; // dev-->ddr: 1 :offset 0x10--, 0 :offset 0
+			#cmn_dev_offset = <0>; // dev-->ddr: 1 :offset 0x10--, 0 :offset 0
 			#cmn_tcu_offset = <1>; // tcu-->ddr: 1 :offset 0x10--, 0 :offset 0
 			#stage2 = <1>; // stage2 only: 1 :stage2, 0 :stage1
+			#multi_os = <1>;
 		};
 
 		// mmu600_gpu: iommu@26400000
@@ -1464,7 +1509,8 @@
 			#address-cells = <1>;
 			#size-cells = <0>;
 			compatible = "snps,g210-tc-6.00-40bit";
-			reg = <0x0 0x23005f00 0 0x100>;
+			reg = <0x0 0x23005f00 0 0x100>,
+			      <0x0 0x20031000 0 0x1000>;
 			interrupt-parent = <&gic600>;
 			interrupts = <GIC_SPI 81 IRQ_TYPE_LEVEL_HIGH>;
 			lanes-per-direction = <2>;
@@ -1703,10 +1749,21 @@
 			};
 		};
 
-		hif:hif@0x35000000 {
+		vmac_hif_rx_setup: vmac-rx-queues-config {
+			rx-queues-to-use = <1>;
+		};
+
+		vmac_hif_tx_setup: vmac-tx-queues-config {
+			tx-queues-to-use = <1>;
+		};
+
+		vmac: ethernet@0x35000000 {
 			status = "disable";
 			compatible = "bst,vmac-hif";
 			reg = <0x0 0x35000000 0 0xffffff>;
+			hif-rx-config = <&vmac_hif_rx_setup>;
+			hif-tx-config = <&vmac_hif_tx_setup>;
+			ethernet-id = <0>;
 		};
 //************************Mipi CSITX Start *********************************************/
 
@@ -1720,6 +1777,10 @@
                 lane-speed = <2500>;
                 lane-num = <4>;
                 vc-num = <4>;
+		clocks= <&scmi_clk GATE_LB_MEDIA_DMA_ACLK_EN>, <&scmi_clk GATE_LB_MEDIA_DMA_HCLK_EN>;
+		clock-names = "aclk","hclk";
+		resets = <&scmi_reset RST_MEDIA_DMA_SW>;
+		reset-names = "media_dma";
                 interrupt-parent = <&gic600>;
                 interrupts = <GIC_SPI 298 IRQ_TYPE_LEVEL_HIGH>;
                 interrupt-names = "csi_dma";
@@ -1836,11 +1897,55 @@
 					#size-cells = <0>;
 					dpu0_pipe1_link0_out: endpoint@0 {
 						reg = <0>;
-						remote-endpoint = <&bst_lvds_ch2_in>;
+						// remote-endpoint = <&bst_vout_panel>;
 					};
 				};
 			};
 		};
+
+		/* for VOUT_CONN EVM hardware version */
+		vout_conn:vout_connector@0 {
+			status = "okay";
+			compatible = "bst,bst-vout-conn";
+			#address-cells = <1>;
+			#size-cells = <0>;
+			reg = <0x0 0x24F00000 0x0 0x1000>;
+			display-timings {
+				timing_1920x1080p60 {
+					clock-frequency = <148500000>;
+					hactive = <1920>;
+					vactive = <1080>;
+					hsync-len = <0 44 60>;
+					hfront-porch = <80 88 95>;
+					hback-porch = <100 148 160>;
+					vfront-porch = <0 4 6>;
+					vback-porch = <0 36 50>;
+					vsync-len = <0 5 6>;
+				};
+				timing_3840x2160p30 {
+					clock-frequency = <297000000>;
+					hactive = <3840>;
+					vactive = <2160>;
+					hsync-len = <0 88 120>;
+					hfront-porch = <160 176 190>;
+					hback-porch = <200 296 320>;
+					vfront-porch = <0 8 12>;
+					vback-porch = <0 72 100>;
+					vsync-len = <0 10 12>;
+				};
+			};
+			ports {
+				#address-cells = <1>;
+				#size-cells = <0>;
+				port@0 {
+					reg = <0>;
+					bst_vout_panel: endpoint@0 {
+						// remote-endpoint = <&dpu0_pipe1_link0_out>;
+					};
+				};
+			};
+		};
+
 
 		bst-lvds-panel0 {
 			compatible = "panel-lvds";
@@ -1937,8 +2042,8 @@
 				data-mapping = "vesa-24";
 				reg = <1>;
 				ports {
-				#address-cells = <1>;
-				#size-cells = <0>;
+					#address-cells = <1>;
+					#size-cells = <0>;
 					port@0 {
 						reg = <0>;
 						bst_lvds_ch2_out: endpoint@0 {
@@ -1948,7 +2053,7 @@
 					port@1 {
 						reg = <1>;
 						bst_lvds_ch2_in: endpoint@0 {
-							remote-endpoint = <&dpu0_pipe1_link0_out>;
+							// remote-endpoint = <&dpu0_pipe1_link0_out>;
 						};
 					};
 				};
@@ -2059,6 +2164,7 @@
 			pixel-encode = <0>;	// 0-RGB,1-YCBCR420,2-YCBCR422,3-YCBCR444,4-YONLY,5-RAW
 			dp-interface = <0>;     // 0-DP,1-eDP
 			force-hpd = <1>;        // 0-no force,1-force
+			ssc-enable = <0>;       // 0-disable, 1-enable
 			bypass-training = <0>;  // 0-training,1-bypass training
 			ports {
 				#address-cells = <1>;
@@ -2128,7 +2234,7 @@
 				// clock-frequency = <297000000>;
 				// hactive = <3840>;
 				// vactive = <2160>;
-				// hfront-porch = <1276>;
+				// hfront-porch = <176>;
 				// hback-porch = <296>;
 				// hsync-len = <88>;
 				// vsync-len = <10>;
@@ -2198,8 +2304,12 @@
 //************************Native Display End*********************************************/
 
 //************************Virtual Display Start******************************************/
-		bst_disp_fw: display_firmware@0 {
-			compatible = "bst,bst-display-firmware";
+		bst_disp_fw_msgbx: display_firmware@0 {
+			compatible = "bst,bst-display-firmware-msgbx";
+			status = "disable";
+		};
+		bst_disp_fw_ipc: display_firmware@1 {
+			compatible = "bst,bst-display-firmware-ipc";
 			status = "disable";
 		};
 
@@ -2208,12 +2318,11 @@
 			status = "disable";
 			#address-cells = <1>;
 			#size-cells = <0>;
-			os-type = "ADAS_LINUX"; /* "ADAS_LINUX", "DB_LINUX"*/
+			os-type = "ADAS"; /* "ADAS", "DB", "IVI" */
 			pipeline@0 {
 				status = "disable";
 				reg = <0>;
 				layer-num = <4>;
-				dc-type = "DEVICE_TYPE_VIRT_DC_PIPE1";
 				#address-cells = <1>;
 				#size-cells = <0>;
 				port@0 {
@@ -2229,7 +2338,6 @@
 			pipeline@1 {
 				status = "disable";
 				reg = <1>;
-				dc-type = "DEVICE_TYPE_VIRT_DC_PIPE0";
 				layer-num = <2>;
 				#address-cells = <1>;
 				#size-cells = <0>;
@@ -2247,7 +2355,6 @@
 			pipeline@2 {
 				status = "disable";
 				reg = <2>;
-				dc-type = "DEVICE_TYPE_VIRT_DC_PIPE4";
 				layer-num = <1>;
 				#address-cells = <1>;
 				#size-cells = <0>;
@@ -2265,7 +2372,6 @@
 			pipeline@3 {
 				status = "disable";
 				reg = <3>;
-				dc-type = "DEVICE_TYPE_VIRT_DC_PIPE3";
 				layer-num = <1>;
 				#address-cells = <1>;
 				#size-cells = <0>;
@@ -2276,6 +2382,22 @@
 					virt_pipe3_out: endpoint@0 {
 						reg = <0>;
 						//remote-endpoint = <&virt_lvds1_in>;
+					};
+				};
+			};
+			pipeline@4 {
+				status = "disable";
+				reg = <4>;
+				layer-num = <1>;
+				#address-cells = <1>;
+				#size-cells = <0>;
+				port@0 {
+					reg = <0>;
+					#address-cells = <1>;
+					#size-cells = <0>;
+					virt_pipe4_out: endpoint@0 {
+						reg = <0>;
+						//remote-endpoint = <&virt_lvds0_in>;
 					};
 				};
 			};
@@ -2291,8 +2413,11 @@
 				#size-cells = <0>;
 				port@0 {
 					reg = <0>;
+					#address-cells = <1>;
+					#size-cells = <0>;
 					virt_dptx_in: endpoint@0 {
-							//remote-endpoint = <&virt_pipe0_out>;
+						reg = <0>;
+						// remote-endpoint = <&virt_pipe0_out>;
 					};
 				};
 			};
@@ -2306,7 +2431,10 @@
 				#size-cells = <0x00>;
 				port@0 {
 					reg = <0>;
+					#address-cells = <1>;
+					#size-cells = <0>;
 					virt_lvds0_in: endpoint@0 {
+						reg = <0>;
 						//remote-endpoint = <&virt_pipe0_out>;
 					};
 				};
@@ -2343,7 +2471,10 @@
 				#size-cells = <0>;
 				port@0 {
 					reg = <0>;
+					#address-cells = <1>;
+					#size-cells = <0>;
 					virt_dsi0_in: endpoint@0 {
+						reg = <0>;
 						//remote-endpoint = <&virt_pipe1_out>;
 					};
 				};
@@ -2359,7 +2490,10 @@
 				#size-cells = <0>;
 				port@0 {
 					reg = <0>;
+					#address-cells = <1>;
+					#size-cells = <0>;
 					virt_dsi1_in: endpoint@0 {
+						reg = <0>;
 						//remote-endpoint = <&virt_pipe2_out>;
 					};
 				};
@@ -2470,6 +2604,7 @@
 			};
 			queue1 {
 				snps,dcb-algorithm;
+				snps,route-up;
 				snps,map-to-dma-channel = <0x1>;
 				// snps,priority = <0x1>;
 			};
@@ -2481,7 +2616,7 @@
 			};
 			queue3 {
 				snps,dcb-algorithm;
-				//snps,route-multi-broad;
+				snps,route-multi-broad;
 				snps,map-to-dma-channel = <0x3>;
 				// snps,priority = <0x3>;
 			};
@@ -2617,17 +2752,18 @@
 			};
 		};
 
-		msgbox: bst-msgbox {
-			status = "disable";
-			compatible = "bst,bst-msgbox";
-			reg =   <0x0 0x32a00000 0 0x100000>;
-			interrupt-parent = <&gic600>;
-			#mbox-cells = <0x1>;
-		};
+		cv_bus: cv_bus {
+			#address-cells = <2>;
+			#size-cells = <2>;
+			compatible = "simple-bus";
+			ranges;
 
-		bst_cvsmm: bst-cvsmm {
-			status = "disabled";
-			compatible = "bst,bst-cvsmm";
+			bst_cvsmm: bst-cvsmm {
+				#address-cells = <2>;
+				#size-cells = <2>;
+				status = "disabled";
+				compatible = "bst,bst-cvsmm";
+			};
 		};
 
 		hwcv: bst-hwcv@0x51000000 {
@@ -2635,9 +2771,10 @@
 			#address-cells = <2>;
 			#size-cells = <2>;
 			compatible = "bst,c1200-hwcv";
-			reg = <0x0 0x51000000 0x0 0x100>, //cv_base
-			      <0x0 0x51020000 0x0 0x100>, //cv_scaler
-			      <0x0 0x51021000 0x0 0x550>; //cv_gwarp0 and cv_gwarp1
+			reg = <0x0 0x51000000 0x0 0x100>, //CV base
+			      <0x0 0x51020000 0x0 0x78>,  //Scaler base
+			      <0x0 0x51021000 0x0 0x548>, //Gwarp0 base
+			      <0x0 0x51022000 0x0 0x548>; //Gwarp1 base
 			interrupt-parent = <&gic600>;
 			interrupts = <GIC_SPI 360 (IRQ_TYPE_LEVEL_HIGH)>;
 			interrupt-names = "bst-hwcv-irq";
@@ -2661,6 +2798,7 @@
 			reg =   <0x0 0x30102000 0x0 0x2000>,
 					<0x0 0x30100000 0x0 0x2000>;
 			assigned-mem-size = <0x1000>;
+			ipc-cpus = <2 3>;
 			interrupt-parent = <&gic600>;
 			interrupts = <
 						GIC_SPI 109 (IRQ_TYPE_LEVEL_HIGH)
@@ -2671,21 +2809,117 @@
 						GIC_SPI 177 (IRQ_TYPE_LEVEL_HIGH)>;
 		};
 
-		bstn: bstn@50020000 {
-			status = "disable";
-			compatible = "bst,bstn";
-			id = <0x0>;
-			reg = <0x0 0x50020000 0x0 0x100
-				0x8 0x10000000 0x0 0x2000000>;
-			assigned-mem-size = <0x1000>;
-			rmem-base = <0xc 0x00000000>;
-			rmem-size = <0x0 0x40000000>;
-			bus-offset = <0x0 0x0>;
-			firmware = "bstn_dsp_rtos.rbf";
-			firmware1 = "bstn_dsp_rtos.msgbox.rbf";
-			msgbox-endid = <0x17>; /* CPU_7 */
-			ipc-src-core = <0x2>;
+		bstnpu: bst-npu@50020000 {
+			compatible = "bst,c1200-bstnpu";
+			reg = <0x0 0x50020000 0x0 0x100>,
+						<0x8 0x10000000 0x0 0x2000000>;
+			/* for summu to bypass physical address. */
+			bypass_res = <0x0 0x30000000 0x0 0x01000000>,
+									<0x0 0x50000000 0x0 0x10000000>,
+									<0x8 0x20000000 0x0 0x01000000>;
+			status = "disabled";
+
+			npu0@810000000 {
+				/* <sreg fw_reg> */
+				reg-idx = <0x0 0x1>;
+				firmware = "bstn_dsp_rtos.rbf";
+				firmware-msgbx = "bstn_dsp_rtos.msgbox.rbf";
+				msgbox-pid = <0x17>;
+				msgbox-cid = <0x40>;
+				msgbox-sid = <0xa>;
+				ipc-pid = <0x00>;
+				ipc-cid = <0x14>;
+			};
 		};
+
+		bstdsp: bst-dsp@51000000 {
+			compatible = "bst,c1200-bstdsp";
+			reg = <0x0 0x51000000 0x0 0x100>,
+					<0x8 0x16000000 0x0 0x2000000>,
+					<0x8 0x18000000 0x0 0x2000000>,
+					<0x8 0x12000000 0x0 0x2000000>,
+					<0x8 0x14000000 0x0 0x2000000>;
+			/* for summu to bypass physical address. */
+			bypass_res = <0x0 0x30000000 0x0 0x01000000>,
+									<0x0 0x47000000 0x0 0x01000000>,
+									<0x0 0x50000000 0x0 0x10000000>,
+									<0x8 0x3e000000 0x0 0x02000000>,
+									<0x8 0x00300000 0x0 0x00400000>;
+			ipc-reg-addr = <0x8 0x00300000 0x0 0x00400000>;
+			status = "disabled";
+
+			dsp0@816000000 {
+				reg-idx = <0x0 0x1>;
+				firmware = "bst_dsp_rpc_fw0.rbf";
+				firmware-msgbx = "bst_dsp_rpc_fw0.rbf";
+				firmware-rtinit-offset = <0x007ff000>;
+				msgbox-pid = <0x16>;
+				msgbox-cid = <0x30>;
+				msgbox-sid = <0xb>;
+				ipc-pid = <0x03>;
+				ipc-cid = <0x10>;
+			};
+
+			dsp1@818000000 {
+				reg-idx = <0x0 0x2>;
+				firmware = "bst_dsp_rpc_fw1.rbf";
+				firmware-msgbx = "bst_dsp_rpc_fw1.rbf";
+				firmware-rtinit-offset = <0x007ff000>;
+				msgbox-pid = <0x16>;
+				msgbox-cid = <0x31>;
+				msgbox-sid = <0xc>;
+				ipc-pid = <0x03>;
+				ipc-cid = <0x11>;
+			};
+
+			dsp2@812000000 {
+				reg-idx = <0x0 0x3>;
+				firmware = "bst_dsp_rpc_fw2.rbf";
+				firmware-msgbx = "bst_dsp_rpc_fw2.rbf";
+				firmware-rtinit-offset = <0x007ff000>;
+				msgbox-pid = <0x16>;
+				msgbox-cid = <0x32>;
+				msgbox-sid = <0xd>;
+				ipc-pid = <0x03>;
+				ipc-cid = <0x12>;
+			};
+
+			dsp3@814000000 {
+				reg-idx = <0x0 0x4>;
+				firmware = "bst_dsp_rpc_fw3.rbf";
+				firmware-msgbx = "bst_dsp_rpc_fw3.rbf";
+				firmware-rtinit-offset = <0x007ff000>;
+				msgbox-pid = <0x16>;
+				msgbox-cid = <0x33>;
+				msgbox-sid = <0xe>;
+				ipc-pid = <0x03>;
+				ipc-cid = <0x13>;
+			};
+		};
+
+                bstn_bus: bstn_bus {
+                        #address-cells = <2>;
+                        #size-cells = <2>;
+                        compatible = "simple-bus";
+                        ranges;
+                        bstn: bstn@50020000 {
+                                #address-cells = <2>;
+                                #size-cells = <2>;
+                                status = "disable";
+                                compatible = "bst,bstn";
+                                id = <0x0>;
+                                reg = <0x0 0x50020000 0x0 0x100
+                                       0x8 0x10000000 0x0 0x2000000>;
+                                assigned-mem-size = <0x1000>;
+                                rmem-base = <0xc 0x00000000>;
+                                rmem-size = <0x0 0x40000000>;
+                                bus-offset = <0x0 0x0>;
+                                firmware = "bstn_dsp_rtos.rbf";
+                                firmware1 = "bstn_dsp_rtos.msgbox.rbf";
+                                msgbox-endid = <0x17>; /* CPU_7 */
+                                ipc-src-core = <0x2>;
+                        };
+                };
 
 		lwnn: bst_lwnn@51000000 {
 			status = "disable";
@@ -2705,7 +2939,9 @@
 				firmware = "bst_lwnn_dsp2_rt.rbf";
 				firmware1 = "bst_lwnn_dsp2_rt.msgbox.rbf";
 				assigned-mem-size = <0x2000>;
-				rt-init-addr = <0x927ff000>;
+				/* old:0x9000 0000, offset: 0x027ff000 */
+				/* new:0x6140 0000 + offset: 0x027ff000,  */
+				rt-init-addr = <0x63bff000>;
 				ipc-src-core = <0x0>;
 			};
 			dsp@814000000 {
@@ -2713,7 +2949,7 @@
 				firmware = "bst_lwnn_dsp3_rt.rbf";
 				firmware1 = "bst_lwnn_dsp3_rt.msgbox.rbf";
 				assigned-mem-size = <0x2000>;
-				rt-init-addr = <0x947ff000>;
+				rt-init-addr = <0x65bff000>;
 				ipc-src-core = <0x3>;
 			};
 			dsp@816000000 {
@@ -2721,7 +2957,7 @@
 				firmware = "bst_lwnn_dsp0_rt.rbf";
 				firmware1 = "bst_lwnn_dsp0_rt.msgbox.rbf";
 				assigned-mem-size = <0x2000>;
-				rt-init-addr = <0x967ff000>;
+				rt-init-addr = <0x67bff000>;
 				ipc-src-core = <0x0>;
 			};
 			dsp@818000000 {
@@ -2729,41 +2965,8 @@
 				firmware = "bst_lwnn_dsp1_rt.rbf";
 				firmware1 = "bst_lwnn_dsp1_rt.msgbox.rbf";
 				assigned-mem-size = <0x2000>;
-				rt-init-addr = <0x987ff000>;
+				rt-init-addr = <0x69bff000>;
 				ipc-src-core = <0x1>;
-			};
-		};
-
-		cv: bst_cv@51000000 {
-			status = "disable";
-			#address-cells = <0x2>;
-			#size-cells = <0x2>;
-			compatible = "bst,bst_cv,cma";
-			reg = <0x0 0x51000000 0x0 0x100
-					0x8 0x16000000 0x0 0x2000000
-					0x8 0x18000000 0x0 0x2000000>;
-			assigned-mem-size = <0x2000>;
-			//the offset between the DDR physical address and the corresponding device bus address
-			bus-offset = <0x0 0x0>;
-			dsp-num = <0x2>;
-			ipc-register-addr = <0x8ff00000>;
-			dsp@816000000 {
-				index = <0x0>;
-				//load bst_cv_dsp_rt first, if not exist or fail, then load bst_cv_dsp_rt.rbf
-				firmware = "bst_cv_dsp0_rt.rbf";
-				assigned-mem-size = <0x1000>;
-				rt-init-addr = <0x967ff000>;
-				//ipc source ARM core index of the CV driver
-				ipc-src-core = <0x3>;
-			};
-			dsp@818000000 {
-				index = <0x1>;
-				//load bst_cv_dsp_rt first, if not exist or fail, then load bst_cv_dsp_rt.rbf
-				firmware = "bst_cv_dsp1_rt.rbf";
-				assigned-mem-size = <0x1000>;
-				rt-init-addr = <0x987ff000>;
-				//ipc source ARM core index of the CV driver
-				ipc-src-core = <0x3>;
 			};
 		};
 
@@ -2883,10 +3086,16 @@
 			compatible = "bst,virt-ts";
 		};
 
+		sqbuffer: sq-buffer {
+			status = "disable";
+			compatible = "bst,sqbuffer";
+		};
+
 		backlight_lvds0: bst_backlight@0 {
 			status = "disable";
 			compatible = "bst,virt-backlight";
 			screen-id = <0x0>;
+			//default-brightness-level = <50>;    /* Default brightness (optional), uses max_brightness/2 if not set */
 		};
 		backlight_lvds1: bst_backlight@1 {
 			status = "disable";
@@ -2910,175 +3119,223 @@
 		};
 	};
 
-	csi0: csi@0 {
-		compatible = "bst,c1200-csi2-rx";
-		#address-cells = <2>;
-		#size-cells = <2>;
-		reg = <0x0 0x53000000 0x0 0x00015500>,
-		      <0x0 0x53015500 0x0 0x00000100>;
-		id = <0>;
-		interrupt-parent = <&gic600>;
-		interrupts = <GIC_SPI 361 (IRQ_TYPE_LEVEL_HIGH)>,
-			     <GIC_SPI 362 (IRQ_TYPE_LEVEL_HIGH)>;
-		// resets = <&rstc RST_MIPI0_SW>;
-		// reset-names = "csi0_reset";
-		clock-lanes = <0>;
-		data-lanes = <1 2 3 4>;
-		lane-speed = <2500>;
-		status = "disabled";
+	isp_bus: isp-bus@0 {
+		compatible = "simple-bus";
+		#address-cells = <0x2>;
+		#size-cells = <0x2>;
+		ranges;
 
-		csi-link {
-			ports {
+		/* This default dma-ranges is used for no-SMMU scene */
+		dma-ranges = <0x0 0xC0000000 0xC 0x00000000 0x0 0x3E000000>,	// High 1G-32M RAM
+			     <0x0 0x80000000 0x8 0x00000000 0x0 0x3E000000>,	// Low 1G-32M RAM
+			     <0x0 0x3E000000 0x0 0x3E000000 0x0 0x02000000>,	// Reserved to restrict IOVA area
+			     <0x0 0x40000000 0x0 0x20000000 0x0 0x07000000>,	// Outer registers area
+			     <0x0 0x47000000 0x0 0x30000000 0x0 0x01000000>,	// Outer registers area
+			     <0x0 0x50000000 0x0 0x50000000 0x0 0x10000000>;	// ISPCV inner registers
+
+		i2cq0: i2cq@5203e000 {
+			compatible = "bst,c1200-i2cq";
+			reg = <0x0 0x5203e000 0 0x800>, // I2CQ base
+			      <0x0 0x52030000 0 0x100>; // Top Ctrl
+			clock-frequency = <937500>;
+			interrupt-parent = <&gic600>;
+			interrupts = <GIC_SPI 380 IRQ_TYPE_LEVEL_HIGH>;
+			resets = <&scmi_reset RST_ISP_SW>;
+			reset-names = "i2cq-reset";
+			i2c-nr = <9>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+			id = <0>;
+			status = "disabled";
+		};
+
+		i2cq1: i2cq@5203e800 {
+			compatible = "bst,c1200-i2cq";
+			reg = <0x0 0x5203e800 0 0x800>, // I2CQ base
+			      <0x0 0x52030000 0 0x100>; // Top Ctrl
+			clock-frequency = <937500>;
+			interrupt-parent = <&gic600>;
+			interrupts = <GIC_SPI 381 IRQ_TYPE_LEVEL_HIGH>;
+			resets = <&scmi_reset RST_ISP_SW>;
+			reset-names = "i2cq-reset";
+			i2c-nr = <10>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+			id = <1>;
+			status = "disabled";
+		};
+
+		i2cq2: i2cq@5203f000 {
+			compatible = "bst,c1200-i2cq";
+			reg = <0x0 0x5203f000 0 0x800>, // I2CQ base
+			      <0x0 0x52030000 0 0x100>; // Top Ctrl
+			clock-frequency = <937500>;
+			interrupt-parent = <&gic600>;
+			interrupts = <GIC_SPI 382 IRQ_TYPE_LEVEL_HIGH>;
+			resets = <&scmi_reset RST_ISP_SW>;
+			reset-names = "i2cq-reset";
+			i2c-nr = <8>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+			id = <2>;
+			status = "disabled";
+		};
+
+		csi0: csi@53000000 {
+			compatible = "bst,c1200-csi2-rx";
+			reg = <0x0 0x53000000 0x0 0x00015500>,
+			      <0x0 0x53015500 0x0 0x00000100>;
+			interrupt-parent = <&gic600>;
+			interrupts = <GIC_SPI 361 (IRQ_TYPE_LEVEL_HIGH)>,
+				     <GIC_SPI 362 (IRQ_TYPE_LEVEL_HIGH)>;
+			resets = <&scmi_reset RST_MIPI0_CSIRX_SW>;
+			reset-names = "csi-reset";
+			clock-lanes = <0>;
+			data-lanes = <1 2 3 4>;
+			lane-speed = <2500>;
+			id = <0>;
+			status = "disabled";
+
+			rx-ports {
 				port@0 {
 					csi0_in: endpoint@0{
 					};
 				};
 			};
-		};
-		ports {
-			#address-cells = <1>;
-			#size-cells = <0>;
-			port@0 {
-				reg = <0>;
-				csi0_out0: endpoint@0 {
-				};
-			};
-			port@1 {
-				reg = <1>;
-				csi0_out1: endpoint@1 {
-				};
-			};
-			port@2 {
-				reg = <2>;
-				csi0_out2: endpoint@2 {
-				};
-			};
-			port@3 {
-				reg = <3>;
-				csi0_out3: endpoint@3 {
-				};
-			};
-		};
-	};
-
-	csi1: csi@1 {
-		compatible = "bst,c1200-csi2-rx";
-		#address-cells = <2>;
-		#size-cells = <2>;
-		reg = <0x0 0x53100000 0x0 0x00015500>,
-		      <0x0 0x53115500 0x0 0x00000100>;
-		id = <1>;
-		interrupt-parent = <&gic600>;
-		interrupts = <GIC_SPI 363 (IRQ_TYPE_LEVEL_HIGH)>,
-			     <GIC_SPI 364 (IRQ_TYPE_LEVEL_HIGH)>;
-		// resets = <&rstc RST_MIPI1_SW>;
-		// reset-names = "csi1_reset";
-		clock-lanes = <0>;
-		data-lanes = <1 2 3 4>;
-		lane-speed = <2500>;
-		status = "disabled";
-
-		csi-link {
 			ports {
+				#address-cells = <1>;
+				#size-cells = <0>;
+				port@0 {
+					reg = <0>;
+					csi0_out0: endpoint@0 {
+					};
+				};
+				port@1 {
+					reg = <1>;
+					csi0_out1: endpoint@1 {
+					};
+				};
+				port@2 {
+					reg = <2>;
+					csi0_out2: endpoint@2 {
+					};
+				};
+				port@3 {
+					reg = <3>;
+					csi0_out3: endpoint@3 {
+					};
+				};
+			};
+		};
+
+		csi1: csi@53100000 {
+			compatible = "bst,c1200-csi2-rx";
+			reg = <0x0 0x53100000 0x0 0x00015500>,
+			      <0x0 0x53115500 0x0 0x00000100>;
+			interrupt-parent = <&gic600>;
+			interrupts = <GIC_SPI 363 (IRQ_TYPE_LEVEL_HIGH)>,
+				     <GIC_SPI 364 (IRQ_TYPE_LEVEL_HIGH)>;
+			resets = <&scmi_reset RST_MIPI1_CSIRX_SW>;
+			reset-names = "csi-reset";
+			clock-lanes = <0>;
+			data-lanes = <1 2 3 4>;
+			lane-speed = <2500>;
+			id = <1>;
+			status = "disabled";
+
+			rx-ports {
 				port@0 {
 					csi1_in: endpoint@0{
 					};
 				};
 			};
-		};
-		ports {
-			#address-cells = <1>;
-			#size-cells = <0>;
-			port@0 {
-				reg = <0>;
-				csi1_out0: endpoint@0 {
-				};
-			};
-			port@1 {
-				reg = <1>;
-				csi1_out1: endpoint@1 {
-				};
-			};
-			port@2 {
-				reg = <2>;
-				csi1_out2: endpoint@2 {
-				};
-			};
-			port@3 {
-				reg = <3>;
-				csi1_out3: endpoint@3 {
-				};
-			};
-		};
-	};
-
-	csi2: csi@2 {
-		compatible = "bst,c1200-csi2-rx";
-		#address-cells = <2>;
-		#size-cells = <2>;
-		reg = <0x0 0x53200000 0x0 0x00015500>,
-		      <0x0 0x53215500 0x0 0x00000100>;
-		id = <2>;
-		interrupt-parent = <&gic600>;
-		interrupts = <GIC_SPI 365 (IRQ_TYPE_LEVEL_HIGH)>,
-			     <GIC_SPI 366 (IRQ_TYPE_LEVEL_HIGH)>;
-		// resets = <&rstc RST_MIPI2_SW>;
-		// reset-names = "csi2_reset";
-		clock-lanes = <0>;
-		data-lanes = <1 2 3 4>;
-		lane-speed = <2500>;
-		status = "disabled";
-
-		csi-link {
 			ports {
+				#address-cells = <1>;
+				#size-cells = <0>;
+				port@0 {
+					reg = <0>;
+					csi1_out0: endpoint@0 {
+					};
+				};
+				port@1 {
+					reg = <1>;
+					csi1_out1: endpoint@1 {
+					};
+				};
+				port@2 {
+					reg = <2>;
+					csi1_out2: endpoint@2 {
+					};
+				};
+				port@3 {
+					reg = <3>;
+					csi1_out3: endpoint@3 {
+					};
+				};
+			};
+		};
+
+		csi2: csi@53200000 {
+			compatible = "bst,c1200-csi2-rx";
+			reg = <0x0 0x53200000 0x0 0x00015500>,
+			      <0x0 0x53215500 0x0 0x00000100>;
+			interrupt-parent = <&gic600>;
+			interrupts = <GIC_SPI 365 (IRQ_TYPE_LEVEL_HIGH)>,
+				     <GIC_SPI 366 (IRQ_TYPE_LEVEL_HIGH)>;
+			resets = <&scmi_reset RST_MIPI2_CSIRX_SW>;
+			reset-names = "csi-reset";
+			clock-lanes = <0>;
+			data-lanes = <1 2 3 4>;
+			lane-speed = <2500>;
+			id = <2>;
+			status = "disabled";
+
+			rx-ports {
 				port@0 {
 					csi2_in: endpoint@0{
 					};
 				};
 			};
-		};
-		ports {
-			#address-cells = <1>;
-			#size-cells = <0>;
-			port@0 {
-				reg = <0>;
-				csi2_out0: endpoint@0 {
-				};
-			};
-			port@1 {
-				reg = <1>;
-				csi2_out1: endpoint@1 {
-				};
-			};
-			port@2 {
-				reg = <2>;
-				csi2_out2: endpoint@2 {
-				};
-			};
-			port@3 {
-				reg = <3>;
-				csi2_out3: endpoint@3 {
-				};
-			};
-		};
-	};
-
-	isp: isp {
-		compatible = "bst,c1200-isp";
-		#address-cells = <0x2>;
-		#size-cells = <0x2>;
-		reg = <0x0 0x52030000 0 0x1000>,	// Top Ctrl
-		      <0x0 0x52040000 0 0x40000>,	// PRAM
-		      <0x0 0x47100000 0 0x100000>;	// IPC Area
-		resets = <&scmi_reset RST_ISP_SW>;
-		reset-names = "isp-reset";
-		status = "disabled";
-
-		core@0 {
-			id = <0>;
 			ports {
 				#address-cells = <1>;
 				#size-cells = <0>;
+				port@0 {
+					reg = <0>;
+					csi2_out0: endpoint@0 {
+					};
+				};
+				port@1 {
+					reg = <1>;
+					csi2_out1: endpoint@1 {
+					};
+				};
+				port@2 {
+					reg = <2>;
+					csi2_out2: endpoint@2 {
+					};
+				};
+				port@3 {
+					reg = <3>;
+					csi2_out3: endpoint@3 {
+					};
+				};
+			};
+		};
+
+		isp: isp@52030000 {
+			compatible = "bst,c1200-isp";
+			reg = <0x0 0x52030000 0 0x1000>,	// Top Ctrl
+			      <0x0 0x52040000 0 0x40000>,	// PRAM
+			      <0x0 0x47000000 0 0x01000000>,	// GTC, IPC, etc
+			      <0x0 0x40000000 0 0x07000000>;	// I2C controller, etc
+			resets = <&scmi_reset RST_ISP_SW>;
+			reset-names = "isp-reset";
+			status = "disabled";
+
+			ports {
+				#address-cells = <1>;
+				#size-cells = <0>;
+
 				port@0 {
 					reg = <0>;
 					isp_chn0: endpoint@0 {
@@ -3099,87 +3356,63 @@
 					isp_chn3: endpoint@3 {
 					};
 				};
-			};
-		};
-
-		core@1 {
-			id = <1>;
-			ports {
-				#address-cells = <1>;
-				#size-cells = <0>;
-				port@0 {
-					reg = <0>;
-					isp_chn4: endpoint@4 {
+				port@4 {
+					reg = <4>;
+						isp_chn4: endpoint@4 {
+						};
+					};
+				port@5 {
+					reg = <5>;
+						isp_chn5: endpoint@5 {
+						};
+					};
+				port@6 {
+					reg = <6>;
+						isp_chn6: endpoint@6 {
+						};
+					};
+				port@7 {
+					reg = <7>;
+						isp_chn7: endpoint@7 {
 					};
 				};
-				port@1 {
-					reg = <1>;
-					isp_chn5: endpoint@5 {
-					};
-				};
-				port@2 {
-					reg = <2>;
-					isp_chn6: endpoint@6 {
-					};
-				};
-				port@3 {
-					reg = <3>;
-					isp_chn7: endpoint@7 {
-					};
-				};
-			};
-		};
-
-		core@2 {
-			id = <2>;
-			ports {
-				#address-cells = <1>;
-				#size-cells = <0>;
-				port@0 {
-					reg = <0>;
+				port@8 {
+					reg = <8>;
 					isp_chn8: endpoint@8 {
 					};
 				};
-				port@1 {
-					reg = <1>;
+				port@9 {
+					reg = <9>;
 					isp_chn9: endpoint@9 {
 					};
 				};
-				port@2 {
-					reg = <2>;
+				port@a {
+					reg = <10>;
 					isp_chn10: endpoint@10 {
 					};
 				};
-				port@3 {
-					reg = <3>;
+				port@b {
+					reg = <11>;
 					isp_chn11: endpoint@11 {
 					};
 				};
-			};
-		};
-
-		core@3 {
-			id = <3>;
-			ports {
-				#address-cells = <1>;
-				#size-cells = <0>;
-				port@0 {
-					reg = <0>;
+				port@c {
+					reg = <12>;
 					isp_chn12: endpoint@12 {
 					};
 				};
-				port@1 {
-					reg = <1>;
+				port@d {
+					reg = <13>;
 					isp_chn13: endpoint@13 {
 					};
 				};
-				port@2 {
-					reg = <2>;
+				port@e {
+					reg = <14>;
 					isp_chn14: endpoint@14 {
 					};
 				};
-				port@3 {
-					reg = <3>;
+				port@f {
+					reg = <15>;
 					isp_chn15: endpoint@15 {
 					};
 				};
@@ -3225,3 +3458,4 @@
 		spi-max-frequency = <400000>;
 	};
 };
+

@@ -723,7 +723,7 @@ int dptx_add_stream(struct dptx *dptx)
 		if (WARN(tries > 100, "Timeout waiting for ACT_HANDLED\n"))
 			break;
 
-		mdelay(20);
+		msleep(20);
 	}
 	dptx_dbg(dptx, "%s: PAYLOAD ACT HANDLED\n", __func__);
     */
@@ -892,4 +892,3 @@ struct dptx *dptx_get_device_handle(void)
 {
 	return dptx_get_handle();
 }
-

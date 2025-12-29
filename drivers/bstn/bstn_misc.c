@@ -1,4 +1,5 @@
-/* SPDX-License-Identifier: GPL-2.0+
+// SPDX-License-Identifier: GPL-2.0+
+/*
  *
  * Copyright (c) 2024 Black Sesame Technologies
  */
@@ -32,7 +33,7 @@
  *          error code - failure
  */
 static int bstn_ioctl_buf_alloc(struct file *filp, struct bstn_device *pbstn,
-				struct bsnn_buffer __user * pbuffer)
+				struct bsnn_buffer __user *pbuffer)
 {
 	struct bsnn_buffer buffer;
 	int ret;
@@ -75,7 +76,7 @@ static int bstn_ioctl_buf_alloc(struct file *filp, struct bstn_device *pbstn,
  *          error code - failure
  */
 static int bstn_ioctl_buf_free(struct file *filp, struct bstn_device *pbstn,
-			       struct bsnn_buffer __user * pbuffer)
+			       struct bsnn_buffer __user *pbuffer)
 {
 	struct bsnn_buffer buffer;
 	int ret;
@@ -109,24 +110,14 @@ static int bstn_ioctl_buf_free(struct file *filp, struct bstn_device *pbstn,
  * @return  0 - success
  *          error code - failure
  */
-static int bstn_ioctl_buf_sync(struct bstn_device *pbstn,
-			       struct bsnn_buffer __user * pbuffer)
+static int bstn_ioctl_buf_sync(struct file *filp, struct bstn_device *pbstn,
+			       struct bsnn_buffer __user *pbuffer)
 {
-	struct bsnn_buffer       buffer;
-	dma_addr_t               dma_addr;
+	int ret;
+	struct bsnn_buffer buffer;
+	dma_addr_t dma_addr;
 	struct bstn_mem_manager *pmman;
-	struct device           *pdev;
-
-	pmman = &pbstn->mem_manager;
-	pdev  = &pbstn->pdev->dev;
-
-	if (pmman->enable_smmu) {
-		/*
-		1. if cmn off, mmap using dma_mmap_attr with no cache
-		2. if cmn on,  cmn will ensure memory coherence.
-		 */
-		return 0;
-	}
+	struct device *pdev = &pbstn->pdev->dev;
 
 	BSTN_TRACE_PRINTK("enter, user ptr: %px", pbuffer);
 
@@ -135,13 +126,20 @@ static int bstn_ioctl_buf_sync(struct bstn_device *pbstn,
 		return -EFAULT;
 	}
 
-	dma_addr = bus_to_dma(buffer.baddr);
-	dma_sync_single_for_device(
-		pmman->pdev,
-		dma_addr,
-		buffer.size,
-		DMA_TO_DEVICE
-	);
+	pmman = &pbstn->mem_manager;
+
+	if (pmman->enable_smmu) {
+		ret = bstn_dma_buf_flush(filp, pbstn, &buffer);
+		if (ret != 0) {
+			BSTN_DEV_ERR(pdev, "dma buf flush failed!");
+			return -EFAULT;
+		}
+		return 0;
+	} else {
+		dma_addr = bus_to_dma(buffer.baddr);
+		dma_sync_single_for_device(pmman->pdev, dma_addr, buffer.size,
+					   DMA_TO_DEVICE);
+	}
 
 	BSTN_TRACE_PRINTK("exit");
 	return 0;
@@ -158,24 +156,15 @@ static int bstn_ioctl_buf_sync(struct bstn_device *pbstn,
  * @return  0 - success
  *          error code - failure
  */
-static int bstn_ioctl_buf_invalidate(struct bstn_device *pbstn,
-				     struct bsnn_buffer __user * pbuffer)
+static int bstn_ioctl_buf_invalidate(struct file *filp,
+				     struct bstn_device *pbstn,
+				     struct bsnn_buffer __user *pbuffer)
 {
-	struct bsnn_buffer       buffer;
-	dma_addr_t               dma_addr;
+	int ret;
+	struct bsnn_buffer buffer;
+	dma_addr_t dma_addr;
 	struct bstn_mem_manager *pmman;
-	struct device           *pdev;
-
-	pmman = &pbstn->mem_manager;
-	pdev  = &pbstn->pdev->dev;
-
-	if (pmman->enable_smmu) {
-		/*
-		1. if cmn off, mmap using dma_mmap_attr with no cache
-		2. if cmn on,  cmn will ensure memory coherence.
-		 */
-		return 0;
-	}
+	struct device *pdev = &pbstn->pdev->dev;
 
 	BSTN_TRACE_PRINTK("enter, user ptr: %px", pbuffer);
 
@@ -184,13 +173,74 @@ static int bstn_ioctl_buf_invalidate(struct bstn_device *pbstn,
 		return -EFAULT;
 	}
 
-	dma_addr = bus_to_dma(buffer.baddr);
-	dma_sync_single_for_cpu(
-		pmman->pdev,
-		dma_addr,
-		buffer.size,
-		DMA_FROM_DEVICE
-	);
+	pmman = &pbstn->mem_manager;
+
+	if (pmman->enable_smmu) {
+		ret = bstn_dma_buf_invalidate(filp, pbstn, &buffer);
+		if (ret != 0) {
+			BSTN_DEV_ERR(pdev, "dma buf invalidate failed!");
+			return -EFAULT;
+		}
+		return 0;
+	} else {
+		dma_addr = bus_to_dma(buffer.baddr);
+		dma_sync_single_for_cpu(pmman->pdev, dma_addr, buffer.size,
+					DMA_FROM_DEVICE);
+	}
+
+	BSTN_TRACE_PRINTK("exit");
+	return 0;
+}
+
+/*
+ * @func    bstn_ioctl_buf_sync_offset
+ * @brief   This function synchronizes the specified continuous memory buffer by
+ *          flushing its cache.
+ * @params  pbstn - the pointer to the BSTN device
+ *          pbuffer - the user pointer to the metadata of the buffer to be
+ *          synchronized
+ * @return  0 - success
+ *          error code - failure
+ */
+static int bstn_ioctl_buf_sync_offset(struct file *filp,
+				      struct bstn_device *pbstn,
+				      struct bstnpu_mem_sync __user *pbuffer)
+{
+	int ret;
+	struct bstnpu_mem_sync buffer;
+	dma_addr_t dma_addr;
+	struct bstn_mem_manager *pmman;
+	struct device *pdev = &pbstn->pdev->dev;
+
+	BSTN_TRACE_PRINTK("enter, user ptr: %px", pbuffer);
+
+	if (copy_from_user(&buffer, pbuffer, sizeof(buffer))) {
+		BSTN_DEV_ERR(pdev, "copy_from_user failed");
+		return -EFAULT;
+	}
+
+	pmman = &pbstn->mem_manager;
+
+	if (pmman->enable_smmu) {
+		ret = bstn_dma_buf_sync(filp, pbstn, &buffer);
+		if (ret != 0) {
+			BSTN_DEV_ERR(pdev, "dma buf flush failed!");
+			return -EFAULT;
+		}
+		return 0;
+	} else {
+		dma_addr = bus_to_dma(buffer.baddr);
+		if (buffer.flags & BSTN_MEM_SYNC_TO_DEVICE) {
+			dma_sync_single_for_device(pmman->pdev,
+						   dma_addr + buffer.offset,
+						   buffer.size, DMA_TO_DEVICE);
+		}
+		if (buffer.flags & BSTN_MEM_SYNC_FROM_DEVICE) {
+			dma_sync_single_for_cpu(pmman->pdev,
+						dma_addr + buffer.offset,
+						buffer.size, DMA_FROM_DEVICE);
+		}
+	}
 
 	BSTN_TRACE_PRINTK("exit");
 	return 0;
@@ -207,22 +257,21 @@ static int bstn_ioctl_buf_invalidate(struct bstn_device *pbstn,
  *          error code  - failure
  */
 static int bstn_ioctl_msg_send(struct bstn_device *pbstn,
-			       struct bsnn_msg_exchange __user * pexchange)
+			       struct bsnn_msg_exchange __user *pexchange)
 {
 	int ret;
 	struct bsnn_msg_exchange exchange;
 
 	BSTN_TRACE_PRINTK("enter, user ptr: %px", pexchange);
-	if (copy_from_user
-	    (&exchange.target_net, &pexchange->target_net,
-	     sizeof(exchange.target_net))) {
+	if (copy_from_user(&exchange.target_net, &pexchange->target_net,
+			   sizeof(exchange.target_net))) {
 		BSTN_DEV_ERR(&pbstn->pdev->dev,
 			     "invalid user exchange pointer!");
 		return -EFAULT;
 	}
 	BSTN_TRACE_PRINTK("target net %d", exchange.target_net);
-	if (copy_from_user
-	    (&exchange.req, &pexchange->req, sizeof(exchange.req))) {
+	if (copy_from_user(&exchange.req, &pexchange->req,
+			   sizeof(exchange.req))) {
 		BSTN_DEV_ERR(&pbstn->pdev->dev,
 			     "invalid user exchange pointer!");
 		return -EFAULT;
@@ -236,13 +285,14 @@ static int bstn_ioctl_msg_send(struct bstn_device *pbstn,
 	}
 	// time out
 	else if (ret == 0) {
-		BSTN_STAGE_PRINTK
-		    ("bstn_msg_exchange time out, it'll reset NET DSP when next time driver gets opened");
+		BSTN_STAGE_PRINTK(
+			"bstn_msg_exchange time out, it'll reset NET DSP when next time driver gets opened");
 		bstn_soft_reset = 1;
 		return -ENOMSG;
 	}
 
-	if (copy_to_user(&pexchange->rsp, &exchange.rsp, sizeof(exchange.rsp))) {
+	if (copy_to_user(&pexchange->rsp, &exchange.rsp,
+			 sizeof(exchange.rsp))) {
 		BSTN_DEV_ERR(&pbstn->pdev->dev,
 			     "invalid user response pointer!");
 		return -EFAULT;
@@ -261,7 +311,7 @@ static int bstn_ioctl_msg_send(struct bstn_device *pbstn,
  *          error code  - failure
  */
 static int bstn_ioctl_ver_get(struct bstn_device *pbstn,
-			      struct bstn_ver_info __user * pinfo)
+			      struct bstn_ver_info __user *pinfo)
 {
 	struct bstn_ver_info info;
 
@@ -299,8 +349,9 @@ static int bstn_ioctl_ver_get(struct bstn_device *pbstn,
  * @return          0 - success
  *                  Error code - failure
  */
-static int bstn_ioctl_dma_buf_import(struct bstn_device *pbstn,
-				     struct bstn_dma_buf __user * buf)
+static int bstn_ioctl_dma_buf_import(struct file *filp,
+				     struct bstn_device *pbstn,
+				     struct bstn_dma_buf __user *buf)
 {
 	struct bstn_dma_buf buffer;
 	int ret;
@@ -314,7 +365,7 @@ static int bstn_ioctl_dma_buf_import(struct bstn_device *pbstn,
 	}
 
 	BSTN_TRACE_PRINTK("fd: %d", buffer.fd);
-	ret = bstn_dma_buf_import(pbstn, &buffer);
+	ret = bstn_dma_buf_import(filp, pbstn, &buffer);
 	if (ret != 0) {
 		return ret;
 	} else {
@@ -324,7 +375,7 @@ static int bstn_ioctl_dma_buf_import(struct bstn_device *pbstn,
 	ret = copy_to_user(buf, &buffer, sizeof(buffer));
 	if (ret != 0) {
 		BSTN_DEV_ERR(&pbstn->pdev->dev, "copy_to_user failed!");
-		bstn_dma_buf_return(pbstn, &buffer);
+		bstn_dma_buf_return(filp, pbstn, &buffer);
 		return -EFAULT;
 	}
 
@@ -341,8 +392,9 @@ static int bstn_ioctl_dma_buf_import(struct bstn_device *pbstn,
  * @return      0 - success
  *              Error code - failure
  */
-static int bstn_ioctl_dma_buf_return(struct bstn_device *pbstn,
-				     struct bstn_dma_buf __user * buf)
+static int bstn_ioctl_dma_buf_return(struct file *filp,
+				     struct bstn_device *pbstn,
+				     struct bstn_dma_buf __user *buf)
 {
 	struct bstn_dma_buf buffer;
 	int ret;
@@ -356,14 +408,15 @@ static int bstn_ioctl_dma_buf_return(struct bstn_device *pbstn,
 	}
 	BSTN_TRACE_PRINTK("fd: %d", buffer.fd);
 
-	ret = bstn_dma_buf_return(pbstn, &buffer);
+	ret = bstn_dma_buf_return(filp, pbstn, &buffer);
 
 	BSTN_TRACE_PRINTK("exit return");
 	return ret;
 }
 
-static int bstn_ioctl_cma_buf_import(struct bstn_device *pbstn,
-				     struct bstn_cma_buf __user * buf)
+static int bstn_ioctl_cma_buf_import(struct file *filp,
+				     struct bstn_device *pbstn,
+				     struct bstn_cma_buf __user *buf)
 {
 	struct bstn_cma_buf buffer;
 	int ret;
@@ -382,7 +435,7 @@ static int bstn_ioctl_cma_buf_import(struct bstn_device *pbstn,
 	}
 
 	BSTN_TRACE_PRINTK("pa: 0x%llx", buffer.pa);
-	ret = bstn_cma_buf_import(pbstn, &buffer);
+	ret = bstn_cma_buf_import(filp, pbstn, &buffer);
 	if (ret != 0) {
 		return ret;
 	} else {
@@ -392,7 +445,7 @@ static int bstn_ioctl_cma_buf_import(struct bstn_device *pbstn,
 	ret = copy_to_user(buf, &buffer, sizeof(buffer));
 	if (ret != 0) {
 		BSTN_DEV_ERR(&pbstn->pdev->dev, "copy_to_user failed!");
-		bstn_cma_buf_return(pbstn, &buffer);
+		bstn_cma_buf_return(filp, pbstn, &buffer);
 		return -EFAULT;
 	}
 
@@ -400,8 +453,9 @@ static int bstn_ioctl_cma_buf_import(struct bstn_device *pbstn,
 	return ret;
 }
 
-static int bstn_ioctl_cma_buf_return(struct bstn_device *pbstn,
-				     struct bstn_cma_buf __user * buf)
+static int bstn_ioctl_cma_buf_return(struct file *filp,
+				     struct bstn_device *pbstn,
+				     struct bstn_cma_buf __user *buf)
 {
 	struct bstn_cma_buf buffer;
 	int ret;
@@ -418,12 +472,11 @@ static int bstn_ioctl_cma_buf_return(struct bstn_device *pbstn,
 	}
 	BSTN_TRACE_PRINTK("pa: 0x%llx", buffer.pa);
 
-	ret = bstn_cma_buf_return(pbstn, &buffer);
+	ret = bstn_cma_buf_return(filp, pbstn, &buffer);
 
 	BSTN_TRACE_PRINTK("exit return");
 	return ret;
 }
-
 
 /*!
  * @brief           This function imports a dma-buf.
@@ -432,9 +485,9 @@ static int bstn_ioctl_cma_buf_return(struct bstn_device *pbstn,
  * @return          0 - success
  *                  Error code - failure
  */
-static int bstn_ioctl_dma_buf_export(struct file* filp,
-									 struct bstn_device *pbstn,
-									 struct bstn_dma_buf __user * buf)
+static int bstn_ioctl_dma_buf_export(struct file *filp,
+				     struct bstn_device *pbstn,
+				     struct bstn_dma_buf __user *buf)
 {
 	int ret;
 	struct bstn_dma_buf buffer;
@@ -470,9 +523,9 @@ static int bstn_ioctl_dma_buf_export(struct file* filp,
  *          error code  - failure
  */
 static int bstn_ioctl_perf_get(struct bstn_device *pbstn,
-			       struct bstn_perf_info __user * pinfo)
+			       struct bstn_perf_info __user *pinfo)
 {
-	struct bstn_perf_info info;
+	struct bstn_perf_info info = { 0 };
 	// void __iomem *net_core_glb = NULL;
 
 	BSTN_TRACE_PRINTK("enter ioctl perf get, user ptr: %px", pinfo);
@@ -503,13 +556,13 @@ static int bstn_ioctl_perf_get(struct bstn_device *pbstn,
  *          error code  - failure
  */
 static int bstn_ioctl_asic_type_get(struct bstn_device *pbstn,
-				    char __user * pinfo)
+				    char __user *pinfo)
 {
-	char info[32] = { 0 };	// be sure the size is big enough to hold type
+	char info[32] = { 0 }; // be sure the size is big enough to hold type
 
 	BSTN_TRACE_PRINTK("enter %s, user ptr: %px", __func__, pinfo);
 
-	strcpy(info, "C1200");
+	strscpy(info, "C1200", sizeof(info));
 
 	if (copy_to_user(pinfo, &info, sizeof(info))) {
 		BSTN_DEV_ERR(&pbstn->pdev->dev,
@@ -592,25 +645,35 @@ static long bstn_ioctl(struct file *filp, unsigned int cmd, unsigned long args)
 		ret = bstn_ioctl_buf_free(filp, pbstn, (void __user *)args);
 		break;
 	case BSTN_IOCTL_BUF_SYNC:
-		ret = bstn_ioctl_buf_sync(pbstn, (void __user *)args);
+		ret = bstn_ioctl_buf_sync(filp, pbstn, (void __user *)args);
 		break;
 	case BSTN_IOCTL_BUF_INVALIDATE:
-		ret = bstn_ioctl_buf_invalidate(pbstn, (void __user *)args);
+		ret = bstn_ioctl_buf_invalidate(filp, pbstn,
+						(void __user *)args);
+		break;
+	case BSTN_IOCTL_BUF_SYNC_OFFSET:
+		ret = bstn_ioctl_buf_sync_offset(filp, pbstn,
+						 (void __user *)args);
 		break;
 	case BSTN_IOCTL_CMA_BUF_IMPORT:
-		ret = bstn_ioctl_cma_buf_import(pbstn, (void __user *)args);
+		ret = bstn_ioctl_cma_buf_import(filp, pbstn,
+						(void __user *)args);
 		break;
 	case BSTN_IOCTL_CMA_BUF_RETURN:
-		ret = bstn_ioctl_cma_buf_return(pbstn, (void __user *)args);
+		ret = bstn_ioctl_cma_buf_return(filp, pbstn,
+						(void __user *)args);
 		break;
 	case BSTN_IOCTL_DMA_BUF_IMPORT:
-		ret = bstn_ioctl_dma_buf_import(pbstn, (void __user *)args);
+		ret = bstn_ioctl_dma_buf_import(filp, pbstn,
+						(void __user *)args);
 		break;
 	case BSTN_IOCTL_DMA_BUF_RETURN:
-		ret = bstn_ioctl_dma_buf_return(pbstn, (void __user *)args);
+		ret = bstn_ioctl_dma_buf_return(filp, pbstn,
+						(void __user *)args);
 		break;
 	case BSTN_IOCTL_DMA_BUF_EXPORT:
-		ret = bstn_ioctl_dma_buf_export(filp, pbstn, (void __user *)args);
+		ret = bstn_ioctl_dma_buf_export(filp, pbstn,
+						(void __user *)args);
 		break;
 	case BSTN_IOCTL_MSG_SEND:
 		ret = bstn_ioctl_msg_send(pbstn, (void __user *)args);
@@ -668,6 +731,7 @@ static int bstn_open(struct inode *inode, struct file *filp)
 	if (bstn_soft_reset) {
 		bstn_firmware_stall(pbstn);
 		bstn_msg_manager_exit(pbstn);
+		bstn_fw_manager_unmap(pbstn);
 	}
 
 	// setup fw
@@ -676,6 +740,16 @@ static int bstn_open(struct inode *inode, struct file *filp)
 		struct bstn_rt_setup_info *info;
 		struct bstn_rt_setup_rsp *rsp;
 		struct bsnn_msg_exchange exchange_msg = { 0 };
+
+		// prepare for fw
+		ret = bstn_fw_manager_map(pbstn);
+		if (ret < 0) {
+			BSTN_DEV_ERR(&pbstn->pdev->dev,
+				     "bstn_fw_manager_map failed, ret %d",
+				     ret);
+			goto bstn_fw_load_boot_failed;
+		}
+		BSTN_STAGE_PRINTK("bstn_fw_manager_map OK");
 
 		// init bstn message manager
 		ret = bstn_msg_manager_init(pbstn);
@@ -688,37 +762,55 @@ static int bstn_open(struct inode *inode, struct file *filp)
 		BSTN_STAGE_PRINTK("bstn_msg_manager_init OK");
 
 		bstn_soft_reset = 0;
-		ret = bstn_firmware_load(pbstn);
-		if (ret < 0) {
-			BSTN_DEV_ERR(&pbstn->pdev->dev,
-				     "Failed to load firmware: %d", ret);
-			goto bstn_fw_load_boot_failed;
-		} else {
-			/*if (wdt_config_flag == false) {
-			   wdt_bstn_init();
-			   wdt_bstn_config(WDT_BST_BSTN_ID, WDT_PING_TIME_DEFAULT);
-			   wdt_config_flag = true;
-			   } */
-		}
-		BSTN_STAGE_PRINTK("bstn firmware loaded");
 
-		bstn_firmware_boot(pbstn);
-		// wait for firmware to be started
-		if (!bstn_msg_is_bootdone(pbstn)) {
-			ret = -ETIME;
+		/* boot_done  && main_os,  skip */
+		/* boot_done  && !main_os, skip */
+		if(pbstn->fw_manager.fw_boot_done) {
+			BSTN_STAGE_PRINTK("bstn firmware booted, don't boot again.");
+		}
+		else if(pbstn->fw_manager.main_os) { /* !boot_done && main_os,  boot  */
+			BSTN_STAGE_PRINTK("main os booting fw");
+			ret = bstn_firmware_load(pbstn);
+			if (ret < 0) {
+				BSTN_DEV_ERR(&pbstn->pdev->dev,
+						 "Failed to load firmware: %d", ret);
+				goto bstn_fw_load_boot_failed;
+			} else {
+				/*if (wdt_config_flag == false) {
+				   wdt_bstn_init();
+				   wdt_bstn_config(WDT_BST_BSTN_ID, WDT_PING_TIME_DEFAULT);
+				   wdt_config_flag = true;
+				   } */
+			}
+			BSTN_STAGE_PRINTK("main os load bstn firmware done");
+
+			bstn_firmware_boot(pbstn);
+			// wait for firmware to be started
+			if (!bstn_msg_is_bootdone(pbstn)) {
+				ret = -ETIME;
+				BSTN_DEV_ERR(&pbstn->pdev->dev,
+						 "Failed to boot firmware: %d", ret);
+				goto bstn_fw_load_boot_failed;
+			}
+
+			bstn_fw_set_boot_flag(pbstn);
+			BSTN_STAGE_PRINTK("main os boot bstn firmware done");
+		} else { /* !boot_done && !main_os, wait boot done */
 			BSTN_DEV_ERR(&pbstn->pdev->dev,
-				     "Failed to boot firmware: %d", ret);
+				     "assert error branch, bstn_fw_manager_map handle this");
 			goto bstn_fw_load_boot_failed;
 		}
-		BSTN_STAGE_PRINTK("bstn firmware booted");
-#if 1
+		BSTN_STAGE_PRINTK("bstn firmware load & boot done.");
+
+		//get psmid enabled status from safety
+		bstn_msg_psm_enabled_status(pbstn);
+
 		// allocate memory block for init message data
-		block =
-		    pbstn->mem_manager.ops->alloc(pbstn,
-						  sizeof(struct bstn_rt_setup_info)
-						+ sizeof(struct bstn_rt_setup_rsp),
-						  0,
-						  0);
+		block = pbstn->mem_manager.ops->alloc(
+			pbstn,
+			sizeof(struct bstn_rt_setup_info) +
+				sizeof(struct bstn_rt_setup_rsp),
+			0, 0);
 		if (block == NULL) {
 			ret = -ENOMEM;
 			BSTN_DEV_ERR(&pbstn->pdev->dev,
@@ -727,25 +819,20 @@ static int bstn_open(struct inode *inode, struct file *filp)
 		}
 
 		info = block->kern_addr;
-		info->assigned_mem = dma_to_bus(pbstn->fw_manager.assigned_mem->dma_addr);
+		info->assigned_mem =
+			dma_to_bus(pbstn->fw_manager.assigned_mem->dma_addr);
 		info->assigned_mem_size = pbstn->fw_manager.assigned_mem->size;
-		BSTN_STAGE_PRINTK
-		    ("info->assigned_mem %x info->assigned_mem_size %x",
-		     info->assigned_mem, info->assigned_mem_size);
+		BSTN_STAGE_PRINTK(
+			"info->assigned_mem %x info->assigned_mem_size %x",
+			info->assigned_mem, info->assigned_mem_size);
 
 		rsp = (void *)(info + 1);
-		info->rsp_addr =
-		    dma_to_bus(block->dma_addr +
-				sizeof(struct bstn_rt_setup_info));
-		if (pbstn->msg_manager.msg_info) {
-			info->msginfo_addr =
-				dma_to_bus(pbstn->msg_manager.msg_info->dma_addr);
-		}
-		BSTN_STAGE_PRINTK("info->rsp_addr %x info->msginfo_addr %x",
-				  info->rsp_addr, info->msginfo_addr);
+		info->rsp_addr = dma_to_bus(block->dma_addr +
+					    sizeof(struct bstn_rt_setup_info));
+		BSTN_STAGE_PRINTK("info->rsp_addr %x", info->rsp_addr);
 
 		exchange_msg.req.opcode = RT_CMD_INIT;
-		exchange_msg.req.pdata  = dma_to_bus(block->dma_addr);
+		exchange_msg.req.pdata = dma_to_bus(block->dma_addr);
 
 		// send init message
 		ret = bstn_msg_exchange(pbstn, &exchange_msg);
@@ -756,22 +843,22 @@ static int bstn_open(struct inode *inode, struct file *filp)
 				ret = -EFAULT;
 			} else {
 				pbstn->fw_manager.release_year =
-				    rsp->release_date % 10000;
+					rsp->release_date % 10000;
 				pbstn->fw_manager.release_date =
-				    (rsp->release_date % 1000000) / 10000;
+					(rsp->release_date % 1000000) / 10000;
 				pbstn->fw_manager.release_month =
-				    rsp->release_date / 1000000;
+					rsp->release_date / 1000000;
 				pbstn->fw_manager.ver_major = rsp->ver_major;
 				pbstn->fw_manager.ver_minor = rsp->ver_minor;
 				pbstn->fw_manager.ver_patch = rsp->ver_patch;
-				BSTN_STAGE_PRINTK
-				    ("firmware v%d.%d.%d released on %02d/%02d/%04d",
-				     pbstn->fw_manager.ver_major,
-				     pbstn->fw_manager.ver_minor,
-				     pbstn->fw_manager.ver_patch,
-				     pbstn->fw_manager.release_month,
-				     pbstn->fw_manager.release_date,
-				     pbstn->fw_manager.release_year);
+				BSTN_STAGE_PRINTK(
+					"firmware v%d.%d.%d released on %02d/%02d/%04d",
+					pbstn->fw_manager.ver_major,
+					pbstn->fw_manager.ver_minor,
+					pbstn->fw_manager.ver_patch,
+					pbstn->fw_manager.release_month,
+					pbstn->fw_manager.release_date,
+					pbstn->fw_manager.release_year);
 				ret = 0;
 			}
 		} else {
@@ -787,7 +874,6 @@ static int bstn_open(struct inode *inode, struct file *filp)
 				     "bstn fw load/boot failed, ret %d", ret);
 			goto bstn_fw_load_boot_failed;
 		}
-#endif
 		BSTN_STAGE_PRINTK("bstn fw load & boot OK");
 		pbstn->state = BSTN_ONLINE;
 #if 0
@@ -821,26 +907,29 @@ static int bstn_open(struct inode *inode, struct file *filp)
 			   }
 			   BSTN_STAGE_PRINTK("start sw bist ok"); */
 		}
-
-		/*if (bstn_fw_profiling) {
-		   exchange_msg.req.opcode = RT_CMD_PROFILING;
-		   exchange_msg.req.pdata = bstn_fw_profiling;
-
-		   ret = bstn_msg_exchange(pbstn, &exchange_msg);
-		   // error code
-		   if (ret < 0) {
-		   BSTN_DEV_ERR(&pbstn->pdev->dev,"fw profiling bstn_msg_exchange error: %d", ret);
-		   return ret;
-		   }
-		   // time out
-		   else if (ret == 0) {
-		   BSTN_STAGE_PRINTK("fw profiling bstn_msg_exchange time out, it'll "
-		   "reset NET DSP when next time driver gets opened");
-		   bstn_soft_reset = 1;
-		   return -ENOMSG;
-		   }
-		   } */
 #endif
+		if (bstn_fw_profiling) {
+			exchange_msg.req.opcode = RT_CMD_PROFILING;
+			exchange_msg.req.pdata = bstn_fw_profiling;
+
+			ret = bstn_msg_exchange(pbstn, &exchange_msg);
+			// error code
+			if (ret < 0) {
+				BSTN_DEV_ERR(
+					&pbstn->pdev->dev,
+					"fw profiling bstn_msg_exchange error: %d",
+					ret);
+				return ret;
+			}
+			// time out
+			else if (ret == 0) {
+				BSTN_STAGE_PRINTK(
+					"fw profiling bstn_msg_exchange time out, it'll "
+					"reset NET DSP when next time driver gets opened");
+				bstn_soft_reset = 1;
+				return -ENOMSG;
+			}
+		}
 	}
 
 	ret = bstn_mem_ctx_add(pbstn, filp);
@@ -931,9 +1020,9 @@ static int bstn_mmap(struct file *filp, struct vm_area_struct *vma)
 		return -EINVAL;
 	}
 
-	BSTN_TRACE_PRINTK
-	    ("enter, vm_start: 0x%lx, vm_end: 0x%lx, vm_pgoff: 0x%lx",
-	     vma->vm_start, vma->vm_end, vma->vm_pgoff);
+	BSTN_TRACE_PRINTK(
+		"enter, vm_start: 0x%lx, vm_end: 0x%lx, vm_pgoff: 0x%lx",
+		vma->vm_start, vma->vm_end, vma->vm_pgoff);
 
 	//map as cacheable memory into userspace
 	ret = remap_pfn_range(vma, vma->vm_start, vma->vm_pgoff,
@@ -978,9 +1067,9 @@ int bstn_misc_init(struct bstn_device *pbstn)
 	pbstn->miscdev.minor = MISC_DYNAMIC_MINOR;
 	pbstn->miscdev.fops = &bstn_fops;
 	pbstn->miscdev.name =
-	    devm_kstrdup(&pbstn->pdev->dev, dev_name, GFP_KERNEL);
+		devm_kstrdup(&pbstn->pdev->dev, dev_name, GFP_KERNEL);
 	pbstn->miscdev.nodename =
-	    devm_kstrdup(&pbstn->pdev->dev, dev_name, GFP_KERNEL);
+		devm_kstrdup(&pbstn->pdev->dev, dev_name, GFP_KERNEL);
 
 	ret = misc_register(&pbstn->miscdev);
 	return ret;
@@ -1000,8 +1089,8 @@ int bstn_misc_exit(struct bstn_device *pbstn)
 	int ret = 0;
 
 	mutex_lock(&pbstn->mutex);
-	pbstn->state =
-	    pbstn->state == BSTN_ONLINE ? BSTN_OFFLINE : pbstn->state;
+	pbstn->state = pbstn->state == BSTN_ONLINE ? BSTN_OFFLINE :
+						     pbstn->state;
 	mutex_unlock(&pbstn->mutex);
 
 	// this is mutually exlusive with open due to misc implementation

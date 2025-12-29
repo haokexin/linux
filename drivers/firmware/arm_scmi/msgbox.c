@@ -17,7 +17,7 @@
 #include <linux/slab.h>
 #include <msgbox_send.h>
 #include "common.h"
-#include "bst_samphore.h"
+#include <linux/bst_samphore.h>
 #include "bst/ipc_interface.h"
 
 
@@ -28,6 +28,7 @@ static int scmi_ipc_send(struct scmi_chan_info *cinfo)
 	ipc_msg msg;
 
 	msg.data = 0;
+	msg.cmd = 0;
 	msg.type = IPC_MSG_TYPE_SIGNAL;
 
 	ipc_send_sync(cinfo->ipc_session, &msg);
@@ -68,7 +69,7 @@ static int msgbox_chan_setup(struct scmi_chan_info *cinfo, struct device *dev,
 	#endif
 
 	#ifdef CONFIG_BST_C1200_ADAS
-	uint32_t cpu_id = IPC_CORE_ARM1;
+	uint32_t cpu_id = IPC_CORE_ARM2;
 	#endif
 
 	#ifdef CONFIG_BST_C1200_DB
@@ -113,6 +114,7 @@ static int msgbox_chan_setup(struct scmi_chan_info *cinfo, struct device *dev,
 
 	cinfo->ipc_session =  ipc_init(IPC_CORE_SAFE,cpu_id,NULL);
 
+
 	return 0;
 }
 
@@ -152,20 +154,17 @@ static int msgbox_send_message(struct scmi_chan_info *cinfo,
 	struct scmi_msgbox *scmi_mbx = cinfo->transport_info;
 	
 
-//	mutex_lock(&scmi_info->shmem_lock);
+
 	spin_lock_irqsave(&scmi_mbx->shmem_lock, flags);
 
 	shmem_tx_prepare(scmi_mbx->shmem, xfer, cinfo);
 
-
-	
 	scmi_ipc_send(cinfo);
 
 	scmi_rx_callback(scmi_mbx->cinfo, shmem_read_header(scmi_mbx->shmem), NULL);
 
 	spin_unlock_irqrestore(&scmi_mbx->shmem_lock, flags);
 
-//	mutex_unlock(&scmi_info->shmem_lock);
 
 	return ret;
 }
@@ -195,6 +194,15 @@ static int msgbox_resume_channel(struct scmi_chan_info *cinfo)
 }
 
 
+static int msgbox_get_count(struct scmi_chan_info *cinfo)
+{
+	struct scmi_msgbox *smbox = cinfo->transport_info;
+
+	return ioread32(&smbox->shmem->reserved1[0]);
+}
+
+
+
 static const struct scmi_transport_ops scmi_msgbox_ops = {
 	.chan_available = msgbox_chan_available,
 	.chan_setup = msgbox_chan_setup,
@@ -204,6 +212,7 @@ static const struct scmi_transport_ops scmi_msgbox_ops = {
 	.poll_done = msgbox_poll_done,
     .clear_channel = msgbox_clear_channel,
 	.chan_resume = msgbox_resume_channel,
+	.get_count = msgbox_get_count,
 };
 
 const struct scmi_desc scmi_msgbox_desc = {

@@ -1,4 +1,5 @@
-/* SPDX-License-Identifier: GPL-2.0+
+// SPDX-License-Identifier: GPL-2.0+
+/*
  *
  * Copyright (c) 2024 Black Sesame Technologies
  */
@@ -18,60 +19,48 @@
 
 #include "bst_lwnn.h"
 
-int disp_run_sync(int dsp, lwnn_client_t * msgbx_client,
+extern int has_cv_dsp2_iommu_map;
+extern int has_cv_dsp3_iommu_map;
+
+int disp_run_sync(int dsp, lwnn_client_t *msgbx_client,
 		  struct bst_lwnn_msg_xchg *msg_xchg)
 {
 	int ret = 0;
 	uint32_t perf_us = 0;
 
 	switch (dsp) {
-	case 0:{
-			cvdsp0_ErrorEnum_t err = 0;
-			ret =
-			    msgbx_client->cvdsp0_client.disp_run_sync(msg_xchg->
-								      req.
-								      opcode,
-								      msg_xchg->
-								      req.pdata,
-								      &msg_xchg->
-								      rsp.
-								      status,
-								      &perf_us,
-								      &err,
-								      BST_LWNN_RSP_TIMEOUT_MS,
-								      NULL);
-			break;
-		}
-	case 1:{
-			cvdsp1_ErrorEnum_t err = 0;
-			ret =
-			    msgbx_client->cvdsp1_client.
-			    disp_run_sync(msg_xchg->req.opcode,
-					  msg_xchg->req.pdata,
-					  &msg_xchg->rsp.status, &perf_us, &err,
-					  BST_LWNN_RSP_TIMEOUT_MS, NULL);
-			break;
-		}
-	case 2:{
-			cvdsp2_ErrorEnum_t err = 0;
-			ret =
-			    msgbx_client->cvdsp2_client.
-			    disp_run_sync(msg_xchg->req.opcode,
-					  msg_xchg->req.pdata,
-					  &msg_xchg->rsp.status, &perf_us, &err,
-					  BST_LWNN_RSP_TIMEOUT_MS, NULL);
-			break;
-		}
-	case 3:{
-			cvdsp3_ErrorEnum_t err = 0;
-			ret =
-			    msgbx_client->cvdsp3_client.
-			    disp_run_sync(msg_xchg->req.opcode,
-					  msg_xchg->req.pdata,
-					  &msg_xchg->rsp.status, &perf_us, &err,
-					  BST_LWNN_RSP_TIMEOUT_MS, NULL);
-			break;
-		}
+	case 0: {
+		cvdsp0_ErrorEnum_t err = 0;
+		ret = msgbx_client->cvdsp0_client.disp_run_sync(
+			msg_xchg->req.opcode, msg_xchg->req.pdata,
+			&msg_xchg->rsp.status, &perf_us, &err,
+			BST_LWNN_RSP_TIMEOUT_MS, NULL);
+		break;
+	}
+	case 1: {
+		cvdsp1_ErrorEnum_t err = 0;
+		ret = msgbx_client->cvdsp1_client.disp_run_sync(
+			msg_xchg->req.opcode, msg_xchg->req.pdata,
+			&msg_xchg->rsp.status, &perf_us, &err,
+			BST_LWNN_RSP_TIMEOUT_MS, NULL);
+		break;
+	}
+	case 2: {
+		cvdsp2_ErrorEnum_t err = 0;
+		ret = msgbx_client->cvdsp2_client.disp_run_sync(
+			msg_xchg->req.opcode, msg_xchg->req.pdata,
+			&msg_xchg->rsp.status, &perf_us, &err,
+			BST_LWNN_RSP_TIMEOUT_MS, NULL);
+		break;
+	}
+	case 3: {
+		cvdsp3_ErrorEnum_t err = 0;
+		ret = msgbx_client->cvdsp3_client.disp_run_sync(
+			msg_xchg->req.opcode, msg_xchg->req.pdata,
+			&msg_xchg->rsp.status, &perf_us, &err,
+			BST_LWNN_RSP_TIMEOUT_MS, NULL);
+		break;
+	}
 	default:
 		ret = -2;
 		break;
@@ -109,29 +98,28 @@ int bst_lwnn_msg_send(struct bst_lwnn *pbst_lwnn, int dsp, uint32_t data)
  * @return      0 - success
  *              Error code - failure
  */
-int bst_lwnn_msg_recv(struct bst_lwnn *pbst_lwnn, int dsp, uint32_t * data,
+int bst_lwnn_msg_recv(struct bst_lwnn *pbst_lwnn, int dsp, uint32_t *data,
 		      int timeout)
 {
 	int ret;
 	ipc_msg msg = { 0 };
 
 	do {
-		ret =
-		    ipc_recv(pbst_lwnn->msg_manager.dsps[dsp].ipc_session_id,
-			     &msg, timeout);
+		ret = ipc_recv(pbst_lwnn->msg_manager.dsps[dsp].ipc_session_id,
+			       &msg, timeout);
 		if (ret < 0) {
 			BST_LWNN_DEV_ERR(&pbst_lwnn->pdev->dev,
 					 "msg recv timeout");
 			return ret;
 		} else if (msg.data !=
-			dma_to_bus(
-				pbst_lwnn->fw_manager.dsps[dsp].assigned_mem->dma_addr)
-			) {
-			BST_LWNN_STAGE_PRINTK("DSP debugging: %s",
-					      (char *)bus_to_kern(pbst_lwnn,
-								  msg.data,
-								  pbst_lwnn->fw_manager.dsps
-								  [dsp].assigned_mem));
+			   dma_to_bus(pbst_lwnn->fw_manager.dsps[dsp]
+					      .assigned_mem->dma_addr)) {
+			BST_LWNN_STAGE_PRINTK(
+				"DSP debugging: %s",
+				(char *)bus_to_kern(pbst_lwnn, msg.data,
+						    pbst_lwnn->fw_manager
+							    .dsps[dsp]
+							    .assigned_mem));
 		} else {
 			*data = msg.data;
 			return 0;
@@ -153,10 +141,10 @@ static int bst_lwnn_worker(void *args)
 	struct sched_param param;
 	struct bst_lwnn_xchg *xchg;
 	struct bst_lwnn_req *req_buf =
-	    &((struct bst_lwnn_req *)pbst_lwnn->msg_manager.req_bufs->
-	      kern_addr)[dsp];
-	dsp_ptr req_buf_bus_addr =
-	    kern_to_bus(pbst_lwnn, req_buf, pbst_lwnn->msg_manager.req_bufs);
+		&((struct bst_lwnn_req *)
+			  pbst_lwnn->msg_manager.req_bufs->kern_addr)[dsp];
+	dsp_ptr req_buf_bus_addr = kern_to_bus(pbst_lwnn, req_buf,
+					       pbst_lwnn->msg_manager.req_bufs);
 	uint32_t rsp;
 
 	BST_LWNN_STAGE_PRINTK("lwnn_worker, opcode is %d, pdata is 0x%0x",
@@ -166,17 +154,18 @@ static int bst_lwnn_worker(void *args)
 	pbst_lwnn->msg_manager.dsps[dsp].state = BST_LWNN_MSG_ONLINE;
 	do {
 		//wait for new work
-		wait_for_completion_interruptible(&pbst_lwnn->msg_manager.
-						  dsps[dsp].work_sem);
-		if (pbst_lwnn->msg_manager.dsps[dsp].state == BST_LWNN_MSG_STOP) {
+		wait_for_completion_interruptible(
+			&pbst_lwnn->msg_manager.dsps[dsp].work_sem);
+		if (pbst_lwnn->msg_manager.dsps[dsp].state ==
+		    BST_LWNN_MSG_STOP) {
 			xchg = NULL;
 			goto worker_exit;
 		}
 		//take a request from the work list
 		mutex_lock(&pbst_lwnn->msg_manager.dsps[dsp].wl_lock);
-		xchg =
-		    container_of(pbst_lwnn->msg_manager.dsps[dsp].work_list.
-				 next, struct bst_lwnn_xchg, link);
+		xchg = container_of(
+			pbst_lwnn->msg_manager.dsps[dsp].work_list.next,
+			struct bst_lwnn_xchg, link);
 		list_del(pbst_lwnn->msg_manager.dsps[dsp].work_list.next);
 		mutex_unlock(&pbst_lwnn->msg_manager.dsps[dsp].wl_lock);
 		//copy the request
@@ -187,19 +176,19 @@ static int bst_lwnn_worker(void *args)
 					 "fail to send the request!");
 			xchg->result = XCHG_STATUS_REAPER;
 		} else {
-			if (bst_lwnn_msg_recv
-			    (pbst_lwnn, dsp, &rsp,
-			     BST_LWNN_RSP_TIMEOUT_MS) < 0) {
-				BST_LWNN_DEV_ERR(&pbst_lwnn->pdev->dev,
-						 "fail to receive the response!");
+			if (bst_lwnn_msg_recv(pbst_lwnn, dsp, &rsp,
+					      BST_LWNN_RSP_TIMEOUT_MS) < 0) {
+				BST_LWNN_DEV_ERR(
+					&pbst_lwnn->pdev->dev,
+					"fail to receive the response!");
 				xchg->result = XCHG_STATUS_REAPER;
 			} else {
 				//copy the response
-				xchg->xchg->rsp = *((struct bst_lwnn_rsp *)
-						    bus_to_kern(pbst_lwnn, rsp,
-								pbst_lwnn->fw_manager.
-								dsps
-								[dsp].assigned_mem));
+				xchg->xchg->rsp =
+					*((struct bst_lwnn_rsp *)bus_to_kern(
+						pbst_lwnn, rsp,
+						pbst_lwnn->fw_manager.dsps[dsp]
+							.assigned_mem));
 				xchg->result = XCHG_STATUS_SUCCESS;
 			}
 		}
@@ -238,20 +227,19 @@ worker_exit:
 			    &pbst_lwnn->msg_manager.dsps[dsp].work_list) {
 				struct bst_lwnn_xchg *cur;
 
-				cur =
-				    container_of(pbst_lwnn->
-						 msg_manager.dsps[dsp].
-						 work_list.next,
-						 struct bst_lwnn_xchg, link);
-				list_del(pbst_lwnn->msg_manager.
-					 dsps[dsp].work_list.next);
-				mutex_unlock(&pbst_lwnn->msg_manager.
-					     dsps[dsp].wl_lock);
+				cur = container_of(pbst_lwnn->msg_manager
+							   .dsps[dsp]
+							   .work_list.next,
+						   struct bst_lwnn_xchg, link);
+				list_del(pbst_lwnn->msg_manager.dsps[dsp]
+						 .work_list.next);
+				mutex_unlock(&pbst_lwnn->msg_manager.dsps[dsp]
+						      .wl_lock);
 				cur->result = XCHG_STATUS_FAILURE;
 				complete(&cur->complete);
 			} else {
-				mutex_unlock(&pbst_lwnn->msg_manager.
-					     dsps[dsp].wl_lock);
+				mutex_unlock(&pbst_lwnn->msg_manager.dsps[dsp]
+						      .wl_lock);
 				break;
 			}
 		}
@@ -287,8 +275,10 @@ int bst_lwnn_msg_xchg_ipc(struct bst_lwnn *pbst_lwnn,
 	}
 
 	if (target >= 0 && !pbst_lwnn->dsp_online[target]) {
-		BST_LWNN_DEV_ERR(&pbst_lwnn->pdev->dev, "warnning: target (%d)"
-				 "is offline,change to other dsp!", target);
+		BST_LWNN_DEV_ERR(&pbst_lwnn->pdev->dev,
+				 "warnning: target (%d)"
+				 "is offline,change to other dsp!",
+				 target);
 		target = -1;
 	}
 	//initialize the exchange
@@ -302,19 +292,20 @@ int bst_lwnn_msg_xchg_ipc(struct bst_lwnn *pbst_lwnn,
 		if (pbst_lwnn->dsp_online[target]) {
 			if (pbst_lwnn->msg_manager.dsps[target].workload <
 			    BST_LWNN_MAX_WORKLOAD) {
-				mutex_lock(&pbst_lwnn->msg_manager.
-					   dsps[target].wl_lock);
+				mutex_lock(&pbst_lwnn->msg_manager.dsps[target]
+						    .wl_lock);
 				list_add_tail(&xchg.link,
-					      &pbst_lwnn->
-					      msg_manager.dsps[target].
-					      work_list);
-				mutex_unlock(&pbst_lwnn->
-					     msg_manager.dsps[target].wl_lock);
-				mutex_unlock(&pbst_lwnn->
-					     msg_manager.worker_lock);
+					      &pbst_lwnn->msg_manager
+						       .dsps[target]
+						       .work_list);
+				mutex_unlock(
+					&pbst_lwnn->msg_manager.dsps[target]
+						 .wl_lock);
+				mutex_unlock(
+					&pbst_lwnn->msg_manager.worker_lock);
 			} else {
-				mutex_unlock(&pbst_lwnn->
-					     msg_manager.worker_lock);
+				mutex_unlock(
+					&pbst_lwnn->msg_manager.worker_lock);
 				BST_LWNN_DEV_ERR(&pbst_lwnn->pdev->dev,
 						 "target DSP at full load!");
 				ret = -EBUSY;
@@ -327,12 +318,12 @@ int bst_lwnn_msg_xchg_ipc(struct bst_lwnn *pbst_lwnn,
 			ret = -EFAULT;
 			goto msg_xchg_end;
 		}
-	} else {		//otherwise, distribute based on the current workload of all available DSPs
+	} else { //otherwise, distribute based on the current workload of all available DSPs
 		int min = BST_LWNN_MAX_WORKLOAD;
 
 		for (i = 0; i < pbst_lwnn->dsp_num; i++) {
-			if (pbst_lwnn->dsp_online[i]
-			    && pbst_lwnn->msg_manager.dsps[i].workload < min) {
+			if (pbst_lwnn->dsp_online[i] &&
+			    pbst_lwnn->msg_manager.dsps[i].workload < min) {
 				min = pbst_lwnn->msg_manager.dsps[i].workload;
 				target = i;
 			}
@@ -340,13 +331,13 @@ int bst_lwnn_msg_xchg_ipc(struct bst_lwnn *pbst_lwnn,
 		if (target >= 0) {
 			pbst_lwnn->msg_manager.dsps[target].workload++;
 			//add the request work into the work list of the target DSP
-			mutex_lock(&pbst_lwnn->msg_manager.
-				   dsps[target].wl_lock);
-			list_add_tail(&xchg.link,
-				      &pbst_lwnn->msg_manager.
-				      dsps[target].work_list);
-			mutex_unlock(&pbst_lwnn->msg_manager.
-				     dsps[target].wl_lock);
+			mutex_lock(
+				&pbst_lwnn->msg_manager.dsps[target].wl_lock);
+			list_add_tail(
+				&xchg.link,
+				&pbst_lwnn->msg_manager.dsps[target].work_list);
+			mutex_unlock(
+				&pbst_lwnn->msg_manager.dsps[target].wl_lock);
 			mutex_unlock(&pbst_lwnn->msg_manager.worker_lock);
 		} else {
 			mutex_unlock(&pbst_lwnn->msg_manager.worker_lock);
@@ -368,8 +359,8 @@ int bst_lwnn_msg_xchg_ipc(struct bst_lwnn *pbst_lwnn,
 				 "message exchange failed for DSP %d!", target);
 		//reap the worker thread if the current thread is the reaper
 		if (xchg.result == XCHG_STATUS_REAPER) {
-			kthread_stop(pbst_lwnn->msg_manager.
-				     dsps[target].worker);
+			kthread_stop(
+				pbst_lwnn->msg_manager.dsps[target].worker);
 		}
 		ret = -EFAULT;
 	} else {
@@ -472,7 +463,7 @@ int bst_lwnn_msg_xchg(struct bst_lwnn *pbst_lwnn,
 	}
 }
 
-bool bst_lwnn_msg_is_bootdone(struct bst_lwnn * pbst_lwnn, int target)
+bool bst_lwnn_msg_is_bootdone(struct bst_lwnn *pbst_lwnn, int target)
 {
 #if 0
 	int time;
@@ -503,12 +494,94 @@ int bst_lwnn_msg_manager_init(struct bst_lwnn *pbst_lwnn)
 	int i;
 	struct bst_lwnn_dsp_msg_ctl *cur;
 	char worker_name[10];
+	dma_addr_t iova;
+#if 1
+	phys_addr_t res_paddr;
+	resource_size_t res_size;
+	struct iova_domain *iovad;
+	struct iova *iova_resv;
+	unsigned long shift;
+#endif
+
+	//bypass fwmem phys addr
+	for (i = 0; i < min(pbst_lwnn->dsp_num, BST_LWNN_MAX_DSP_NUM); i++) {
+		if (pbst_lwnn->mem_manager.enable_smmu) {
+			if (i == 2 && has_cv_dsp2_iommu_map != 0) {
+				continue;
+			}
+			if (i == 3 && has_cv_dsp3_iommu_map != 0) {
+				continue;
+			}
+
+			iova = pbst_lwnn->mem_manager.ops->iommu_bypass(
+				pbst_lwnn,
+				pbst_lwnn->fw_manager.dsps[i].fwmem_size,
+				PAGE_SIZE,
+				pbst_lwnn->fw_manager.dsps[i].fwmem_phys_addr,
+				IOMMU_READ | IOMMU_WRITE | IOMMU_PRIV);
+
+			pbst_lwnn->fw_manager.dsps[i].fwmem_iova = iova;
+
+			if (i == 2) {
+				has_cv_dsp2_iommu_map = 1;
+			}
+			if (i == 3) {
+				has_cv_dsp3_iommu_map = 1;
+			}
+		}
+	}
+
+#if 1
+	if (pbst_lwnn->mem_manager.enable_smmu) {
+		// TODO, dts configuration
+		res_paddr = 0x816000000;
+		res_size = 0x02000000;
+		iova = pbst_lwnn->mem_manager.ops->iommu_bypass_iova(
+			pbst_lwnn, res_size, PAGE_SIZE, (phys_addr_t)res_paddr,
+			0x6b400000,
+			IOMMU_READ | IOMMU_WRITE | IOMMU_PRIV);
+
+		pbst_lwnn->fw_manager.res_bypass[0].paddr = res_paddr;
+		pbst_lwnn->fw_manager.res_bypass[0].size = res_size;
+		pbst_lwnn->fw_manager.res_bypass[0].iova = iova;
+		BST_LWNN_TRACE_PRINTK(
+			"iova bypass: pa 0x%llx iova 0x%llx size 0x%llx",
+			res_paddr, iova, res_size);
+
+		res_paddr = 0x50000000;
+		res_size = 0x10000000;
+		iova = pbst_lwnn->mem_manager.ops->iommu_bypass(
+			pbst_lwnn, res_size, PAGE_SIZE, (phys_addr_t)res_paddr,
+			IOMMU_READ | IOMMU_WRITE | IOMMU_PRIV); // cv reserved
+
+		pbst_lwnn->fw_manager.res_bypass[1].paddr = res_paddr;
+		pbst_lwnn->fw_manager.res_bypass[1].size = res_size;
+		pbst_lwnn->fw_manager.res_bypass[1].iova = iova;
+		BST_LWNN_TRACE_PRINTK(
+			"iova bypass: pa 0x%llx iova 0x%llx size 0x%llx",
+			res_paddr, iova, res_size);
+
+		iovad = pbst_lwnn->mem_manager.iovad;
+		shift = iova_shift(iovad);
+
+		iova_resv = reserve_iova(iovad, 0x00000000 >> shift,
+					 0x80000000 >> shift);
+		if (!iova_resv) {
+			BST_LWNN_DEV_ERR(&pbst_lwnn->pdev->dev,
+					 "failed to reserve IOVA");
+			return -ENOMEM;
+		}
+		pbst_lwnn->mem_manager.iova_resv_dummy = iova_resv;
+		BST_LWNN_STAGE_PRINTK(
+			"reserve_iova low pfn 0x%lx, high pfn 0x%lx",
+			iova_resv->pfn_lo, iova_resv->pfn_hi);
+	}
+#endif
 
 	memcpy(worker_name, "bst_lwnn", 8);
-	pbst_lwnn->msg_manager.req_bufs =
-	    pbst_lwnn->mem_manager.ops->alloc(pbst_lwnn,
-					      sizeof(struct bst_lwnn_req) *
-					      pbst_lwnn->dsp_num, 0, 0);
+	pbst_lwnn->msg_manager.req_bufs = pbst_lwnn->mem_manager.ops->alloc(
+		pbst_lwnn, sizeof(struct bst_lwnn_req) * pbst_lwnn->dsp_num, 0,
+		0);
 	if (pbst_lwnn->msg_manager.req_bufs == NULL) {
 		BST_LWNN_DEV_ERR(&pbst_lwnn->pdev->dev,
 				 "request buffer allocation failed");
@@ -523,8 +596,8 @@ int bst_lwnn_msg_manager_init(struct bst_lwnn *pbst_lwnn)
 			cur->dsp = i;
 			cur->workload = 0;
 			init_completion(&cur->work_sem);
-			cur->work_list =
-			    (struct list_head)LIST_HEAD_INIT(cur->work_list);
+			cur->work_list = (struct list_head)LIST_HEAD_INIT(
+				cur->work_list);
 			mutex_init(&cur->wl_lock);
 		}
 	}
@@ -533,42 +606,41 @@ int bst_lwnn_msg_manager_init(struct bst_lwnn *pbst_lwnn)
 		for (i = 0; i < pbst_lwnn->dsp_num; i++) {
 			if (pbst_lwnn->dsp_online[i]) {
 				cur = &pbst_lwnn->msg_manager.dsps[i];
-				cur->ipc_session_id =
-				    ipc_init(IPC_CORE_CV0 +
-					     pbst_lwnn->dsp_indices[i],
-					     IPC_CORE_ARM0 +
-					     pbst_lwnn->fw_manager.
-					     dsps[i].ipc_src_core,
-					     &pbst_lwnn->pdev->dev);
+				cur->ipc_session_id = ipc_init(
+					IPC_CORE_CV0 +
+						pbst_lwnn->dsp_indices[i],
+					IPC_CORE_ARM0 +
+						pbst_lwnn->fw_manager.dsps[i]
+							.ipc_src_core,
+					&pbst_lwnn->pdev->dev);
 				if (cur->ipc_session_id < 0) {
 					pbst_lwnn->dsp_online[i] = 0;
-					BST_LWNN_DEV_ERR(&pbst_lwnn->pdev->dev,
-							 "ipc_init failed for DSP %d, ret %d",
-							 i,
-							 cur->ipc_session_id);
+					BST_LWNN_DEV_ERR(
+						&pbst_lwnn->pdev->dev,
+						"ipc_init failed for DSP %d, ret %d",
+						i, cur->ipc_session_id);
 				} else {
-					BST_LWNN_STAGE_PRINTK
-					    ("bst_lwnn dsp %d ipc init succeeded",
-					     i);
+					BST_LWNN_STAGE_PRINTK(
+						"bst_lwnn dsp %d ipc init succeeded",
+						i);
 					worker_name[8] = '0' + i;
 					worker_name[9] = '\0';
-					cur->worker =
-					    kthread_run(bst_lwnn_worker,
-							&pbst_lwnn->
-							msg_manager.dsps[i],
-							worker_name);
+					cur->worker = kthread_run(
+						bst_lwnn_worker,
+						&pbst_lwnn->msg_manager.dsps[i],
+						worker_name);
 					if (IS_ERR(cur->worker)) {
 						pbst_lwnn->dsp_online[i] = 0;
 						ipc_close(cur->ipc_session_id);
-						BST_LWNN_DEV_ERR
-						    (&pbst_lwnn->pdev->dev,
-						     "kthread_run failed for DSP %d!",
-						     i);
+						BST_LWNN_DEV_ERR(
+							&pbst_lwnn->pdev->dev,
+							"kthread_run failed for DSP %d!",
+							i);
 						continue;
 					}
-					BST_LWNN_STAGE_PRINTK
-					    ("kthread_run run successfully for DSP %d",
-					     i);
+					BST_LWNN_STAGE_PRINTK(
+						"kthread_run run successfully for DSP %d",
+						i);
 				}
 				cur->state = BST_LWNN_MSG_ONLINE;
 			}
@@ -581,7 +653,7 @@ int bst_lwnn_msg_manager_init(struct bst_lwnn *pbst_lwnn)
 		BST_LWNN_STAGE_PRINTK("worker creation OK");
 	} else {
 		pbst_lwnn->msg_manager.msgbx_client =
-		    lwnn_client_init(&pbst_lwnn->msg_manager.msgbx_data);
+			lwnn_client_init(&pbst_lwnn->msg_manager.msgbx_data);
 		if (pbst_lwnn->msg_manager.msgbx_client == NULL) {
 			BST_LWNN_DEV_ERR(&pbst_lwnn->pdev->dev,
 					 "lwnn_client_init failed");
@@ -599,8 +671,9 @@ int bst_lwnn_msg_manager_init(struct bst_lwnn *pbst_lwnn)
 		if (!bst_lwnn_check_online(pbst_lwnn)) {
 			pbst_lwnn->msg_manager.msgbx_client->stop();
 			lwnn_client_destroy();
-			BST_LWNN_DEV_ERR(&pbst_lwnn->pdev->dev,
-					 "bst_lwnn_check_online failed for all DSPs");
+			BST_LWNN_DEV_ERR(
+				&pbst_lwnn->pdev->dev,
+				"bst_lwnn_check_online failed for all DSPs");
 			return -EFAULT;
 		}
 		BST_LWNN_STAGE_PRINTK("msgbx_client start OK");
@@ -639,13 +712,23 @@ void bst_lwnn_msg_manager_cleanup(struct bst_lwnn *pbst_lwnn)
 
 	for (i = 0; i < pbst_lwnn->dsp_num; i++) {
 		if (!pbst_lwnn->dsp_online[i] &&
-		    pbst_lwnn->msg_manager.dsps[i].state == BST_LWNN_MSG_ONLINE) {
-			pbst_lwnn->msg_manager.dsps[i].state = BST_LWNN_MSG_STOP;
-			if (bst_lwnn_msg_interface == BST_LWNN_MSG_INTERFACE_IPC) {
-				ipc_close(pbst_lwnn->msg_manager.dsps[i].ipc_session_id);
-				pbst_lwnn->msg_manager.dsps[i].ipc_session_id = -1;
-				complete(&pbst_lwnn->msg_manager.dsps[i].work_sem);
-				kthread_stop(pbst_lwnn->msg_manager.dsps[i].worker);
+		    pbst_lwnn->msg_manager.dsps[i].state ==
+			    BST_LWNN_MSG_ONLINE) {
+			pbst_lwnn->msg_manager.dsps[i].state =
+				BST_LWNN_MSG_STOP;
+			if (bst_lwnn_msg_interface ==
+			    BST_LWNN_MSG_INTERFACE_IPC) {
+				if (pbst_lwnn->msg_manager.dsps[i]
+					    .ipc_session_id >= 0) {
+					ipc_close(pbst_lwnn->msg_manager.dsps[i]
+							  .ipc_session_id);
+				}
+				pbst_lwnn->msg_manager.dsps[i].ipc_session_id =
+					-1;
+				complete(&pbst_lwnn->msg_manager.dsps[i]
+						  .work_sem);
+				kthread_stop(
+					pbst_lwnn->msg_manager.dsps[i].worker);
 				pbst_lwnn->msg_manager.dsps[i].worker = NULL;
 			}
 		}
@@ -665,20 +748,31 @@ void bst_lwnn_msg_manager_exit(struct bst_lwnn *pbst_lwnn)
 	if (bst_lwnn_msg_interface == BST_LWNN_MSG_INTERFACE_IPC) {
 		for (i = 0; i < pbst_lwnn->dsp_num; i++) {
 			if (pbst_lwnn->dsp_online[i] &&
-			    pbst_lwnn->msg_manager.dsps[i].state == BST_LWNN_MSG_ONLINE) {
-				pbst_lwnn->msg_manager.dsps[i].state = BST_LWNN_MSG_STOP;
-				ipc_close(pbst_lwnn->msg_manager.dsps[i].ipc_session_id);
-				pbst_lwnn->msg_manager.dsps[i].ipc_session_id = -1;
-				complete(&pbst_lwnn->msg_manager.dsps[i].work_sem);
-				kthread_stop(pbst_lwnn->msg_manager.dsps[i].worker);
+			    pbst_lwnn->msg_manager.dsps[i].state ==
+				    BST_LWNN_MSG_ONLINE) {
+				pbst_lwnn->msg_manager.dsps[i].state =
+					BST_LWNN_MSG_STOP;
+				if (pbst_lwnn->msg_manager.dsps[i]
+					    .ipc_session_id >= 0) {
+					ipc_close(pbst_lwnn->msg_manager.dsps[i]
+							  .ipc_session_id);
+				}
+				pbst_lwnn->msg_manager.dsps[i].ipc_session_id =
+					-1;
+				complete(&pbst_lwnn->msg_manager.dsps[i]
+						  .work_sem);
+				kthread_stop(
+					pbst_lwnn->msg_manager.dsps[i].worker);
 				pbst_lwnn->msg_manager.dsps[i].worker = NULL;
 			}
 		}
 	} else {
 		for (i = 0; i < pbst_lwnn->dsp_num; i++) {
 			if (pbst_lwnn->dsp_online[i] &&
-			    pbst_lwnn->msg_manager.dsps[i].state == BST_LWNN_MSG_ONLINE) {
-				pbst_lwnn->msg_manager.dsps[i].state = BST_LWNN_MSG_STOP;
+			    pbst_lwnn->msg_manager.dsps[i].state ==
+				    BST_LWNN_MSG_ONLINE) {
+				pbst_lwnn->msg_manager.dsps[i].state =
+					BST_LWNN_MSG_STOP;
 			}
 		}
 		if (NULL != pbst_lwnn->msg_manager.msgbx_client) {
@@ -687,10 +781,46 @@ void bst_lwnn_msg_manager_exit(struct bst_lwnn *pbst_lwnn)
 			lwnn_client_destroy();
 		}
 		if (NULL != pbst_lwnn->msg_manager.req_bufs) {
-			pbst_lwnn->mem_manager.ops->free(pbst_lwnn->msg_manager.req_bufs);
+			pbst_lwnn->mem_manager.ops->free(
+				pbst_lwnn->msg_manager.req_bufs);
 			pbst_lwnn->msg_manager.req_bufs = NULL;
 		}
 	}
 
 	return;
+}
+
+/*!
+ * @brief       This function sends to safety and get psm status from safety lib
+ * @param[in]   pbst_lwnn The bst_lwnn driver
+ * @return      0-success
+ */
+int bst_lwnn_msg_psm_enabled_status(struct bst_lwnn *pbst_lwnn)
+{
+	uint8_t blockid_in = 0xb7;
+	uint8_t blockid_out = 0;
+	int ret = 0;
+	uint32_t psm_id_out[4] = { 0 };
+	cvdsp_safety_UInt32Array4_t *psm_id = NULL;
+	cvdsp_safety_ErrorEnum_t err = 0;
+	ret = pbst_lwnn->msg_manager.msgbx_client->cvdsp_safety_client
+		      .fusaenable_method_sync(blockid_in, &blockid_out, &psm_id,
+					      &err, 5000, NULL);
+	if (ret < 0 || err != 0) {
+		BST_LWNN_DEV_ERR(
+			&pbst_lwnn->pdev->dev,
+			"fusaenable_method_sync failed,ret: %d, err: %d", ret,
+			err);
+		return -EFAULT;
+	}
+
+	if (psm_id != NULL) {
+		for (int i = 0; i < 4; i++)
+			psm_id_out[i] = (*psm_id)[i];
+	}
+	BST_LWNN_STAGE_PRINTK(
+		"psm_id_out[0]: %02x. psm_id_out[1]: %02x. psm_id_out[2]: %02x. psm_id_out[3]: %02x.",
+		psm_id_out[0], psm_id_out[1], psm_id_out[2], psm_id_out[3]);
+
+	return ret;
 }

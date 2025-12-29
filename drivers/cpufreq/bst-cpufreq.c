@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: GPL-2.0
 /*
  * Copyright (c) 2018, The Linux Foundation. All rights reserved.
- * 
+ *
  * Cpufreq driver for the Black Sesame Soc
- * 
+ *
  * Copyright (C) 2024 Black Sesame Technologies, Inc.
  * Author: Xuran Yang <xuran.yang@bst.ai>
  *
@@ -143,7 +143,7 @@ static int bst_cpufreq_cpu_init(struct cpufreq_policy *policy)
 	if (IS_ERR(bst_cpufreq_dev->clk)) {
 		dev_err(dev, "failed to get %s clock\n", cluster_name);
 		kfree(bst_cpufreq_dev);
-		return PTR_ERR(bst_cpufreq_dev->clk);
+		return -EPERM;
 	}
 	policy->driver_data = bst_cpufreq_dev;
 	policy->dvfs_possible_from_any_cpu = true;

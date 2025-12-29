@@ -1,0 +1,31 @@
+package com.bst.ipc.smmu
+
+interface mapping{
+    version {major 1  minor 0}
+
+    enumeration ErrorEnum {
+        NO_ERROR = 0
+        SERVER_FAIL = -1
+        ERROR_2 = -2
+        ERROR_3 = -3
+    }
+
+    struct cfg_pte {
+        UInt32 sid
+        UInt32 flag
+        UInt32 iova
+        UInt32 high_addr
+        UInt32 low_addr
+        UInt32 len
+    }
+
+    method smmu_r5_method {
+        in {
+            cfg_pte  smmu_map_param
+        }
+        out {
+            UInt32 iova
+        }
+        error ErrorEnum
+    }
+}

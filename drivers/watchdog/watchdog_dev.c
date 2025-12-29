@@ -694,8 +694,10 @@ static ssize_t watchdog_write(struct file *file, const char __user *data,
 	for (i = 0; i != len; i++) {
 		if (get_user(c, data + i))
 			return -EFAULT;
-		if (c == 'V')
+		if (c == 'V'){
 			set_bit(_WDOG_ALLOW_RELEASE, &wd_data->status);
+			set_bit(_WDOG_HAND_STOP, &wd_data->status);
+		}
 	}
 
 	/* someone wrote to us, so we send the watchdog a keepalive ping */

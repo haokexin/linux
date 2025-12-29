@@ -24,6 +24,7 @@
 #include <linux/clk.h>
 
 #define FIMD_PORT_RGB 0
+#define VOUT_TIMING_NUM	(2)
 
 /*********************************************************************
  *                   Display Out Pinmux
@@ -281,6 +282,6 @@ static inline void vout_conn_write(void *base, u32 reg, u32 val){
 	vout_conn_write(base, reg, val); \
 })
 
-
+void bst_select_dpu_output_to_vout(struct bst_dpu_connection *conn);
 
 #endif

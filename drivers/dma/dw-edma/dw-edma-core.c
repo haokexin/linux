@@ -1016,8 +1016,10 @@ int dw_edma_remove(struct dw_edma_chip *chip)
 	dw_edma_core_off(dw);
 
 	/* Free irqs */
-	for (i = (dw->nr_irqs - 1); i >= 0; i--)
+	for (i = (dw->nr_irqs - 1); i >= 0; i--) {
+		disable_irq(chip->ops->irq_vector(dev, i));
 		free_irq(chip->ops->irq_vector(dev, i), &dw->irq[i]);
+	}
 
 	/* Deregister eDMA device */
 	dma_async_device_unregister(&dw->dma);

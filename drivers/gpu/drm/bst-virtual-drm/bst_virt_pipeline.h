@@ -12,6 +12,7 @@
 #include <drm/drm_edid.h>
 #include "bst_virt_utils.h"
 #include "bst_virt_format_color.h"
+#include "bst_display_conn_cmdset.h"
 #include "bst_display_global_api.h"
 
 struct bst_virt_component;
@@ -75,7 +76,6 @@ struct bst_virt_component {
 	struct drm_private_obj obj;
 	struct bst_virt_pipe *pipe;
 	char name[32];
-	u32 client_id;
 	u32 subdev_session;
 	u32 id;
 	u32 fw_id;
@@ -83,6 +83,7 @@ struct bst_virt_component {
 	u8 max_active_outputs;
 	u32 supported_inputs;
 	u32 supported_outputs;
+	void *base_dev;
 	const struct bst_virt_component_funcs *funcs;
 };
 
@@ -104,8 +105,10 @@ struct bst_virt_pipe {
 	u32 avail_comps;
 	u32 old_changed_comps;
 	u32 standalone_disabled_comps;
-	u8 max_scaler_num;
-	struct bst_virt_layer* scaler_slot[BST_VIRT_PIPELINE_MAX_SCALERS];
+#ifdef DISPLAY_SUPPORT_SCALE
+	u8 scaler_num;
+	//struct bst_virt_layer* scaler_slot[BST_VIRT_PIPELINE_MAX_SCALERS];
+#endif
 };
 
 struct bst_virt_pipe_funcs {
@@ -167,7 +170,6 @@ struct bst_virt_dc_crtc {
 };
 
 struct bst_virt_crtc_input_cfg {
-	uint8_t enable;
 	u16 hsize, vsize;
 	u16 hoffset, voffset;
 	u8 pixel_blend_mode, layer_alpha;
@@ -179,7 +181,6 @@ struct bst_virt_dc_crtc_state {
 	u16 hsize, vsize;
 	u32 fgamma_coeffs[BST_DRM_N_GAMMA_COEFFS];
 	u32 ctm_coeffs[BST_DRM_N_CTM_COEFFS];
-	struct bst_virt_crtc_input_cfg cins[BST_VIRT_COMPONENT_N_INPUTS];
 	u8 valid_input_ids[5];
 };
 
@@ -192,12 +193,12 @@ struct bst_virt_layer {
 	u32 supported_rots;
 	u32 supported_pix_fmt_stds;
 	u32 supported_ctm_lut_stds;
+	u32 supported_scale;
 	u32 init_zpos;
 	u32 max_upscaling;
 	u32 max_downscaling;
 	struct bst_virt_layer *right;
 	struct bstdc_range scaler_hsize, scaler_vsize;
-	u8 valid_scaler_channel;
 };
 
 struct bst_scaler_cfg {
@@ -216,6 +217,7 @@ struct bst_afbc_crop_cfg {
 	u16 afbc_crop_r;
 	u16 afbc_crop_t;
 	u16 afbc_crop_b;
+	u16 crop_type;
 };
 
 struct bst_virt_layer_state {
@@ -225,15 +227,16 @@ struct bst_virt_layer_state {
 	struct bst_afbc_crop_cfg afbc_crop_old;
 	struct bst_afbc_crop_cfg afbc_crop;
 	dma_addr_t addr[3];
-	struct bst_scaler_cfg scaler_old;
+	//struct bst_scaler_cfg scaler_old;
 	struct bst_scaler_cfg scaler;
+	struct bst_virt_crtc_input_cfg cin;
 };
 
 struct bst_virt_connector {
 	struct bst_virt_component base;
 	struct bst_connector *bconn;
 	struct video_timing cur_timing;
-	u8 edid[DEFAULT_EDID_BUFLEN];
+	u8 edid[DEFAULT_EDID_BUFLEN * MAX_EDID_BUF_NUM];
 	uint32_t supported_color_formats;
 	uint32_t supported_color_depths;
 	u8 video_format;
@@ -256,8 +259,7 @@ bst_virt_component_add(struct bst_virt_pipe *pipe,
 		       struct bst_virt_device *subdev, size_t comp_sz, u32 id,
 		       u32 fw_id, const struct bst_virt_component_funcs *funcs,
 		       u8 max_active_inputs, u32 supported_inputs,
-		       u8 max_active_outputs, u32 client_id,
-		       const char *name_fmt, ...);
+		       u8 max_active_outputs, const char *name_fmt, ...);
 
 struct bst_virt_component *
 bst_virt_pipe_get_component(struct bst_virt_pipe *pipe, int id);

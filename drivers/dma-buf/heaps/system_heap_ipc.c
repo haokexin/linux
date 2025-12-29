@@ -33,13 +33,21 @@
 
 #include "system_heap_ipc.h"
 
+#ifdef CONFIG_BST_C1200_ADAS
+#define SERVER_PID CPU_4
+#elif defined(CONFIG_BST_C1200_IVI)
+#define SERVER_PID CPU_0
+#else
+#define SERVER_PID CPUMP2_0
+#endif
+
 static struct dma_heap *dma_heap_ipc;
 static struct dma_heap *dma_heap_ipc_uncached;
 static dmabuf_ipc_client_data_t client_data = {};
 static volatile dmabuf_ipc_client_t *client = NULL;
 
-static const char* reserved_mem_name[R5MEM_TYPE_MAX] = {"global_normal_dmabuf", "global_secure_dmabuf"};
-static const char* mem_type_id_str[R5MEM_TYPE_MAX] = {"normal", "secure"};
+static const char* reserved_mem_name[R5MEM_TYPE_MAX] = {"global_normal_dmabuf", "global_secure_dmabuf", "global_hifi_dmabuf"};
+static const char* mem_type_id_str[R5MEM_TYPE_MAX] = {"normal", "secure", "hifi"};
 
 /*
  * The selection of the orders used for allocation (1MB, 64K, 4K) is designed
@@ -167,7 +175,7 @@ static int system_heap_attach(struct dma_buf *dmabuf,
 	list_add(&a->list, &buffer->attachments);
 	mutex_unlock(&buffer->lock);
 
-	input_msg.cmd = R5MEM_ATTATCH;
+	input_msg.cmd = R5MEM_ATTACH;
 	input_msg.mem_type = buffer->mem_type;
 	input_msg.payload[0] = buffer->global_fd;
 	send2r5_ret = send_2_r5_and_rec(&input_msg, &output_msg, &err);
@@ -197,7 +205,7 @@ static void system_heap_detach(struct dma_buf *dmabuf,
 	kfree(a->table);
 	kfree(a);
 
-	input_msg.cmd = R5MEM_DETATCH;
+	input_msg.cmd = R5MEM_DETACH;
 	input_msg.mem_type = buffer->mem_type;
 	input_msg.payload[0] = buffer->global_fd;
 	send2r5_ret = send_2_r5_and_rec(&input_msg, &output_msg, &err);
@@ -410,7 +418,7 @@ static void system_heap_dma_buf_release(struct dma_buf *dmabuf)
 	struct ipc_msg input_msg = {};
 	struct ipc_msg output_msg = {};
 
-	pr_info("%s, %d \n",__func__,__LINE__);
+	pr_debug("%s, %d \n",__func__,__LINE__);
 
 	/* Zero the buffer pages before adding back to the pool */
 	// system_heap_zero_buffer(buffer);
@@ -474,7 +482,12 @@ static struct page *alloc_largest_available(unsigned long size,
 static r5mem_MemType_t get_mem_type_from_heap_flag(unsigned long heap_flags)
 {
 	// Default return normal_memory_type.
-	return (heap_flags == DMA_HEAP_IPC_SECURE_MEM) ? R5MEM_TYPE_SECURE : R5MEM_TYPE_NORMAL;     
+	if (heap_flags == DMA_HEAP_IPC_SECURE_MEM)
+		return R5MEM_TYPE_SECURE;
+	else if (heap_flags == DMA_HEAP_IPC_HIFI_MEM)
+		return R5MEM_TYPE_HIFI;
+	else
+		return R5MEM_TYPE_NORMAL;
 }
 
 static struct dma_buf *system_heap_do_allocate(struct dma_heap *heap,
@@ -530,7 +543,7 @@ static struct dma_buf *system_heap_do_allocate(struct dma_heap *heap,
 
 		send2r5_ret = send_2_r5_and_rec(&input_msg, &output_msg, &err);
 		if (send2r5_ret != R5_SUCCESS || err != R5MEM_NO_ERROR) {
-			printk("alloc size 0x%x fail, err: %d, send2r5_ret: %d\n",
+			pr_err("alloc size 0x%x fail, err: %d, send2r5_ret: %d\n",
 				(unsigned int)buffer->len, err, send2r5_ret);
 			ret = -EBUSY;
 			goto free_buffer;
@@ -545,7 +558,7 @@ static struct dma_buf *system_heap_do_allocate(struct dma_heap *heap,
 		input_msg.payload[0] = info->global_fd;
 		send2r5_ret = send_2_r5_and_rec(&input_msg, &output_msg, &err);
 		if (send2r5_ret != R5_SUCCESS || err != R5MEM_NO_ERROR) {
-			printk("import global_fd 0x%x fail, err: %d, send2r5_ret: %d\n",
+			pr_err("import global_fd 0x%x fail, err: %d, send2r5_ret: %d\n",
 				(unsigned int)info->global_fd, err, send2r5_ret);
 			ret = -EBUSY;
 			goto free_buffer;
@@ -558,22 +571,22 @@ static struct dma_buf *system_heap_do_allocate(struct dma_heap *heap,
 
 	size_remaining = buffer->len;
 	buffer->phy_addr = dma_aux;
-	pr_info(".%s, line: %d, R5 alloc addr: 0x%llx, size: 0x%lx,"
+	pr_debug(".%s, line: %d, R5 alloc addr: 0x%llx, size: 0x%lx,"
 		"fd: 0x%lx, is_import_fd: %d, mem_type: %d\n", __func__, __LINE__,
 		dma_aux, buffer->len, buffer->global_fd, is_import_fd, buffer->mem_type);
 	fd = buffer->global_fd & 0xFFFFFFFF;
 	// fd is -1 indicates the R5 allocated fail
 	if (fd == 0xFFFFFFFF) {
-		printk("R5 Can not alloc memory\n");
+		pr_err("R5 Can not alloc memory\n");
 		goto free_buffer;
 	}
 
 	page_counter = (size_remaining + PAGE_SIZE - 1) >> PAGE_SHIFT;
-	pr_info("%s page_counter = %d \n",__func__, page_counter);
+	pr_debug("%s page_counter = %d \n",__func__, page_counter);
 
 	table = &buffer->sg_table;
 	if (sg_alloc_table(table, page_counter, GFP_KERNEL)) {
-		printk("sg_alloc_table failed\n");
+		pr_err("sg_alloc_table failed\n");
 		goto free_buffer;
 	}
 
@@ -634,7 +647,7 @@ static struct dma_buf *system_heap_do_allocate(struct dma_heap *heap,
 	 * unmap it now so we don't get corruption later on.
 	 */
 	if (buffer->uncached) {
-		printk("dev:%p, sgl: %p, size:%d \n", dma_heap_get_dev(heap), table->sgl, table->orig_nents);
+		pr_debug("dev:%p, sgl: %p, size:%d \n", dma_heap_get_dev(heap), table->sgl, table->orig_nents);
 		// dma_map_sgtable(dma_heap_get_dev(heap), table, DMA_BIDIRECTIONAL, 0);
 		// dma_unmap_sgtable(dma_heap_get_dev(heap), table, DMA_BIDIRECTIONAL, 0);
 	}
@@ -665,7 +678,7 @@ static struct dma_buf *system_heap_allocate(struct dma_heap *heap,
 	union ipc_alloc_info  info;
 	info.len = len;
 
-	pr_info("%s,line:%d \n",__func__,__LINE__);
+	pr_debug("%s,line:%d \n",__func__,__LINE__);
 	return system_heap_do_allocate(heap, &info, fd_flags, heap_flags, false,false);
 }
 
@@ -677,7 +690,7 @@ static struct dma_buf *system_heap_allocate_uncached(struct dma_heap *heap,
 	union ipc_alloc_info  info;
 	info.len = len;
 
-	pr_info("%s,line:%d \n",__func__,__LINE__);
+	pr_debug("%s,line:%d \n",__func__,__LINE__);
 	return system_heap_do_allocate(heap, &info, fd_flags, heap_flags, true, false);
 }
 
@@ -695,7 +708,7 @@ static int get_global_fd(struct dma_heap *heap,
 {
 	struct system_heap_buffer *buffer = dmabuf->priv;
 
-	pr_info("%s,line:%d \n",__func__,__LINE__);
+	pr_debug("%s,line:%d \n",__func__,__LINE__);
 	*fd_ptr = buffer->global_fd;
 	return 0;
 }
@@ -707,7 +720,7 @@ static struct dma_buf * import_global_fd(struct dma_heap *heap,
 	union ipc_alloc_info  info;
 	info.global_fd = global_fd;
 
-	pr_info("%s,line:%d \n",__func__,__LINE__);
+	pr_debug("%s,line:%d \n",__func__,__LINE__);
 	return system_heap_do_allocate(heap, &info, fd_flags, 0, false,true);
 }
 
@@ -718,7 +731,7 @@ static struct dma_buf * import_global_fd_uncached(struct dma_heap *heap,
 	union ipc_alloc_info  info;
 	info.global_fd = global_fd;
 
-	pr_info("%s,line:%d \n",__func__,__LINE__);
+	pr_debug("%s,line:%d \n",__func__,__LINE__);
 	return system_heap_do_allocate(heap, &info, fd_flags, 0, true, true);
 }
 
@@ -888,7 +901,7 @@ static ssize_t	heap_info_show(struct kobject *kobj,
 	total_print = (block_number-1)/MAX_ENTRY_NUMBER_PER_PRINT + 1;
 	cur_print   = cur_idx / MAX_ENTRY_NUMBER_PER_PRINT + 1;
 	len += sysfs_emit_at(buf, len, "IPC heap blocks info(%d/%d):\n", cur_print, total_print);
-	len += sysfs_emit_at(buf, len, "%-3s  %-6s  %-12s  %-12s  %-10s  %-5s\n",
+	len += sysfs_emit_at(buf, len, "%-3s  %-8s  %-11s  %-11s  %-10s  %-5s\n",
 			     "gFd", "type", "start", "end", "length", "ref");
 
 	while (counter < MAX_ENTRY_NUMBER_PER_PRINT) {
@@ -896,12 +909,12 @@ static ssize_t	heap_info_show(struct kobject *kobj,
 			break;
 
         if (blocks[cur_idx].fd >= R5MEM_MAX_FD) {
-			len += sysfs_emit_at(buf, len, "%-3s  %-6s  0x%010llx  0x%010llx  %010d  %05d\n",
+			len += sysfs_emit_at(buf, len, "%-3s  %-8s  0x%09llx  0x%09llx  %010d  %05d\n",
                                    "---", mem_type_id_to_str(blocks[cur_idx].mem_type), (uint64_t)blocks[cur_idx].addr,
                                    (uint64_t)blocks[cur_idx].addr + blocks[cur_idx].size, blocks[cur_idx].size, blocks[cur_idx].ref);
 		}
 		else {
-            len += sysfs_emit_at(buf, len, "%03d  %-6s  0x%010llx  0x%010llx  %010d  %05d\n",
+            len += sysfs_emit_at(buf, len, "%03d  %-8s  0x%09llx  0x%09llx  %010d  %05d\n",
                                    blocks[cur_idx].fd, mem_type_id_to_str(blocks[cur_idx].mem_type), (uint64_t)blocks[cur_idx].addr,
                                    (uint64_t)blocks[cur_idx].addr + blocks[cur_idx].size, blocks[cur_idx].size, blocks[cur_idx].ref);
 		}
@@ -938,7 +951,7 @@ static ssize_t	alloc_store(struct kobject *kobj, struct kobj_attribute *attr, co
 	len = strlen(buf);
 	sz = simple_strtoul(ptr, &end, 10);
 
-	pr_info("%s len = %d sz = 0x%lx", __func__,len, sz);
+	pr_debug("%s len = %d sz = 0x%lx", __func__,len, sz);
 
 	input_msg.cmd = R5MEM_ALLOC_AND_ATTACH;
 	input_msg.mem_type = R5MEM_TYPE_NORMAL;
@@ -950,7 +963,7 @@ static ssize_t	alloc_store(struct kobject *kobj, struct kobj_attribute *attr, co
 	}
 	addr  = output_msg.payload[0]; //phy addr
 	fd = output_msg.payload[1];    //global fd
-	pr_info("alloc addr: 0x%llx, global fd: %d", addr, fd);
+	pr_debug("alloc addr: 0x%llx, global fd: %d", addr, fd);
 
 	return count;
 }
@@ -974,7 +987,7 @@ static ssize_t	free_store(struct kobject *kobj, struct kobj_attribute *attr, con
 	len = strlen(buf);
 	fd = simple_strtoul(ptr, &end, 10);
 
-	printk("%s len = %d fd = %lu", __func__, len, fd);
+	pr_debug("%s len = %d fd = %lu", __func__, len, fd);
 
 	input_msg.cmd = R5MEM_FREE;
 	input_msg.mem_type = R5MEM_TYPE_NORMAL;
@@ -1038,63 +1051,14 @@ static int parse_mem_info_from_dts(const char* key, uint64_t* value, size_t max_
 	return of_property_read_variable_u64_array(global_dma, "reg", value, 2, max_counter);
 }
 
-static int dmabuf_driver_probe(void)
+static void set_global_dma_range(void)
 {
 	int ret = 0, i = 0, k = 0;
 	R5_RET send2r5_ret = R5_SUCCESS;
 	r5mem_ErrorEnum_t err = R5MEM_NO_ERROR;
 	uint64_t mem_info[R5MEM_MAX_POOL_NUM_PER_MEM_TYPE * 2];
-	struct dma_heap_export_info exp_info;
-
-	ipc_inf_version_t version;
 	struct ipc_msg input_msg = {};
 	struct ipc_msg output_msg = {};
-
-	sema_init(&s_sem, 4);
-
-	exp_info.name = "ipc";
-	exp_info.ops = &system_heap_ops;
-	exp_info.priv = NULL;
-	dma_heap_ipc = dma_heap_add(&exp_info);
-	if (IS_ERR(dma_heap_ipc)) {
-		pr_err("invalid dma heap ipc\n");
-		return PTR_ERR(dma_heap_ipc);
-	}
-
-	exp_info.name = "ipc-uncached";
-	exp_info.ops = &system_heap_ops_uncached;
-	exp_info.priv = NULL;
-
-	dma_heap_ipc_uncached = dma_heap_add(&exp_info);
-	if (IS_ERR(dma_heap_ipc_uncached)) {
-		pr_err("invalid dma heap ipc uncached\n");
-		return PTR_ERR(dma_heap_ipc_uncached);
-	}
-
-	dma_coerce_mask_and_coherent(dma_heap_get_dev(dma_heap_ipc_uncached), DMA_BIT_MASK(64));
-	mb(); /* make sure we only set allocate after dma_mask is set */
-	system_heap_ops_uncached.allocate = system_heap_allocate_uncached;
-
-	client = dmabuf_ipc_client_init(&client_data);
-	if (!client) {
-		pr_err("%s: init client fail.\n", __func__);
-		return -1;
-	}
-
-	// get version
-	version = client->r5mem_client.version();
-	pr_debug("%s,Interface version: major %d, minor %d.\n", __func__, version.major, version.minor);
-
-	ret = client->start();
-	if (ret < 0) {
-		pr_err("start dmabuf ipc client fail.!\n");
-		return ret;
-	}
-
-	// volatile bool dst_avail = false;
-	// client->r5mem_client.register_avail_changed(on_dst_changed, &dst_avail);
-	// while (!dst_avail)
-	// 	msleep(1000);
 
 	for (i = 0; i < R5MEM_TYPE_MAX; ++i) {
 		ret = parse_mem_info_from_dts(reserved_mem_name[i], mem_info, sizeof(mem_info)/sizeof(uint64_t));
@@ -1124,12 +1088,68 @@ static int dmabuf_driver_probe(void)
 					__func__, reserved_mem_name[i], input_msg.payload[0], input_msg.payload[1], err, send2r5_ret);
 			}
 			else {
-				printk("[%s] %s: set mem range, addr: 0x%llx, size: size 0x%llx\n", 
+				pr_info("[%s] %s: set mem range, addr: 0x%llx, size: size 0x%llx\n", 
 					__func__, reserved_mem_name[i], input_msg.payload[0], input_msg.payload[1]);
 			}
 		}
 	}
+}
 
+static int dmabuf_driver_probe(void)
+{
+	int ret = 0;
+	struct dma_heap_export_info exp_info;
+
+	ipc_inf_version_t version;
+
+	sema_init(&s_sem, 4);
+
+	exp_info.name = "ipc";
+	exp_info.ops = &system_heap_ops;
+	exp_info.priv = NULL;
+	dma_heap_ipc = dma_heap_add(&exp_info);
+	if (IS_ERR(dma_heap_ipc)) {
+		pr_err("invalid dma heap ipc\n");
+		return PTR_ERR(dma_heap_ipc);
+	}
+
+	exp_info.name = "ipc-uncached";
+	exp_info.ops = &system_heap_ops_uncached;
+	exp_info.priv = NULL;
+
+	dma_heap_ipc_uncached = dma_heap_add(&exp_info);
+	if (IS_ERR(dma_heap_ipc_uncached)) {
+		pr_err("invalid dma heap ipc uncached\n");
+		return PTR_ERR(dma_heap_ipc_uncached);
+	}
+
+	dma_coerce_mask_and_coherent(dma_heap_get_dev(dma_heap_ipc_uncached), DMA_BIT_MASK(64));
+	mb(); /* make sure we only set allocate after dma_mask is set */
+	system_heap_ops_uncached.allocate = system_heap_allocate_uncached;
+
+	client_data.com_data.pid = SERVER_PID;
+	client = dmabuf_ipc_client_init(&client_data);
+	if (!client) {
+		pr_err("%s: init client fail.\n", __func__);
+		return -1;
+	}
+
+	// get version
+	version = client->r5mem_client.version();
+	pr_debug("%s,Interface version: major %d, minor %d.\n", __func__, version.major, version.minor);
+
+	ret = client->start();
+	if (ret < 0) {
+		pr_err("start dmabuf ipc client fail.!\n");
+		return ret;
+	}
+
+	// volatile bool dst_avail = false;
+	// client->r5mem_client.register_avail_changed(on_dst_changed, &dst_avail);
+	// while (!dst_avail)
+	// 	msleep(1000);
+
+	set_global_dma_range();
 	ipc_heap_sysfs_setup();
 	return 0;
 }

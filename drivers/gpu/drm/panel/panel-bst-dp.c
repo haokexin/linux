@@ -778,7 +778,7 @@ static const struct display_timing bst_dp_panel_timing[] = {
 	{ /* 3840x2160@30Hz */
 		.pixelclock = { 297000000, 297000000, 297000000 },
 		.hactive = { 3840, 3840, 3840 },
-		.hfront_porch = { 1276, 1276, 1276 },
+		.hfront_porch = { 176, 176, 176 },
 		.hback_porch = { 296, 296, 296 },
 		.hsync_len = { 88, 88, 88 },
 		.vactive = { 2160, 2160, 2160 },
@@ -787,6 +787,20 @@ static const struct display_timing bst_dp_panel_timing[] = {
 		.vsync_len = { 10, 10, 10 },
 		.flags = DISPLAY_FLAGS_VSYNC_HIGH | DISPLAY_FLAGS_HSYNC_HIGH,
 	},
+#if defined(CONFIG_C1200_SLT) || defined(CONFIG_C1200_MASS)
+	{ /* 3840x2160@60Hz */
+		.pixelclock = { 594000000, 594000000, 594000000 },
+		.hactive = { 3840, 3840, 3840 },
+		.hfront_porch = { 176, 176, 176 },
+		.hback_porch = { 296, 296, 296 },
+		.hsync_len = { 88, 88, 88 },
+		.vactive = { 2160, 2160, 2160 },
+		.vfront_porch = { 8, 8, 8 },
+		.vback_porch = { 72, 72, 72 },
+		.vsync_len = { 10, 10, 10 },
+		.flags = DISPLAY_FLAGS_VSYNC_HIGH | DISPLAY_FLAGS_HSYNC_HIGH,
+	},
+#endif
 	{ /* 2560x1440@59.95hz */
 		.pixelclock = { 241500000, 241500000, 241500000 },
 		.hactive = { 2560, 2560, 2560 },

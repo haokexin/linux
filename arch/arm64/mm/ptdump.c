@@ -114,8 +114,18 @@ static const struct prot_bits pte_bits[] = {
 		.clear	= "x ",
 	}, {
 		.mask	= PTE_SHARED,
+		.val	= PTE_NON_SHARED,
+		.set	= "NSH",
+		.clear	= "   ",
+	}, {
+		.mask	= PTE_SHARED,
+		.val	= PTE_OUTER_SHARED,
+		.set	= "OSH",
+		.clear	= "   ",
+	}, {
+		.mask	= PTE_SHARED,
 		.val	= PTE_SHARED,
-		.set	= "SHD",
+		.set	= "ISH",
 		.clear	= "   ",
 	}, {
 		.mask	= PTE_AF,

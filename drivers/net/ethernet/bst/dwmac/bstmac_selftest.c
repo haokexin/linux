@@ -16,7 +16,12 @@
 #include <net/tcp.h>
 #include <net/udp.h>
 #include <net/tc_act/tc_gact.h>
+#include <linux/ipv6.h>
+#include <linux/in6.h>
+#include <net/ip6_checksum.h>
+#include <net/addrconf.h>
 #include "bstgmac.h"
+#include "dwxgmac2.h"
 
 struct bstmachdr {
 	__be32 version;
@@ -25,6 +30,8 @@ struct bstmachdr {
 } __packed;
 
 #define bstmac_TEST_PKT_SIZE (sizeof(struct ethhdr) + sizeof(struct iphdr) + \
+			      sizeof(struct bstmachdr))
+#define bstmac_TEST_IPV6PKT_SIZE (sizeof(struct ethhdr) + sizeof(struct ipv6hdr) + \
 			      sizeof(struct bstmachdr))
 #define bstmac_TEST_PKT_MAGIC	0xdeadcafecafedeadULL
 #define bstmac_LB_TIMEOUT	msecs_to_jiffies(200)
@@ -50,9 +57,68 @@ struct bstmac_packet_attrs {
 	int sarc;
 	u16 queue_mapping;
 	u64 timestamp;
+	u8 non_csum;
+	bool ieee_1588;
 };
 
 static u8 bstmac_test_next_id;
+
+static struct sk_buff *bstmac_test_get_ptp_skb(struct bstgmac_priv *priv,
+					       struct bstmac_packet_attrs *attr)
+{
+	struct sk_buff *skb = NULL;
+	struct net_device *dev;
+	struct ethhdr *ethdr;
+	int length;
+
+	char dmac[6] = {0x01, 0x1B, 0x19, 0x00, 0x00, 0x00};
+
+	//ptp sync
+	char data[] = {
+		0x00, 0x02, 0x00, 0x2c, 0x03, 0x00, 0x02, 0x00,
+		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+		0x00, 0x00, 0x00, 0x00, 0xd4, 0x9e, 0x6e, 0xff,
+		0xfe, 0x00, 0x01, 0xe7, 0x00, 0x01, 0x4f, 0x14,
+		0x00, 0xfd, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+		0x00, 0x00, 0x00, 0x00, 0x00, 0x00
+	};
+
+	dev = priv->dev;
+	length = sizeof(struct ethhdr) + sizeof(data) + 10;
+
+	if (!(skb = dev_alloc_skb(length))) {
+		pr_err("dev_alloc_skb malloc skb error\n");
+		return NULL;
+	}
+
+	skb_reserve(skb,length);
+	skb->len =  0;
+
+	//fill payload
+	skb_push(skb, sizeof(data));
+	memcpy(skb->data, data, sizeof(data));
+	skb->len = sizeof(data);
+
+	//fille eth header
+	skb_push(skb, sizeof(struct ethhdr));
+	ethdr = (struct ethhdr *)skb->data;
+	skb->len += sizeof(struct ethhdr);
+
+	memcpy(ethdr->h_source, priv->dev->dev_addr, ETH_ALEN);
+	memcpy(ethdr->h_dest, dmac, ETH_ALEN);
+
+	ethdr->h_proto = htons(ETH_P_1588);
+	skb->protocol = htons(ETH_P_1588);
+
+	//fill skb
+	skb->pkt_type =  PACKET_OTHERHOST;
+	skb->dev = dev;
+
+	if (attr->ieee_1588)
+		skb_shinfo(skb)->tx_flags |= SKBTX_HW_TSTAMP;
+
+	return skb;
+}
 
 static struct sk_buff *bstmac_test_get_udp_skb(struct bstgmac_priv *priv,
 					       struct bstmac_packet_attrs *attr)
@@ -195,7 +261,11 @@ static struct sk_buff *bstmac_test_get_udp_skb(struct bstgmac_priv *priv,
 		skb_put(skb, attr->max_size - skb->len);
 
 	skb->csum = 0;
-	skb->ip_summed = CHECKSUM_PARTIAL;
+	if (attr->non_csum) {
+		skb->ip_summed = CHECKSUM_NONE;
+	} else {
+		skb->ip_summed = CHECKSUM_PARTIAL;
+	}
 	if (attr->tcp) {
 		thdr->check = ~tcp_v4_check(skb->len, ihdr->saddr, ihdr->daddr, 0);
 		skb->csum_start = skb_transport_header(skb) - skb->head;
@@ -320,7 +390,10 @@ static int __bstmac_test_loopback(struct bstgmac_priv *priv,
 	if (!attr->dont_wait)
 		dev_add_pack(&tpriv->pt);
 
-	skb = bstmac_test_get_udp_skb(priv, attr);
+	if (!attr->ieee_1588)
+		skb = bstmac_test_get_udp_skb(priv, attr);
+	else
+		skb = bstmac_test_get_ptp_skb(priv, attr);
 	if (!skb) {
 		ret = -ENOMEM;
 		goto cleanup;
@@ -338,6 +411,14 @@ static int __bstmac_test_loopback(struct bstgmac_priv *priv,
 
 	wait_for_completion_timeout(&tpriv->comp, attr->timeout);
 	ret = tpriv->ok ? 0 : -ETIMEDOUT;
+
+	if (attr->ieee_1588) {
+		ret = -ETIMEDOUT;
+		if (!bstmac_get_ts_flag_slt()) {//tx
+			ret = 0;
+			bstmac_clr_ts_flag_slt();
+		}
+	}
 
 cleanup:
 	if (!attr->dont_wait)
@@ -363,15 +444,30 @@ static struct sk_buff *bstmac_test_get_arp_skb(struct bstgmac_priv *priv,
 
 	return skb;
 }
-
+#endif
 static int bstmac_test_mac_loopback(struct bstgmac_priv *priv)
 {
 	struct bstmac_packet_attrs attr = { };
+	int ret;
 
 	attr.dst = priv->dev->dev_addr;
-	return __bstmac_test_loopback(priv, &attr);
+	
+	attr.size = 9;
+	ret = __bstmac_test_loopback(priv, &attr);
+
+	attr.size = 73;
+	ret |= __bstmac_test_loopback(priv, &attr);
+
+	attr.size = 500;
+	ret |= __bstmac_test_loopback(priv, &attr);
+
+	attr.size = 1450;
+	ret |= __bstmac_test_loopback(priv, &attr);
+
+	return ret;
 }
 
+#if 0
 static int bstmac_test_phy_loopback(struct bstgmac_priv *priv)
 {
 	struct bstmac_packet_attrs attr = { };
@@ -528,7 +624,7 @@ static bool bstmac_perfect_check(struct bstgmac_priv *priv, unsigned char *addr)
 	return true;
 }
 
-static int bstmac_test_hfilt(struct bstgmac_priv *priv)
+int bstmac_test_hfilt(struct bstgmac_priv *priv)
 {
 	unsigned char gd_addr[ETH_ALEN] = {0xf1, 0xee, 0xdd, 0xcc, 0xbb, 0xaa};
 	unsigned char bd_addr[ETH_ALEN] = {0xf1, 0xff, 0xff, 0xff, 0xff, 0xff};
@@ -574,7 +670,7 @@ cleanup:
 	return ret;
 }
 
-static int bstmac_test_pfilt(struct bstgmac_priv *priv)
+int bstmac_test_pfilt(struct bstgmac_priv *priv)
 {
 	unsigned char gd_addr[ETH_ALEN] = {0xf0, 0x01, 0x44, 0x55, 0x66, 0x77};
 	unsigned char bd_addr[ETH_ALEN] = {0xf0, 0xff, 0xff, 0xff, 0xff, 0xff};
@@ -618,7 +714,7 @@ cleanup:
 	return ret;
 }
 
-static int bstmac_test_mcfilt(struct bstgmac_priv *priv)
+int bstmac_test_mcfilt(struct bstgmac_priv *priv)
 {
 	unsigned char uc_addr[ETH_ALEN] = {0xf0, 0xff, 0xff, 0xff, 0xff, 0xff};
 	unsigned char mc_addr[ETH_ALEN] = {0xf1, 0xff, 0xff, 0xff, 0xff, 0xff};
@@ -664,7 +760,7 @@ cleanup:
 	return ret;
 }
 
-static int bstmac_test_ucfilt(struct bstgmac_priv *priv)
+int bstmac_test_ucfilt(struct bstgmac_priv *priv)
 {
 	unsigned char uc_addr[ETH_ALEN] = {0xf0, 0xff, 0xff, 0xff, 0xff, 0xff};
 	unsigned char mc_addr[ETH_ALEN] = {0xf1, 0xff, 0xff, 0xff, 0xff, 0xff};
@@ -710,7 +806,6 @@ cleanup:
 	return ret;
 }
 
-#if 0
 static int bstmac_test_flowctrl_validate(struct sk_buff *skb,
 					 struct net_device *ndev,
 					 struct packet_type *pt,
@@ -732,17 +827,15 @@ out:
 	return 0;
 }
 
-static int bstmac_test_flowctrl(struct bstgmac_priv *priv)
+int bstmac_test_flowctrl(struct bstgmac_priv *priv)
 {
 	unsigned char paddr[ETH_ALEN] = {0x01, 0x80, 0xC2, 0x00, 0x00, 0x01};
-	struct phy_device *phydev = priv->dev->phydev;
+	// struct phy_device *phydev = priv->dev->phydev;
 	u32 rx_cnt = priv->plat->rx_queues_to_use;
 	struct bstmac_test_priv *tpriv;
 	unsigned int pkt_count;
 	int i, ret = 0;
 
-	if (!phydev || (!phydev->pause && !phydev->asym_pause))
-		return -EOPNOTSUPP;
 
 	tpriv = kzalloc(sizeof(*tpriv), GFP_KERNEL);
 	if (!tpriv)
@@ -763,8 +856,11 @@ static int bstmac_test_flowctrl(struct bstgmac_priv *priv)
 	pkt_count /= 1400;
 	pkt_count *= 2;
 
-	for (i = 0; i < rx_cnt; i++)
-		bstmac_stop_rx(priv, priv->ioaddr, i);
+	for (i = 0; i < rx_cnt; i++) {
+		bstgmac_stop_rx(priv, priv->ioaddr, i);
+		writel(XGMAC_RSE, priv->ioaddr + XGMAC_DMA_CH_STATUS(i));   //clear interupt
+		bstgmac_disable_dma_irq_bits(priv, priv->ioaddr, i, XGMAC_RSE);
+	}
 
 	ret = dev_set_promiscuity(priv->dev, 1);
 	if (ret)
@@ -789,21 +885,27 @@ static int bstmac_test_flowctrl(struct bstgmac_priv *priv)
 	}
 
 	/* Wait for some time in case RX Watchdog is enabled */
-	msleep(200);
+	msleep(20);
 
 	for (i = 0; i < rx_cnt; i++) {
-		struct bstmac_channel *ch = &priv->channel[i];
+		struct bstgmac_channel *ch = &priv->rx_channel[i];
 		u32 tail;
 
 		tail = priv->rx_queue[i].dma_rx_phy +
 			(priv->dma_rx_size * sizeof(struct dma_desc));
 
-		bstmac_set_rx_tail_ptr(priv, priv->ioaddr, tail, i);
-		bstmac_start_rx(priv, priv->ioaddr, i);
+		bstgmac_set_rx_tail_ptr(priv, priv->ioaddr, tail, i);
+		bstgmac_start_rx(priv, priv->ioaddr, i);
 
 		local_bh_disable();
-		napi_reschedule(&ch->rx_napi);
+		if (priv->plat->dma_cfg->dma_int_mode != DMA_INT_M_0) {
+			napi_reschedule(&ch->rnapi);
+		} else {
+			napi_reschedule(&ch->napi);
+		}
 		local_bh_enable();
+
+		bstgmac_enable_dma_irq_bits(priv, priv->ioaddr, i, XGMAC_RSE);
 	}
 
 	wait_for_completion_timeout(&tpriv->comp, bstmac_LB_TIMEOUT);
@@ -817,6 +919,7 @@ cleanup:
 	return ret;
 }
 
+#if 0
 static int bstmac_test_rss(struct bstgmac_priv *priv)
 {
 	struct bstmac_packet_attrs attr = { };
@@ -1434,14 +1537,14 @@ static int __bstmac_test_l3filt(struct bstgmac_priv *priv, u32 dst, u32 src,
 }
 #endif
 
-static int bstmac_test_l3filt_da(struct bstgmac_priv *priv)
+int bstmac_test_l3filt_da(struct bstgmac_priv *priv)
 {
 	u32 addr = 0x10203040;
 
 	return __bstmac_test_l3filt(priv, addr, 0, ~0, 0);
 }
 
-static int bstmac_test_l3filt_sa(struct bstgmac_priv *priv)
+int bstmac_test_l3filt_sa(struct bstgmac_priv *priv)
 {
 	u32 addr = 0x10203040;
 
@@ -1565,28 +1668,28 @@ static int __bstmac_test_l4filt(struct bstgmac_priv *priv, u32 dst, u32 src,
 }
 #endif
 
-static int bstmac_test_l4filt_da_tcp(struct bstgmac_priv *priv)
+int bstmac_test_l4filt_da_tcp(struct bstgmac_priv *priv)
 {
 	u16 dummy_port = 0x123;
 
 	return __bstmac_test_l4filt(priv, dummy_port, 0, ~0, 0, false);
 }
 
-static int bstmac_test_l4filt_sa_tcp(struct bstgmac_priv *priv)
+int bstmac_test_l4filt_sa_tcp(struct bstgmac_priv *priv)
 {
 	u16 dummy_port = 0x123;
 
 	return __bstmac_test_l4filt(priv, 0, dummy_port, 0, ~0, false);
 }
 
-static int bstmac_test_l4filt_da_udp(struct bstgmac_priv *priv)
+int bstmac_test_l4filt_da_udp(struct bstgmac_priv *priv)
 {
 	u16 dummy_port = 0x123;
 
 	return __bstmac_test_l4filt(priv, dummy_port, 0, ~0, 0, true);
 }
 
-static int bstmac_test_l4filt_sa_udp(struct bstgmac_priv *priv)
+int bstmac_test_l4filt_sa_udp(struct bstgmac_priv *priv)
 {
 	u16 dummy_port = 0x123;
 
@@ -1830,6 +1933,459 @@ fail_disable:
 	return ret;
 }
 
+static int bstmac_test_ptp(struct bstgmac_priv *priv)
+{
+	unsigned char mc_addr[ETH_ALEN] = {0x01, 0x1B, 0x19, 0x00, 0x00, 0x00};
+	struct bstmac_packet_attrs attr = { };
+	int ret;
+
+	if (bstmac_filter_check(priv))
+		return -EOPNOTSUPP;
+	if (netdev_mc_count(priv->dev) >= priv->hw->multicast_filter_bins)
+		return -EOPNOTSUPP;
+
+	ret = dev_mc_add(priv->dev, mc_addr);
+	if (ret)
+		return ret;
+
+	attr.ieee_1588 = true;
+	attr.dst = mc_addr;
+
+	/* Shall receive packet */
+	ret = __bstmac_test_loopback(priv, &attr);
+	if (ret)
+		goto cleanup;
+
+cleanup:
+	dev_mc_del(priv->dev, mc_addr);
+	return ret;
+}
+
+static int bstmac_test_coe(struct bstgmac_priv *priv)
+{
+	unsigned char mc_addr[ETH_ALEN] = {0xf1, 0x01, 0x44, 0x55, 0x66, 0x77};
+	struct bstmac_packet_attrs attr = { };
+	int ret;
+
+	ret = dev_mc_add(priv->dev, mc_addr);
+	if (ret)
+		return ret;
+
+	attr.dst = mc_addr;
+
+	/* Shall receive packet */
+	ret = __bstmac_test_loopback(priv, &attr);
+	if (ret)
+		goto cleanup;
+
+	/* Do not fill checksum */
+	attr.non_csum = 1;
+
+	/* Shall NOT receive packet */
+	ret = __bstmac_test_loopback(priv, &attr);
+	ret = ret ? 0 : -EINVAL;
+
+cleanup:
+	dev_mc_del(priv->dev, mc_addr);
+	return ret;
+}
+
+// 函数：构造并发送IPv6数据包
+static struct sk_buff* build_ipv6_packet(struct bstgmac_priv *priv,
+								char *src_addr, char *dst_addr)
+{
+    struct sk_buff *skb;
+    struct udphdr *udp;
+    struct ipv6hdr *ip6;
+    size_t udp_len;
+    int total_len;
+	struct bstmachdr *shdr;
+	struct ethhdr *ehdr;
+
+    // 1. 计算包长度
+    udp_len = sizeof(struct udphdr) + sizeof(struct bstmachdr);
+    total_len = sizeof(struct ipv6hdr) + udp_len;
+    
+    // 2. 分配SKB缓冲区
+    skb = alloc_skb(ETH_HLEN + total_len, GFP_ATOMIC);
+    if (!skb) {
+        pr_err("Failed to allocate skb\n");
+        return NULL;
+    }
+    // 设置预留空间（网络和传输层头部）
+    skb_reserve(skb, ETH_HLEN);
+
+    // 3. 设置IPv6头部
+    ip6 = skb_put_zero(skb, sizeof(struct ipv6hdr));
+    ip6->version = 6;
+    ip6->priority = 0;
+    memset(ip6->flow_lbl, 0, sizeof(ip6->flow_lbl));
+    ip6->payload_len = htons(udp_len);
+    ip6->nexthdr = IPPROTO_UDP;  // 下一头部为UDP
+    ip6->hop_limit = 64;         // TTL
+    
+    // 设置源和目标地址
+    memcpy(&ip6->saddr, src_addr, sizeof(struct in6_addr));
+    memcpy(&ip6->daddr, dst_addr, sizeof(struct in6_addr));
+    
+    // 重置网络层头部位置
+    skb_reset_network_header(skb);
+    
+    // 4. 设置UDP头部
+    udp = skb_put_zero(skb, sizeof(struct udphdr)); 
+    udp->dest = htons(0x5678);
+    udp->len = htons(udp_len);
+    
+    // 5. 添加数据载荷
+    shdr = skb_put(skb, sizeof(struct bstmachdr));
+	shdr->version = 0;
+	shdr->magic = cpu_to_be64(bstmac_TEST_PKT_MAGIC);
+	shdr->id = bstmac_test_next_id++;
+
+    /* 6. 设置传输层头部位置（UDP头部位置）*/
+	skb_set_transport_header(skb, sizeof(struct ipv6hdr));
+
+	/* 7. 计算UDP校验和（包括伪头部、UDP头部和负载）*/
+	// 注意：计算校验和需要完整的UDP段（头+负载）
+	udp->check = csum_ipv6_magic(&ip6->saddr, &ip6->daddr,
+				     udp_len, IPPROTO_UDP,
+				     csum_partial(udp, udp_len, 0));
+	// 8.添加mac头
+	ehdr = skb_push(skb, ETH_HLEN);
+    memset(ehdr, 0, ETH_HLEN);
+	ether_addr_copy(ehdr->h_dest, priv->dev->dev_addr);
+	ehdr->h_proto = htons(ETH_P_IPV6);
+	skb_reset_mac_header(skb);
+	
+	// 9. 设置协议类型
+    skb->pkt_type = PACKET_HOST;
+	skb->dev = priv->dev;
+    skb->protocol = htons(ETH_P_IPV6);
+	skb->priority = 0;
+	// // 10. 验证数据包完整性
+    // if (skb_headroom(skb) < ETH_HLEN) {
+    //     pr_err("Insufficient headroom: %d < %d\n",
+    //               skb_headroom(skb), ETH_HLEN);
+    //     kfree_skb(skb);
+    //     return NULL;
+    // }
+
+	return skb;
+}
+
+static int bstmac_test_ipv6_loopback_validate(struct sk_buff *skb,
+					 struct net_device *ndev,
+					 struct packet_type *pt,
+					 struct net_device *orig_ndev)
+{
+	struct bstmac_test_priv *tpriv = pt->af_packet_priv;
+	const unsigned char *dst = tpriv->packet->dst;
+	struct bstmachdr *shdr;
+	struct ethhdr *ehdr;
+	struct udphdr *uhdr;
+	struct ipv6hdr *ip6h;
+
+	skb = skb_unshare(skb, GFP_ATOMIC);
+	if (!skb) {
+		pr_err("%s line %d\n", __func__, __LINE__);
+		goto out;
+	}
+	if (skb_linearize(skb)) {
+		pr_err("%s line %d\n", __func__, __LINE__);
+		goto out;
+	}
+	if (skb_headlen(skb) < (bstmac_TEST_IPV6PKT_SIZE - ETH_HLEN)) {
+		pr_err("%s line %d\n", __func__, __LINE__);
+		goto out;
+	}
+	ehdr = (struct ethhdr *)skb_mac_header(skb);
+	if (dst) {
+		if (!ether_addr_equal_unaligned(ehdr->h_dest, dst)) {
+			pr_err("%s line %d\n", __func__, __LINE__);
+			goto out;
+		}
+	}
+
+	ip6h = ipv6_hdr(skb);
+	if (ip6h->nexthdr != IPPROTO_UDP) {
+		pr_err("%s line %d\n", __func__, __LINE__);
+		goto out;
+	}
+	uhdr = udp_hdr(skb);
+	if (uhdr->dest != htons(tpriv->packet->dport)) {
+		pr_err("%s line %d dest 0x%x dport 0x%x\n", __func__, __LINE__, uhdr->dest, htons(tpriv->packet->dport));
+		goto out;
+	}
+	shdr = (struct bstmachdr *)((u8 *)uhdr + sizeof(*uhdr));
+	
+	if (shdr->magic != cpu_to_be64(bstmac_TEST_PKT_MAGIC)) {
+		pr_err("%s line %d\n", __func__, __LINE__);
+		goto out;
+	}
+	tpriv->ok = true;
+	complete(&tpriv->comp);
+out:
+	kfree_skb(skb);
+	return 0;
+}
+
+static int __bstmac_test_ipv6_loopback(struct bstgmac_priv *priv,
+				  struct bstmac_packet_attrs *attr)
+{	
+	struct bstmac_test_priv *tpriv;
+	struct sk_buff *skb = NULL;
+	int ret = 0;
+	char src_addr[16] = {0x20,0x01,0x20,0x01,0x20,0x01,0x20,0x01,0x20,0x01,0x00,0x00,0x00,
+						0x00,0x01,0x58};
+	char dst_addr[16] = {0x20,0x01,0x20,0x01,0x20,0x01,0x20,0x01,0x20,0x01,0x00,0x00,0x00,
+						0x00,0x01,0x50};
+
+	tpriv = kzalloc(sizeof(*tpriv), GFP_KERNEL);
+	if (!tpriv)
+		return -ENOMEM;
+
+	tpriv->ok = false;
+	init_completion(&tpriv->comp);
+
+	tpriv->pt.type = htons(ETH_P_IPV6);
+	tpriv->pt.func = bstmac_test_ipv6_loopback_validate;
+	tpriv->pt.dev = priv->dev;
+	tpriv->pt.af_packet_priv = tpriv;
+	tpriv->packet = attr;
+	dev_add_pack(&tpriv->pt);
+
+	skb = build_ipv6_packet(priv, src_addr, dst_addr);
+	if (!skb) {
+		ret = -ENOMEM;
+		goto cleanup;
+	}
+
+	ret = dev_direct_xmit(skb, 0);
+	if (ret) {
+		pr_err("%s line %d ret %d\n", __func__, __LINE__, ret);
+		goto cleanup;
+	}
+	if (!attr->timeout)
+		attr->timeout = bstmac_LB_TIMEOUT;
+
+	wait_for_completion_timeout(&tpriv->comp, attr->timeout);
+	ret = tpriv->ok ? 0 : -ETIMEDOUT;
+
+cleanup:
+	dev_remove_pack(&tpriv->pt);
+	kfree(tpriv);
+	return ret;
+
+    ret = dev_direct_xmit(skb, 0);
+    if (ret) {
+        pr_err("Failed to send packet: %d\n", ret);
+    }
+
+	return 0;
+}
+
+int bstmac_test_ipv6_l3filt(struct bstgmac_priv *priv, char *dst, char *src,
+				char *dst_mask, char *src_mask)
+{
+	struct flow_dissector_key_ipv6_addrs key, mask;
+	unsigned long dummy_cookie = 0xdeadbeef;
+	struct bstmac_packet_attrs attr = { };
+	struct flow_dissector *dissector;
+	struct flow_cls_offload *cls;
+	int ret, old_enable = 0;
+	struct flow_rule *rule;
+
+	if (!tc_can_offload(priv->dev))
+		return -EOPNOTSUPP;
+	if (!priv->dma_cap.l3l4fnum)
+		return -EOPNOTSUPP;
+	if (priv->rss.enable) {
+		old_enable = priv->rss.enable;
+		priv->rss.enable = false;
+		bstgmac_rss_configure(priv, priv->hw, NULL,
+				     priv->plat->rx_queues_to_use);
+	}
+
+	dissector = kzalloc(sizeof(*dissector), GFP_KERNEL);
+	if (!dissector) {
+		ret = -ENOMEM;
+		goto cleanup_rss;
+	}
+
+	dissector->used_keys |= (1 << FLOW_DISSECTOR_KEY_IPV6_ADDRS);
+	dissector->offset[FLOW_DISSECTOR_KEY_IPV6_ADDRS] = 0;
+
+	cls = kzalloc(sizeof(*cls), GFP_KERNEL);
+	if (!cls) {
+		ret = -ENOMEM;
+		goto cleanup_dissector;
+	}
+
+	cls->common.chain_index = 0;
+	cls->command = FLOW_CLS_REPLACE;
+	cls->cookie = dummy_cookie;
+
+	rule = kzalloc(struct_size(rule, action.entries, 1), GFP_KERNEL);
+	if (!rule) {
+		ret = -ENOMEM;
+		goto cleanup_cls;
+	}
+
+	rule->match.dissector = dissector;
+	rule->match.key = (void *)&key;
+	rule->match.mask = (void *)&mask;
+
+	memcpy(&key.src, src, 16);
+	memcpy(&key.dst, dst, 16);
+	memcpy(&mask.src, src_mask, 16);
+	memcpy(&mask.dst, dst_mask, 16);
+
+	cls->rule = rule;
+
+	rule->action.entries[0].id = FLOW_ACTION_DROP;
+	rule->action.entries[0].hw_stats = FLOW_ACTION_HW_STATS_ANY;
+	rule->action.num_entries = 1;
+
+	attr.dst = priv->dev->dev_addr;
+	attr.dport = 0x5678;
+
+	/* Shall receive packet */
+	ret = __bstmac_test_ipv6_loopback(priv, &attr);
+	if (ret) {
+		pr_err("%s line %d ret %d\n", __func__, __LINE__, ret);
+		goto cleanup_rule;
+	}
+	ret = bstgmac_tc_setup_cls(priv, priv, cls);
+	if (ret) {
+		pr_err("%s line %d ret %d\n", __func__, __LINE__, ret);
+		goto cleanup_rule;
+	}
+	/* Shall NOT receive packet */
+	ret = __bstmac_test_ipv6_loopback(priv, &attr);
+	ret = ret ? 0 : -EINVAL;
+
+	cls->command = FLOW_CLS_DESTROY;
+	bstgmac_tc_setup_cls(priv, priv, cls);
+cleanup_rule:
+	kfree(rule);
+cleanup_cls:
+	kfree(cls);
+cleanup_dissector:
+	kfree(dissector);
+cleanup_rss:
+	if (old_enable) {
+		priv->rss.enable = old_enable;
+		bstgmac_rss_configure(priv, priv->hw, &priv->rss,
+				     priv->plat->rx_queues_to_use);
+	}
+
+	return ret;
+}
+
+int bstmac_test_ipv6_l3filt_da(struct bstgmac_priv *priv)
+{
+	char dst_addr[16] = {0x20,0x01,0x20,0x01,0x20,0x01,0x20,0x01,0x20,0x01,0x00,0x00,0x00,
+						0x00,0x01,0x50};
+	char dst_msk[16] = {0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+		0xff, 0xff,	0xff, 0xff,0xff, 0xff, 0xff, 0xff};
+	char src_addr[16] = {0};
+	char src_msk[16] = {0};
+
+	return bstmac_test_ipv6_l3filt(priv, dst_addr, src_addr, dst_msk, src_msk);
+}
+
+int bstmac_test_ipv6_l3filt_sa(struct bstgmac_priv *priv)
+{
+	char src_addr[16] = {0x20,0x01,0x20,0x01,0x20,0x01,0x20,0x01,0x20,0x01,0x00,0x00,0x00,
+						0x00,0x01,0x58};
+	char src_msk[16] = {0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+		0xff, 0xff,	0xff, 0xff,0xff, 0xff, 0xff, 0xff};
+	char dst_addr[16] = {0};
+	char dst_msk[16] = {0};
+
+	return bstmac_test_ipv6_l3filt(priv, dst_addr, src_addr, dst_msk, src_msk);
+}
+
+static int __bstmac_test_mchpacket(struct bstgmac_priv *priv, u16 queue)
+{
+	struct bstmac_packet_attrs attr = { };
+
+	attr.dst = priv->dev->dev_addr;
+	attr.size = 64;
+	attr.queue_mapping = queue;
+
+	return __bstmac_test_loopback(priv, &attr);
+}
+
+int bstmac_test_multichannel(struct bstgmac_priv *priv)
+{
+	u32 chan, val, tx_cnt = priv->plat->tx_queues_to_use;
+	int ret;
+
+	if (tx_cnt <= 1)
+		return -EOPNOTSUPP;
+
+	val = readl(priv->ioaddr+0xa4);
+	for (chan = 0; chan < tx_cnt; chan++) {
+		priv->tx_coal_frames[chan] = 1;
+		writel(chan * 0x11111, priv->ioaddr+0xa4);
+		ret = __bstmac_test_mchpacket(priv, chan);
+		if (ret)
+			goto bak_val;
+
+        switch (chan) {
+            case 0:
+				if (!priv->plat->bus_id) {
+					if ((priv->rx_irq_num != priv->perch_rx_irq[chan]) || (priv->tx_irq_num != priv->perch_tx_irq[chan]))
+						break;
+				}
+				if (priv->plat->bus_id) {
+					if ((priv->rx_irq_num != priv->perch_rx_irq[chan]) || (priv->tx_irq_num != priv->perch_tx_irq[chan]))
+						break;					
+				}
+                break;
+            case 1:
+				if (!priv->plat->bus_id){
+					if ((priv->rx_irq_num != priv->perch_rx_irq[chan]) || (priv->tx_irq_num != priv->perch_tx_irq[chan]))
+						break;
+				}
+				if (priv->plat->bus_id) {
+					if ((priv->rx_irq_num != priv->perch_rx_irq[chan]) || (priv->tx_irq_num != priv->perch_tx_irq[chan]))
+						break;					
+				}
+                break;
+            case 2:
+				if (!priv->plat->bus_id){
+					if ((priv->rx_irq_num != priv->perch_rx_irq[chan]) || (priv->tx_irq_num != priv->perch_tx_irq[chan]))
+						break;
+				}
+				if (priv->plat->bus_id) {
+					if ((priv->rx_irq_num != priv->perch_rx_irq[chan]) || (priv->tx_irq_num != priv->perch_tx_irq[chan]))
+						break;					
+				}
+                break;
+            case 3:
+				if (!priv->plat->bus_id){
+					if ((priv->rx_irq_num != priv->perch_rx_irq[chan]) || (priv->tx_irq_num != priv->perch_tx_irq[chan]))
+						break;
+				}
+				if (priv->plat->bus_id) {
+					if ((priv->rx_irq_num != priv->perch_rx_irq[chan]) || (priv->tx_irq_num != priv->perch_tx_irq[chan]))
+						break;					
+				}
+                break;
+            default:
+                break;
+		}
+bak_val:	
+		priv->tx_coal_frames[chan] = BSTGMAC_TX_FRAMES;
+	}
+	
+	writel(val, priv->ioaddr+0xa4);
+
+	return 0;
+}
+
 #if 0
 static struct task_struct	*mac_send_task = NULL;
 extern unsigned int send_pkt_type;
@@ -1996,12 +2552,14 @@ static const struct bstmac_test {
 	int lb;
 	int (*fn)(struct bstgmac_priv *priv);
 } bstmac_selftests[] = {
-#if 0	
+
     {
 		.name = "MAC Loopback               ",
 		.lb = BSTMAC_LOOPBACK_MAC,
 		.fn = bstmac_test_mac_loopback,
-	}, {
+	},
+#if 0
+	{
 		.name = "PHY Loopback               ",
 		.lb = BSTMAC_LOOPBACK_NONE, /* Test will handle it */
 		.fn = bstmac_test_phy_loopback,
@@ -2031,13 +2589,13 @@ static const struct bstmac_test {
 		.name = "UC Filter                  ",
 		.lb = BSTMAC_LOOPBACK_PHY,
 		.fn = bstmac_test_ucfilt,
-	},
-#if 0
-	{
+	},{
 		.name = "Flow Control               ",
 		.lb = BSTMAC_LOOPBACK_PHY,
 		.fn = bstmac_test_flowctrl,
-	}, {
+	},
+#if 0
+	{
 		.name = "RSS                        ",
 		.lb = BSTMAC_LOOPBACK_PHY,
 		.fn = bstmac_test_rss,
@@ -2139,10 +2697,18 @@ static const struct bstmac_test {
 		.fn = bstmac_send_pkt,
 	},
 #endif         
-    {
+	{
 		.name = "TBS (ETF Scheduler)        ",
 		.lb = BSTMAC_LOOPBACK_PHY,
 		.fn = bstmac_test_tbs,
+	},{
+		.name = "IEEE 1588        ",
+		.lb = BSTMAC_LOOPBACK_PHY,
+		.fn = bstmac_test_ptp,
+	},{
+		.name = "Checksum Offload Engine        ",
+		.lb = BSTMAC_LOOPBACK_PHY,
+		.fn = bstmac_test_coe,
 	},
 };
 

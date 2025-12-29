@@ -3513,6 +3513,15 @@ static inline dma_addr_t skb_frag_dma_map(struct device *dev,
 			    skb_frag_off(frag) + offset, size, dir);
 }
 
+static inline dma_addr_t skb_frag_dma_map_noflush(struct device *dev,
+					  const skb_frag_t *frag,
+					  size_t offset, size_t size,
+					  enum dma_data_direction dir)
+{
+	return dma_map_page_noflush(dev, skb_frag_page(frag),
+			    skb_frag_off(frag) + offset, size, dir);
+}
+
 static inline struct sk_buff *pskb_copy(struct sk_buff *skb,
 					gfp_t gfp_mask)
 {

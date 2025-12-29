@@ -1,0 +1,15 @@
+# SPDX-License-Identifier: GPL-2.0
+config COREIP_SMMMU_MULTIOS_BST
+	tristate "coreip_smmu support multi_os for BST"
+	depends on ARM_SMMU_V3 && ARCH_BSTC1200
+	select SMMU_MSGBX_R5MAP
+	default y
+	help
+	  Choose this option to enable shared coreip_smmu across multiple systems for BST.
+
+config SMMU_MSGBX_R5MAP
+	bool "By Msgbx notify safety-r5 create io-pgtable"
+	depends on BST_IPC_MSGBX
+	default n
+	help
+	  Choose this option to enable by msgbx notify safety-r5 to create a page table for BST.

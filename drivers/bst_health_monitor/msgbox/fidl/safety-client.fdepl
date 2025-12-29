@@ -1,0 +1,14 @@
+//sample-client.fdepl
+import "safety-inf.fdepl"
+
+define com.bst.ipc.deployment for provider as HealthmonitorClient {
+    ProviderType = Client
+    RTE = LinuxKernel
+    SrcEndID = CPU_6
+    FID = DEF
+    SID = 6
+    instance com.bst.ipc.safety.healthmonitor {
+        DstEndID = SAFETY_0
+        
+    }
+}

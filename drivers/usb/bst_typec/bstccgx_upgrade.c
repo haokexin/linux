@@ -121,8 +121,12 @@ void CLEAR_INTR_REG(struct regmap *regmap)
 bool INTR_REG_RAISED(struct regmap *regmap)
 {
 	u8 read_buffer[INTR_REG_BYTE_SIZE];
+	int i2c_ret;
 
-	regmap_raw_read(regmap, INTR_REG, read_buffer, INTR_REG_BYTE_SIZE);
+	i2c_ret = regmap_raw_read(regmap, INTR_REG, read_buffer, INTR_REG_BYTE_SIZE);
+	if (i2c_ret)
+		return false;
+
 	if (read_buffer[0] & 0x01)
 		return true;
 	return false;		//else
@@ -480,8 +484,6 @@ static void enable_flashing_mode(struct ccgx_upgrade_node *node)
  */
 static void waiting_for_intr(struct ccgx_upgrade_node *node)
 {
-
-	int timeout_count = 0;
 	u16 response = 0;
 
 	dev_dbg(node->dev, "State X: Waiting for INTR State\n");
@@ -490,9 +492,8 @@ static void waiting_for_intr(struct ccgx_upgrade_node *node)
 
 	/* Checks if at least the INTR register is raised OR if at least the INTR pin is active */
 	if (!INTR_REG_RAISED(node->regmap)) {
-		CLEAR_INTR_REG(node->regmap);
-		if (timeout_count++ > 2000) {	// 200 ms timeout minimum
-			node->waiting_for_intr_timeout = true;
+		node->waiting_for_intr_timeout = true;
+		if (node->timeout_count++ > 2000) {	// 200 ms timeout minimum
 			dev_dbg(node->dev, "Waiting for INTR Timeout\n");
 			node->current_state = ERROR_STATE;
 			node->next_state = ERROR_STATE;
@@ -507,11 +508,11 @@ static void waiting_for_intr(struct ccgx_upgrade_node *node)
 
 	/* Checks if response register returns the same response code as expected response */
 	/* INTR Flag raised before response register is updated.  Which is why this 2nd while loop is required */
-	timeout_count = 0;
+	node->timeout_count = 0;
 	response = return_response_register(node->regmap);
 	while ((u16) node->expected_response_code != response
 	       && (u16) node->alt_expected_response_code != response) {
-		if (timeout_count++ > 1500) {	// 1500 ms timeout
+		if (node->timeout_count++ > 1500) {	// 1500 ms timeout
 			dev_dbg(node->dev,
 				"Expected response code does not match actual response code\n");
 			node->incorrect_response_code_timeout = true;
@@ -662,14 +663,12 @@ static void reset_fw(struct ccgx_upgrade_node *node)
 /* Final Check: Ensures that CCGX isn't in bootloader mode after FW update.  If it is it means that FW image wasn't written properly. */
 static void final_check(struct ccgx_upgrade_node *node)
 {
-	int timeout_count = 0;
-
 	dev_dbg(node->dev, "State 9: Final Check State\n");
 	node->waiting_for_intr_timeout = false;
 
 	/* Checks to see if CCGX is in bootloader mode. If it is that means FW image isn't valid. */
 	while (IN_BOOTLOADER_MODE(node->regmap)) {
-		if (timeout_count++ > 200) {	//200ms timeout
+		if (node->timeout_count++ > 200) {	//200ms timeout
 			node->current_state = END_STATE;
 			return;
 
@@ -691,6 +690,7 @@ static void final_check(struct ccgx_upgrade_node *node)
 		return;
 	}
 
+	node->update_success_flag = true;
 }
 
 /* Error Handler: Printed error messages based on error type that is defined during particular states. */
@@ -820,6 +820,7 @@ void ccgx_fw_update_intrusive(struct ccgx_upgrade_node *node)
 			break;
 		}
 
+		node->timeout_count = 0;
 	}
 
 	/* Function is complete, update initial state setup complete flag to re-enable function initializations */
@@ -911,6 +912,7 @@ void ccgx_config_table_update(struct ccgx_upgrade_node *node)
 			node->current_state = END_STATE;
 			break;
 		}
+		node->timeout_count = 0;
 	}
 	/* Function is complete, update initial state setup complete flag to re-enable function initializations */
 	node->initial_state_setup_complete = false;
@@ -946,10 +948,16 @@ static int do_flash(struct ccgx_data *ctx, int mode)
 	node->regmap = ctx->regmap;
 	node->fw = fw;
 	node->dev = dev;
-	if (mode == FW_IMAGE)
-		ccgx_fw_update_intrusive(node);
-	else if (mode == FW_CFG)
-		ccgx_config_table_update(node);
+	node->update_success_flag = false;
+	do {
+		if (mode == FW_IMAGE)
+			ccgx_fw_update_intrusive(node);
+		else if (mode == FW_CFG)
+			ccgx_config_table_update(node);
+		mdelay(1);
+	} while (node->initial_state_setup_complete);
+	if (!node->update_success_flag)
+		err = -1;
 
 	release_firmware(fw);
 	return err;
@@ -964,17 +972,27 @@ static int ccg_fw_update(struct ccgx_data *ctx)
 		err = do_flash(ctx, FW_CFG);
 		if (!err)
 			dev_info(ctx->dev, "CCG CFG update successful\n");
+		else
+			dev_err(ctx->dev, "CCG CFG update failed\n");
 		break;
 	case UPDATE_FW_FLAG:
 		err = do_flash(ctx, FW_IMAGE);
 		if (!err)
 			dev_info(ctx->dev, "CCG FW update successful\n");
+		else
+			dev_err(ctx->dev, "CCG FW update failed\n");
 		break;
 	case UPDATE_CFG_FW_FLAG:
 		err = do_flash(ctx, FW_IMAGE);
+		if (err) {
+			dev_err(ctx->dev, "step-1: CCG FW update failed\n");
+			break;
+		}
 		err = do_flash(ctx, FW_CFG);
 		if (!err)
 			dev_info(ctx->dev, "CCG FW and CFG update successful\n");
+		else
+			dev_err(ctx->dev, "step-2: CCG CFG update failed\n");
 		break;
 	case UPDATE_NONE_FLAG:
 	default:

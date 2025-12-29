@@ -171,6 +171,15 @@ static inline void __iomem *ioremap_cache(phys_addr_t addr, size_t size)
 	return ioremap_prot(addr, size, PROT_NORMAL);
 }
 
+#define ioremap_nonshared ioremap_nonshared
+static inline void __iomem *ioremap_nonshared(phys_addr_t addr, size_t size)
+{
+	if (pfn_is_map_memory(__phys_to_pfn(addr)))
+		return (void __iomem *)__phys_to_virt(addr);
+
+	return ioremap_prot(addr, size, PROT_NORMAL_NONSHARED);
+}
+
 /*
  * More restrictive address range checking than the default implementation
  * (PHYS_OFFSET and PHYS_MASK taken into account).

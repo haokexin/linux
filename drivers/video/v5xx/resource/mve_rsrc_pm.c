@@ -141,7 +141,16 @@ static struct device_attribute sysfs_files[] =
 void mver_pm_init(struct device *dev)
 {
 #if defined(CONFIG_SYSFS) && defined(_DEBUG)
-    device_create_file(dev, &sysfs_files[0]);
+    /* begin 20241022
+    * fix: Coverity check issue CID:4582365
+    */
+    int err = -1;
+    err = device_create_file(dev, &sysfs_files[0]);
+    if (err)
+    {
+        MVE_LOG_PRINT(&mve_rsrc_log, MVE_LOG_ERROR, "device_create_file failed.");
+    }
+    /*end 20241022 */
 #endif
 }
 
@@ -196,7 +205,7 @@ int mver_pm_poweron(void)
 #else
     struct mve_pm_callback_conf *pm_conf;
     struct mve_dvfs_callback_conf *dvfs_conf;
-    printk("%s %d\n", __func__, __LINE__);
+    MVE_LOG_PRINT(&mve_rsrc_log, MVE_LOG_INFO,"%s %d\n", __func__, __LINE__);
     /* Enable clock and power to the hardware */
     pm_conf = (struct mve_pm_callback_conf *)mve_config_get_value(mve_rsrc_data.config,
                                                                   MVE_CONFIG_DEVICE_ATTR_POWER_CALLBACKS);
@@ -204,12 +213,12 @@ int mver_pm_poweron(void)
                                                                       MVE_CONFIG_DEVICE_ATTR_DVFS_CALLBACKS);
     if (NULL == pm_conf || NULL == dvfs_conf)
     {
-        printk("%s %d\n", __func__, __LINE__);
+        MVE_LOG_PRINT(&mve_rsrc_log, MVE_LOG_ERROR,"%s %d\n", __func__, __LINE__);
         return -ENXIO;
     }
-    printk("%s %d power_on_callback \n", __func__, __LINE__);
+    MVE_LOG_PRINT(&mve_rsrc_log, MVE_LOG_INFO,"%s %d power_on_callback \n", __func__, __LINE__);
     pm_conf->power_on_callback();
-    printk("%s %d dvfs_conf->enable_clock \n", __func__, __LINE__);
+    MVE_LOG_PRINT(&mve_rsrc_log, MVE_LOG_INFO,"%s %d dvfs_conf->enable_clock \n", __func__, __LINE__);
     dvfs_conf->enable_clock();
 
     /* Resume suspended sessions */
@@ -225,7 +234,7 @@ int mver_pm_poweroff(void)
     struct mve_pm_callback_conf *pm_conf;
     struct mve_dvfs_callback_conf *dvfs_conf;
 
-    printk("%s %d\n", __func__, __LINE__);
+    MVE_LOG_PRINT(&mve_rsrc_log, MVE_LOG_INFO,"%s %d\n", __func__, __LINE__);
     /* Suspend all running sessions */
     mver_scheduler_suspend();
 
@@ -236,14 +245,14 @@ int mver_pm_poweroff(void)
                                                                       MVE_CONFIG_DEVICE_ATTR_DVFS_CALLBACKS);
     if (NULL == pm_conf || NULL == dvfs_conf)
     {
-        printk("%s %d\n", __func__, __LINE__);
+        MVE_LOG_PRINT(&mve_rsrc_log, MVE_LOG_ERROR,"%s %d\n", __func__, __LINE__);
         return -ENXIO;
     }
 
-    printk("%s %d disable_clock\n", __func__, __LINE__);
+    MVE_LOG_PRINT(&mve_rsrc_log, MVE_LOG_INFO,"%s %d disable_clock\n", __func__, __LINE__);
     dvfs_conf->disable_clock();
     pm_conf->power_off_callback();
-    printk("%s %d power_off_callback \n", __func__, __LINE__);
+    MVE_LOG_PRINT(&mve_rsrc_log, MVE_LOG_INFO,"%s %d power_off_callback \n", __func__, __LINE__);
 #endif
     return 0;
 }
@@ -265,19 +274,19 @@ int mver_pm_resume(struct device *dev)
 
 int mver_pm_runtime_suspend(struct device *dev)
 {
-    printk("%s %d\n", __func__, __LINE__);
+    MVE_LOG_PRINT(&mve_rsrc_log, MVE_LOG_INFO,"%s %d\n", __func__, __LINE__);
     return mver_pm_suspend(dev);
 }
 
 int mver_pm_runtime_resume(struct device *dev)
 {
-    printk("%s %d\n", __func__, __LINE__);
+    MVE_LOG_PRINT(&mve_rsrc_log, MVE_LOG_INFO,"%s %d\n", __func__, __LINE__);
     return mver_pm_resume(dev);
 }
 
 int mver_pm_runtime_idle(struct device *dev)
 {
-    printk("%s %d\n", __func__, __LINE__);
+    MVE_LOG_PRINT(&mve_rsrc_log, MVE_LOG_INFO,"%s %d\n", __func__, __LINE__);
     pm_runtime_suspend(dev);
     return 1;
 }

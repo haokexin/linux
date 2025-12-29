@@ -274,6 +274,12 @@ static inline bool dev_is_dma_coherent(struct device *dev)
 {
 	return dev->dma_coherent;
 }
+#ifdef CONFIG_BST_OF_DMA_NEED_SYNC_TO_POP
+static inline bool dev_dma_need_sync_to_pop(struct device *dev)
+{
+	return dev->dma_need_sync_to_pop;
+}
+#endif
 #else
 static inline bool dev_is_dma_coherent(struct device *dev)
 {
@@ -317,6 +323,10 @@ static inline pgprot_t dma_pgprot(struct device *dev, pgprot_t prot,
 #ifdef CONFIG_ARCH_HAS_SYNC_DMA_FOR_DEVICE
 void arch_sync_dma_for_device(phys_addr_t paddr, size_t size,
 		enum dma_data_direction dir);
+#ifdef CONFIG_BST_OF_DMA_NEED_SYNC_TO_POP
+void arch_sync_dma_for_device_pop(phys_addr_t paddr, size_t size,
+		enum dma_data_direction dir);
+#endif
 #else
 static inline void arch_sync_dma_for_device(phys_addr_t paddr, size_t size,
 		enum dma_data_direction dir)
@@ -378,6 +388,10 @@ bool arch_dma_unmap_sg_direct(struct device *dev, struct scatterlist *sg,
 #ifdef CONFIG_ARCH_HAS_SETUP_DMA_OPS
 void arch_setup_dma_ops(struct device *dev, u64 dma_base, u64 size,
 		const struct iommu_ops *iommu, bool coherent);
+#ifdef CONFIG_BST_OF_DMA_NEED_SYNC_TO_POP
+void bst_arch_setup_dma_ops(struct device *dev, u64 dma_base, u64 size,
+		const struct iommu_ops *iommu, bool coherent_pop);
+#endif
 #else
 static inline void arch_setup_dma_ops(struct device *dev, u64 dma_base,
 		u64 size, const struct iommu_ops *iommu, bool coherent)

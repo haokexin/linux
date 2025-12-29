@@ -1,26 +1,33 @@
-// SPDX-License-Identifier: GPL-2.0 OR BSD-3-Clause
+// SPDX-License-Identifier: GPL-2.0 OR Apache 2.0
 /*
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2 of the License, or
- * (at your option) any later version.
+ * Copyright (c) 2024 Black Sesame Technologies
  *
- * This program is also distributed under the terms of the BSD 3-Clause
+ * This program is also distributed under the terms of the Apache 2.0
  * License.
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
- * Copyright (C) 2023 Black Sesame Technologies. Inc.
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 
-/* This file is auto generated for message box v1.1.0.
+/* This file is auto generated for message box v2.0.0.
  * All manual modifications will be LOST by next generation.
  * It is recommended NOT modify it.
- * Generator Version: francaidl 797e374 msgbx_ipc c468e33
  */
 
 #include "backlight_client.h"
 
 // macro definitions
 #define CID SAFETY_0
+#define CCID 0
+#define CID_MASK (0x1U << 26)
 #define MAJOR 1U
 #define MINOR 0U
 
@@ -38,6 +45,7 @@ static backlight_client_ext_t *s_ext;
 #ifndef IPC_RTE_BAREMETAL
 
 struct _virt_bl_request_out_t {
+	DECL_SEM(sem)
 	backlight_virt_bl_msg_t *rsp;
 	backlight_ErrorEnum_t *err;
 };
@@ -88,6 +96,8 @@ static void virt_bl_request_sync_callback(
 	out->rsp->content.size = rsp.content.size;
 	out->rsp->content.data = rsp.content.data;
 	*out->err = err;
+
+	IPC_SEM_POST(&out->sem);
 }
 
 static int32_t call_virt_bl_request_sync(const backlight_virt_bl_msg_t req,
@@ -106,6 +116,7 @@ static int32_t call_virt_bl_request_sync(const backlight_virt_bl_msg_t req,
 
 	if (!data || !s_ext)
 		return -ERR_APP_PARAM;
+	IPC_SEM_INIT(&out.sem, 0);
 	ser = &serdes;
 	(void)ipc_ser_init(ser);
 
@@ -116,24 +127,23 @@ static int32_t call_virt_bl_request_sync(const backlight_virt_bl_msg_t req,
 	}
 
 	// send request
-	ret = send_request(data, ser, s_ext->cid, CMD_METHOD_VIRT_BL_REQUEST,
-				virt_bl_request_sync_callback, &out, ext_buf);
+	ret = send_request(data, s_ext->virt_bl_request_registry, ser, s_ext->cid,
+			CMD_METHOD_VIRT_BL_REQUEST, virt_bl_request_sync_callback, &out, ext_buf);
 	if (ret < 0 || ret >= IPC_TOKEN_NUM) {
-		IPC_LOG_ERR("send method fail %d.\n", ret);
+		IPC_LOG_ERR("send method fail %" PRId32 ".\n", ret);
 		return ret;
 	}
 
 	//wait for reply
-	reg = &data->method_registry[ret];
-	reg->disable_gc = true;
+	reg = &s_ext->virt_bl_request_registry[ret];
 	if (timeout_ms <= 0)
-		ret = wait_on_registry(reg);
+		IPC_SEM_WAIT(&out.sem);
 	else
-		ret = timedwait_on_registry(reg, timeout_ms);
-	if (ret < 0) {
-		clear_registry(reg);
+		IPC_SEM_TIMED_WAIT(&out.sem, timeout_ms);
+	if (ret < 0)
 		IPC_LOG_ERR("wait timeout\n");
-	}
+	clear_registry(reg);
+	IPC_SEM_DESTROY(&out.sem);
 
 	return ret;
 }
@@ -145,7 +155,7 @@ static int32_t call_virt_bl_request_async(const backlight_virt_bl_msg_t req,
 				des_buf_t *ext_buf)
 {
 	int32_t ret = 0;
-#ifdef IPC_RTE_BAREMETAL
+#ifdef IPC_SHARED_SERIALIZER
 	serdes_t *ser = NULL;
 #else
 	serdes_t serdes = { 0 };
@@ -155,7 +165,7 @@ static int32_t call_virt_bl_request_async(const backlight_virt_bl_msg_t req,
 
 	if (!data || !s_ext)
 		return -ERR_APP_PARAM;
-#ifdef IPC_RTE_BAREMETAL
+#ifdef IPC_SHARED_SERIALIZER
 	ser = &data->serializer;
 #endif
 	(void)ipc_ser_init(ser);
@@ -167,45 +177,48 @@ static int32_t call_virt_bl_request_async(const backlight_virt_bl_msg_t req,
 	}
 
 	// send request
-	ret = send_request(data, ser, s_ext->cid, CMD_METHOD_VIRT_BL_REQUEST,
-				cb, ext, ext_buf);
+	ret = send_request(data, s_ext->virt_bl_request_registry, ser, s_ext->cid,
+			CMD_METHOD_VIRT_BL_REQUEST, cb, ext, ext_buf);
 	if (ret < 0 || ret >= IPC_TOKEN_NUM) {
-		IPC_LOG_ERR("send method fail %d.\n", ret);
+		IPC_LOG_ERR("send method fail %" PRId32 ".\n", ret);
 		return ret;
 	}
 
 	return RESULT_SUCCESS;
 }
 
-static inline int32_t call_virt_bl_request_callback(serdes_t *des)
+static inline int32_t call_virt_bl_request_callback(des_buf_t *des)
 {
 	int32_t ret = 0;
 	callback_registration_t *reg = NULL;
 	des_buf_t *buf = NULL;
-	uint32_t len = 0;
 	com_client_data_t *data = s_data;
+	backlight_virt_bl_request_callback_t cb = NULL;
 	backlight_virt_bl_msg_t rsp = { 0 };
 	backlight_ErrorEnum_t err = 0;
-	backlight_virt_bl_request_callback_t cb;
 
-	if (!des || !data)
+
+	if (!des || !data || !s_ext)
 		return -ERR_APP_PARAM;
 
-	reg = &data->method_registry[des->header.tok];
-	if (!reg->busy || reg->cmd != CMD_METHOD_VIRT_BL_REQUEST) {
+	reg = &s_ext->virt_bl_request_registry[des->header.tok];
+	if (!reg->busy) {
 		IPC_LOG_ERR("callback registry is invalid.\n");
 		return -ERR_APP_TOK;
 	}
-	buf = reg->ext_buf ? reg->ext_buf : &data->des_buf;
-	clear_des_buf(buf);
+	if (reg->ext_buf) {
+		buf = reg->ext_buf;
+		(void)ipc_memcpy(buf, des, sizeof(des_buf_t));
+	}
+	else
+		buf = des;
+	// set info (for callback function)
 	data->info.uuid = ipc_msg_get_uuid(des->header);
-	data->info.timestamp = des->recv_end_time;
+	data->info.timestamp = des->timestamp;
 
 	// deserialize arguments
-	len = ipc_des_get_all(des, (uint8_t *)buf->data_buf);
-	if (len <= 0)
+	if (buf->unavail_data_size >= IPC_MAX_DATA_SIZE)
 		return -ERR_APP_SERDES;
-	buf->unavail_data_size = IPC_MAX_DATA_SIZE - len;
 
 	if (ret >= 0)
 		ret = deserialize_backlight_ErrorEnum(buf, &err);
@@ -223,10 +236,6 @@ static inline int32_t call_virt_bl_request_callback(serdes_t *des)
 	cb = (backlight_virt_bl_request_callback_t)(reg->cb);
 	if (cb)
 		cb(rsp, err, reg->ext, &data->info);
-#ifndef IPC_RTE_BAREMETAL
-	notify_callback_registry(reg);
-#endif
-	clear_registry(reg);
 
 	return RESULT_SUCCESS;
 }
@@ -251,17 +260,18 @@ static int32_t subscribe_virt_bl_broadcast(
 
 	ser = &data->serializer;
 
-	// send request
-	ret = send_request(data, ser, s_ext->cid, CMD_METHOD_SUB_VIRT_BL_BROADCAST,
-				cb2, ext2, NULL);
-	if (ret < 0 || ret >= IPC_TOKEN_NUM) {
-		IPC_LOG_ERR("send fail %d.\n", ret);
-		return ret;
-	}
-
 	// set registry
 	s_ext->virt_bl_broadcast_registry.busy = true;
-	(void)add_registry(&s_ext->virt_bl_broadcast_registry, (void *)cb, ext, ext_buf);
+	(void)set_registry(&s_ext->virt_bl_broadcast_registry, (void *)cb, ext, ext_buf);
+
+	// send request
+	ret = send_request(data, data->common_registry, ser, s_ext->cid,
+			CMD_METHOD_SUB_VIRT_BL_BROADCAST, cb2, ext2, NULL);
+	if (ret < 0 || ret >= IPC_TOKEN_NUM) {
+		IPC_LOG_ERR("send fail %" PRId32 ".\n", ret);
+		clear_registry(&s_ext->virt_bl_broadcast_registry);
+		return ret;
+	}
 
 	return RESULT_SUCCESS;
 }
@@ -273,27 +283,26 @@ static int32_t unsubscribe_virt_bl_broadcast(broadcast_sub_unsub_callback_t cb, 
 	serdes_t *ser = NULL;
 	com_client_data_t *data = s_data;
 
-	if (!data)
+	if (!data || !s_ext || !s_ext->virt_bl_broadcast_registry.busy)
 		return -ERR_APP_PARAM;
 
 	ser = &data->serializer;
 
 	// send request
-	ret = send_request(data, ser, s_ext->cid, CMD_METHOD_UNSUB_VIRT_BL_BROADCAST,
-				cb, ext, NULL);
+	ret = send_request(data, data->common_registry, ser, s_ext->cid,
+			CMD_METHOD_UNSUB_VIRT_BL_BROADCAST, cb, ext, NULL);
 	if (ret < 0 || ret >= IPC_TOKEN_NUM) {
-		IPC_LOG_ERR("send fail %d.\n", ret);
+		IPC_LOG_ERR("send fail %" PRId32 ".\n", ret);
 		return ret;
 	}
 
 	return RESULT_SUCCESS;
 }
 
-static inline int32_t call_virt_bl_broadcast_callback(serdes_t *des)
+static inline int32_t call_virt_bl_broadcast_callback(des_buf_t *des)
 {
 	int32_t ret = 0;
 	des_buf_t *buf = NULL;
-	uint32_t len = 0;
 	com_client_data_t *data = s_data;
 	callback_registration_t *reg = NULL;
 	backlight_virt_bl_broadcast_callback_t cb = NULL;
@@ -309,13 +318,15 @@ static inline int32_t call_virt_bl_broadcast_callback(serdes_t *des)
 	}
 
 	data->info.uuid = ipc_msg_get_uuid(des->header);
-	data->info.timestamp = des->recv_end_time;
-	buf = reg->ext_buf ? reg->ext_buf : &data->des_buf;
-	clear_des_buf(buf);
-	len = ipc_des_get_all(des, (uint8_t *)buf->data_buf);
-	if (len <= 0)
+	data->info.timestamp = des->timestamp;
+	if (reg->ext_buf) {
+		buf = reg->ext_buf;
+		(void)ipc_memcpy(buf, des, sizeof(des_buf_t));
+	}
+	else
+		buf = des;
+	if (buf->unavail_data_size >= IPC_MAX_DATA_SIZE)
 		return -ERR_APP_SERDES;
-	buf->unavail_data_size = IPC_MAX_DATA_SIZE - len;
 
 	if (ret >= 0)
 		ret = deserialize_backlight_virt_bl_msg(buf, &evt);
@@ -330,7 +341,7 @@ static inline int32_t call_virt_bl_broadcast_callback(serdes_t *des)
 }
 
 // dispatch_broadcast
-static inline int32_t dispatch_broadcast(serdes_t *des)
+static inline int32_t dispatch_broadcast(des_buf_t *des)
 {
 	int32_t ret = 0;
 
@@ -343,7 +354,6 @@ static inline int32_t dispatch_broadcast(serdes_t *des)
 		break;
 	default:
 		ret = -ERR_APP_UNKNOWN_CMD;
-		IPC_LOG_ERR("unknown broadcast message %d.\n", des->header.cmd);
 		break;
 	}
 
@@ -351,7 +361,7 @@ static inline int32_t dispatch_broadcast(serdes_t *des)
 }
 
 // dispatch_reply
-static inline int32_t dispatch_reply(serdes_t *des)
+static inline int32_t dispatch_reply(des_buf_t *des)
 {
 	int32_t ret = 0;
 	com_client_data_t *data = s_data;
@@ -373,7 +383,6 @@ static inline int32_t dispatch_reply(serdes_t *des)
 		break;
 	default:
 		ret = -ERR_APP_UNKNOWN_CMD;
-		IPC_LOG_ERR("unknown reply message %d.\n", des->header.cmd);
 		break;
 	}
 
@@ -383,7 +392,12 @@ static inline int32_t dispatch_reply(serdes_t *des)
 // register availablity changed callback function
 static int32_t register_avail_changed_cb(avail_changed_callback_t cb, void *ext)
 {
-	return reg_avail_changed_cb(s_data, cb, ext);
+	if (!s_ext)
+		return -ERR_APP_PARAM;
+
+	s_ext->avail_changed_cb = cb;
+	s_ext->avail_ext = ext;
+	return 0;
 }
 
 // initialize client
@@ -403,16 +417,20 @@ int32_t backlight_client_init(com_client_data_t *data, backlight_client_t *clien
 	client->virt_bl_request_sync = call_virt_bl_request_sync;
 #endif
 	client->virt_bl_request_async = call_virt_bl_request_async;
+(void)init_registry(ext->virt_bl_request_registry);
 
 	client->virt_bl_broadcast_sub = subscribe_virt_bl_broadcast;
 	client->virt_bl_broadcast_unsub = unsubscribe_virt_bl_broadcast;
 	(void)init_registry(&ext->virt_bl_broadcast_registry);
+
 	client->dispatch_broadcast = dispatch_broadcast;
 	client->dispatch_reply = dispatch_reply;
 
 	// set ext
-	if (ext->cid == 0)
-		ext->cid = CID;
+	ext->cid = CID;
+	ext->ccid = CCID;
+	ext->cid_mask = CID_MASK;
+	ext->status = false;
 
 	return 0;
 }
@@ -420,6 +438,7 @@ int32_t backlight_client_init(com_client_data_t *data, backlight_client_t *clien
 void backlight_client_destroy(void)
 {
 	destroy_registry(&s_ext->virt_bl_broadcast_registry);
+
 	s_data = NULL;
 	s_ext = NULL;
 }

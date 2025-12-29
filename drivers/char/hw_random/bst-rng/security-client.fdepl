@@ -1,0 +1,12 @@
+import "security-inf.fdepl"
+
+define com.bst.ipc.deployment for provider as security_client {
+	ProviderType = Client
+	RTE = LinuxKernel
+	SrcEndID = CPU_0
+	FID = DEF
+	SID = 10
+	instance com.bst.ipc.security.service {
+		DstEndID = SECURE_0
+	}
+}

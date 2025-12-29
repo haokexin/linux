@@ -19,6 +19,9 @@ struct bst_drm_resv_memblock {
 struct bst_drm_resv_mem_ops {
     struct bst_drm_resv_memblock *(*alloc)(struct bst_dev *mdev, uint32_t size, uint32_t align);
     void (*free)(struct bst_drm_resv_memblock *memblock);
+    void (*invalid_cache)(struct bst_drm_resv_memblock *memblock);
+    void (*clean_cache)(struct bst_drm_resv_memblock *memblock);
+    void (*flush_write_buffer)(void);
 };
 
 struct bst_drm_resv_mem_ops *get_resv_mem_ops(void);

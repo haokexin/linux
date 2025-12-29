@@ -2,34 +2,32 @@
 /*
  *  Copyright (C) 2024 Black Sesame Technologies. All Rights Reserved.
  */
-#ifndef __BST_DISPLAY_GLOBAL_API_H__
-#define __BST_DISPLAY_GLOBAL_API_H__
+#ifndef BST_DISPLAY_GLOBAL_API_H
+#define BST_DISPLAY_GLOBAL_API_H
 
-#include "bst_display_platform.h"
-
-// cmdset definition
-enum {
-	BST_DISPLAY_GLB_SUBDEV = 1,
-	BST_DISPLAY_DC_SUBDEV = 2,
-	BST_DISPLAY_DP_SUBDEV = 3,
-	BST_DISPLAY_DSI_SUBDEV = 4,
-	BST_DISPLAY_LVDS_SUBDEV = 5,
-};
+#include "bst_display_cmdset_api.h"
 
 enum glb_cmdid_type {
 	GLB_CMD_INVALED = 0x00,
 	GLB_CMD_PROBE_SUBDEV = 0x01,
 	GLB_CMD_IS_VALID_TOPO = 0x02,
-	GLB_CMD_GET_EDID = 0x3,
-	GLB_CMD_GET_CUR_VM = 0x04,
+	GLB_CMD_GET_ALL_SUBDEV_TOPO = 0x03,
 	GLB_CMD_GET_SUBDEV_INFO = 0x05,
 };
 
-#define PRIVILEGE_NONE (1 << 0)
-#define PRIVILEGE_SLAVE_COMPOSER_SET (1 << 1)
-#define PRIVILEGE_SLAVE_VM_SET (1 << 2)
-#define PRIVILEGE_SLAVE_CONN_SET (1 << 3)
-#define PRIVILEGE_SLAVE_WB_SET  (1 << 4)
+enum client_role_type {
+	CLIENT_ROLE_INVALID,
+	CLIENT_ROLE_OWNER,
+	CLIENT_ROLE_NOT_OWNER,
+};
+
+#define MAX_CLIENT_NUM		(5U)
+
+#define PRIVILEGE_NONE               (1U << 0U)
+#define PRIVILEGE_SLAVE_COMPOSER_SET (1U << 1U)
+#define PRIVILEGE_SLAVE_VM_SET       (1U << 2U)
+#define PRIVILEGE_SLAVE_CONN_SET     (1U << 3U)
+#define PRIVILEGE_SLAVE_WB_SET       (1U << 4U)
 
 #define PRIVILEGE_ALL (\
 		PRIVILEGE_SLAVE_COMPOSER_SET | \
@@ -37,52 +35,47 @@ enum glb_cmdid_type {
 		PRIVILEGE_SLAVE_CONN_SET | \
 		PRIVILEGE_SLAVE_WB_SET)
 
-#define MAX_USR_DATA (32 * 4)
-#define MAX_ACK_DATA (42 * 4)
-#define CMD_SYNC_MDDE (0)
-#define CMD_ASYNC_MDDE (1)
+#define SUBDEV_PROBE_INFO_MAX_SIZE	(16*4)
 
-struct fw_msg_data {
-	uint32_t client_id;
-	uint32_t subdev_session;
-	uint32_t cmdset;
-	uint32_t cmdid;
-	uint32_t size_cmd;
-	uint32_t size_ack;
-	uint32_t user_cmd_data[MAX_USR_DATA / 4];
-	uint32_t user_ack_data[MAX_ACK_DATA / 4];
-	uint32_t sync_mode;
-};
-
-#define SUBDEV_PROBE_STATUS_OK (0)
-#define SUBDEV_PROBE_STATUS_FAIL (1)
 struct bst_subdev_probe_response {
-	uint32_t client_id;
-	uint32_t platform_id;
+	reply_base base;
 	uint32_t exec_subdev;
 	uint32_t subdev_session;
-	uint32_t status;
+	//uint32_t status;
 	uint32_t probed_info_size;
 	// attach different subdev info
 	// such as struct virt_dc_probe_info, struct virt_dp_probe_info ...
-	uint32_t probed_info[16];
+	uint32_t probed_info[SUBDEV_PROBE_INFO_MAX_SIZE / 4];
 	// 1: means this client control the shared resource.
 	// 0: means this client can't control but something to create local objects.
 	uint8_t is_owner;
 };
 
 struct bst_subdev_probe_request {
-	uint32_t client_id;
-	uint32_t platform_id;
 	uint32_t want_subdev;
 	uint32_t want_layer_num;
 	uint32_t want_info_size;
 };
 
 struct bst_subdev_info_req {
-	uint32_t client_id;
-	uint32_t platform_id;
 	uint32_t want_subdev;
+};
+
+struct bst_all_subdev_topo_req {
+	uint32_t reserve;
+};
+
+struct sub_dev_topo {
+	uint8_t dc_subdev;
+	uint8_t conn_subdev;
+	uint32_t dc_subdev_session;
+	uint32_t conn_subdev_session;
+};
+
+struct bst_all_subdev_topo {
+	reply_base base;
+	uint8_t num;
+	struct sub_dev_topo topo[MAX_PIPE_NUM];
 };
 
 struct client_info {
@@ -99,27 +92,10 @@ struct client_list {
 };
 
 struct bst_subdev_info_result {
+	reply_base base;
 	uint8_t related_subdev;
 	uint8_t exec_subdev;
 	struct client_list clist;
-};
-
-#define SUBMODULE_MAX_INPUT 9
-#define SUBMODULE_MAX_OUTPUT 5
-
-struct bst_display_submodule_req {
-	uint32_t client_id;
-	uint32_t submodule_id;
-};
-
-struct bst_display_submodule_header {
-	uint32_t client_id;
-	uint32_t submodule_info;
-	uint32_t pipeline_info;
-	uint16_t input_ids[SUBMODULE_MAX_INPUT];
-	uint16_t output_ids[SUBMODULE_MAX_OUTPUT];
-	uint8_t input_id_num;
-	uint8_t output_id_num;
 };
 
 enum dev_dump_type {
@@ -129,19 +105,9 @@ enum dev_dump_type {
 };
 
 struct bst_display_dev_dump {
-	uint32_t client_id;
 	uint8_t type;
 	uint32_t shmem_paddr_high;
 	uint32_t shmem_paddr_low;
-};
-
-#define DISP_COMM_REPLAY_OK   (0x0)
-#define DISP_COMM_REPLAY_BUSY (0x1)
-#define DISP_COMM_REPLAY_FAILED (0x2)
-
-struct bst_display_comm_reply {
-	uint32_t client_id;
-	uint8_t status;
 };
 
 struct bst_display_dc_probed_info {
@@ -154,19 +120,15 @@ struct bst_display_dc_probed_info {
 	uint8_t supported_layer_types;
 	uint8_t supported_smmu_types;
 	uint8_t supported_link_types;
-	uint8_t max_scaler_num;
+	uint8_t scaler_num;
 	uint8_t num_outputs;
 	uint8_t num_submodules;
 	uint8_t submodule_ids[SUBMODULE_ID_DC_MAX];
 };
 
-#define DISP_TOPO_STATUS_OK (0x1)
-#define DISP_TOPO_STATUS_MISMATCH (0x2)
-
 struct bst_display_topology_status {
-	uint32_t client_id;
-	uint32_t platform_id;
-	uint8_t topology_status;
+	reply_base base;
+	//uint8_t topology_status;
 };
 
 struct bst_display_events_status {
@@ -175,12 +137,12 @@ struct bst_display_events_status {
 };
 
 enum {
-	RGB = 0,
-	YCBCR420 = 1,
-	YCBCR422 = 2,
-	YCBCR444 = 3,
-	YONLY = 4,
-	RAW = 5
+	RGB = 0U,
+	YCBCR420 = 1U,
+	YCBCR422 = 2U,
+	YCBCR444 = 3U,
+	YONLY = 4U,
+	RAW = 5U
 };
 
 enum { ITU601 = 1, ITU709 = 2 };
@@ -238,7 +200,7 @@ struct bst_display_dp_probed_info {
 	uint8_t rate;
 	uint8_t bpc;
 	uint8_t lanes;
-	uint8_t connected;
+	bool connected;
 	uint8_t colorimetry;
 	uint8_t dynamic_range;
 	uint8_t submodule_ids[SUBMODULE_ID_DP_MAX];
@@ -303,22 +265,15 @@ struct bst_display_mipi_probed_info {
 	struct screen_state preferred_screen;
 };
 
-struct bst_display_submodule_disable {
-	uint32_t client_id;
-	uint8_t submodule_type;
-	uint8_t submodule_id;
-};
-
 struct bst_display_topology_info {
-	uint32_t client_id;
-	uint32_t platform_id;
 	uint32_t dc_subdev_session;
 	uint32_t conn_subdev_session;
 };
+
 /*  Detailed Timing Descriptions(DTD) */
 struct dtd {
 	uint16_t pixel_repetition_input;
-	uint32_t pixel_clock; /* pixelclock in KHz */
+	unsigned int pixel_clock; /* pixelclock in Hz */
 	uint8_t interlaced; /* 1 for interlaced, 0 progressive */
 	uint16_t h_active;
 	uint16_t h_blanking;
@@ -338,42 +293,7 @@ struct video_timing {
 	uint8_t video_timing_id;
 	struct dtd video_info;
 };
-enum {
-	EDID_BLOCK_TOP,
-	EDID_BLOCK_BOTTOM,
-	EDID_EXT_BLOCK1_TOP,
-	EDID_EXT_BLOCK1_BOTTOM,
-	EDID_EXT_BLOCK2_TOP,
-	EDID_EXT_BLOCK2_BOTTOM,
-};
-#define DEFAULT_EDID_BUFLEN   256
-#define EDID_BLOCK_BUFLEN     64
-#define EDID_PREFERRED_MODE_OFFSET 0x36
-#define EDID_PREFERRED_MODE_LEN    0x12
-struct bst_display_edid_req {
-	uint32_t client_id;
-	uint32_t subdev_session;
-	uint8_t type;
-};
 
-struct bst_display_edid_info {
-	uint32_t client_id;
-	uint8_t edid[EDID_BLOCK_BUFLEN];
-};
-
-struct bst_display_vm_setting {
-	uint32_t client_id;
-	uint32_t platform_id;
-	uint16_t refresh_rate;
-	struct video_timing timing;
-};
-
-struct bst_display_vm_req {
-	uint32_t platform_id;
-	uint32_t client_id;
-	uint8_t video_timing_id;
-	uint32_t subdev_session;
-};
 typedef void (*disp_event_callback_t)(
 				const struct bst_display_events_status status,
 				void *ext);
@@ -383,20 +303,18 @@ int bst_display_glb_cmd_probe_subdev(
 int bst_display_glb_cmd_get_subdev_info(
 				struct bst_subdev_info_req *request,
 				struct bst_subdev_info_result *response);
+int bst_display_glb_cmd_get_all_subdev_topo(
+				struct bst_all_subdev_topo_req *request,
+				struct bst_all_subdev_topo *response);
 int bst_display_glb_cmd_is_valid_topology(
 				struct bst_display_topology_info *topo_info,
 				struct bst_display_topology_status *topo_status);
-int bst_display_glb_cmd_get_edid(
-				struct bst_display_edid_req *edid,
-				struct bst_display_edid_info *info);
-int bst_display_glb_cmd_get_cur_video_mode(
-				struct bst_display_vm_req *req,
-				struct bst_display_vm_setting *info);
 int bst_display_glb_cmd_subscribe_events(
 				uint32_t subdev,
 				disp_event_callback_t cb, void *data);
 int bst_display_glb_cmd_unsubscribe_events(
 				uint32_t subdev);
-
+int __attribute__((weak)) fw_msg_events_sub(uint32_t subdev, disp_event_callback_t cb, void *ext);
+int __attribute__((weak)) fw_msg_events_unsub(uint32_t subdev);
 int transfer_fw_msg(struct fw_msg_data *msg_data);
-#endif /* __BST_DISPLAY_GLOBAL_API_H__ */
+#endif /* BST_DISPLAY_GLOBAL_API_H */

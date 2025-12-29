@@ -389,6 +389,40 @@ u32 i2c_dw_scl_lcnt(u32 ic_clk, u32 tLOW, u32 tf, int offset)
 	       1 + offset;
 }
 
+int i2c_dw_set_skplen(struct dw_i2c_dev *dev) {
+
+	int ret,reg;
+	u32 ic_clk,spklen;
+	struct i2c_timings *t = &dev->timings;
+
+	if(!t->digital_filter_width_ns)
+		return 0;
+
+	ic_clk = i2c_dw_clk_rate(dev);
+
+	ret = i2c_dw_acquire_lock(dev);
+	if (ret)
+		return ret;
+
+
+	spklen = DIV_ROUND_UP(t->digital_filter_width_ns* (ic_clk / 1000), 1000);
+	if (spklen > FILTR_THRES_MAX) {
+		dev_warn(dev->dev,"Filter threshold set to its maximum value (%d instead of %uu)\n",FILTR_THRES_MAX, spklen);
+		spklen = FILTR_THRES_MAX;
+	}
+
+	
+	regmap_write(dev->map, DW_IC_FS_SPKLEN, spklen);
+	regmap_write(dev->map, DW_IC_HS_SPKLEN, 2);
+
+	ret = regmap_read(dev->map, DW_IC_FS_SPKLEN,&reg);
+
+	i2c_dw_release_lock(dev);
+
+	return ret;
+}
+
+
 int i2c_dw_set_sda_hold(struct dw_i2c_dev *dev)
 {
 	u32 reg;
@@ -432,7 +466,7 @@ int i2c_dw_set_sda_hold(struct dw_i2c_dev *dev)
 			"Hardware too old to adjust SDA hold time.\n");
 		dev->sda_hold_time = 0;
 	}
-
+	
 err_release_lock:
 	i2c_dw_release_lock(dev);
 
@@ -471,9 +505,14 @@ u32 i2c_dw_clk_rate(struct dw_i2c_dev *dev)
 	 * Clock is not necessary if we got LCNT/HCNT values directly from
 	 * the platform code.
 	 */
+        if ((dev->phy_base == 0x68022000)||(dev->phy_base == 0x68021000)||
+			(dev->phy_base == 0x68002000)||((dev->phy_base == 0x68001000)))
+                return 200000;
+
 	if (WARN_ON_ONCE(!dev->get_clk_rate_khz))
 		return 0;
 	return dev->get_clk_rate_khz(dev);
+	
 }
 
 int i2c_dw_prepare_clk(struct dw_i2c_dev *dev, bool prepare)
@@ -504,22 +543,54 @@ int i2c_dw_acquire_lock(struct dw_i2c_dev *dev)
 {
 	int ret;
 
-	if (!dev->acquire_lock)
-		return 0;
 
-	ret = dev->acquire_lock();
-	if (!ret)
-		return 0;
+	if (!dev->acquire_lock) {
+
+#ifdef CONFIG_I2C_DESIGNWARE_BST_HWLOCK
+		if(!dev->acquire_hw_lock) {
+#endif
+			return 0;
+#ifdef CONFIG_I2C_DESIGNWARE_BST_HWLOCK
+		}
+#endif
+	}
+
+
+
+	if(dev->acquire_lock) {
+
+		ret = dev->acquire_lock();
+		if (!ret)
+			return 0;
+	}
+
+
+#ifdef CONFIG_I2C_DESIGNWARE_BST_HWLOCK
+	if(dev->acquire_hw_lock) {
+
+		ret = dev->acquire_hw_lock(dev);
+		if (!ret)
+			return 0;
+
+	}
+#endif
 
 	dev_err(dev->dev, "couldn't acquire bus ownership\n");
 
 	return ret;
 }
 
+
 void i2c_dw_release_lock(struct dw_i2c_dev *dev)
 {
 	if (dev->release_lock)
 		dev->release_lock();
+
+#ifdef CONFIG_I2C_DESIGNWARE_BST_HWLOCK
+	if(dev->release_hw_lock)
+		dev->release_hw_lock(dev);
+#endif
+
 }
 
 /*

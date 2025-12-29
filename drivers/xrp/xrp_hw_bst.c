@@ -133,8 +133,9 @@ struct xrp_hw_bst {
 
 static inline void reg_write32(struct xrp_hw_bst *hw, unsigned addr, u32 v)
 {
-	if (hw->regs)
+	if (hw->regs) {
 		__raw_writel(v, hw->regs + addr);
+	}
 		pr_err("%s: regs_phys(0x%llx) regs(0x%llx) = 0x%x\n",
 		 __func__, hw->regs_phys+addr,(uint64_t)(hw->regs + addr), __raw_readl(hw->regs + addr));
 		

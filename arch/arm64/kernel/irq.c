@@ -63,6 +63,7 @@ static void init_irq_stacks(void)
 #else
 /* irq stack only needs to be 16 byte aligned - not IRQ_STACK_SIZE aligned. */
 DEFINE_PER_CPU_ALIGNED(unsigned long [IRQ_STACK_SIZE/sizeof(long)], irq_stack);
+EXPORT_SYMBOL(irq_stack);
 
 static void init_irq_stacks(void)
 {

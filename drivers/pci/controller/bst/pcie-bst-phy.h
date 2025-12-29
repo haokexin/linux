@@ -770,6 +770,9 @@ struct pcie_phy {
 	u32		ltssm;
 	bool		inner_clk;
 	u16		last_cr_value;
+#ifdef CONFIG_PCIE_BST_DIAGNOSTIC
+	struct bst_pcie* bst_pcie;
+#endif
 };
 
 enum bst_pcie_chip_type { PCIE_A1000_SERIES = 0, PCIE_C1200_SERIES };

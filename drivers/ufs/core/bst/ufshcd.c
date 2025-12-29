@@ -44,6 +44,7 @@
 
 #undef CREATE_TRACE_POINTS
 #include <trace/hooks/ufshcd.h>
+#include <linux/of_irq.h>
 
 #define UFSHCD_ENABLE_INTRS	(UTP_TRANSFER_REQ_COMPL |\
 				 UTP_TASK_REQ_COMPL |\
@@ -122,6 +123,13 @@ static bool use_mcq_mode = true;
 //static char *backup_ptr = NULL;
 static char *utrd_backup_ptr = NULL;
 static char *utmrd_backup_ptr = NULL;
+#endif
+
+//CONFIG_BST_UFS_MULSYS flag
+#ifdef CONFIG_BST_UFS_MULSYS
+static int g_ufs_mulsys_flag = 0x1;
+#else
+static int g_ufs_mulsys_flag = 0;
 #endif
 
 static bool is_mcq_supported(struct ufs_hba *hba)
@@ -352,12 +360,35 @@ static inline void ufshcd_disable_irq(struct ufs_hba *hba)
 	}
 }
 
+#if 0
 static void ufshcd_free_irq(struct ufs_hba *hba)
 {
 	if (hba->is_irq_enabled) {
 		free_irq(hba->irq, hba);
 		hba->is_irq_enabled = false;
 	}
+}
+#endif
+
+
+static void ufshcd_free_timer_irq(struct ufs_hba *hba)
+{
+	free_irq(hba->timer_irq, hba);
+	hba->is_irq_enabled = false;
+
+}
+
+
+static inline void ufshcd_enable_timer_irq(struct ufs_hba *hba)
+{
+	enable_irq(hba->timer_irq);
+//	hba->is_irq_enabled = true;
+}
+
+static inline void ufshcd_disable_timer_irq(struct ufs_hba *hba)
+{
+	disable_irq(hba->timer_irq);
+//	hba->is_irq_enabled = false;
 }
 
 static void ufshcd_configure_wb(struct ufs_hba *hba)
@@ -3031,7 +3062,7 @@ static int ufshcd_queuecommand(struct Scsi_Host *host, struct scsi_cmnd *cmd)
 
 	if (is_mcq_enabled(hba))
 		hwq = ufshcd_mcq_req_to_hwq(hba, scsi_cmd_to_rq(cmd));
-	udelay(50);
+	// udelay(50);
 	ufshcd_send_command(hba, tag, hwq);
 
 out:
@@ -7064,7 +7095,7 @@ static irqreturn_t ufshcd_intr(int irq, void *__hba)
 	irqreturn_t retval = IRQ_NONE;
 	struct ufs_hba *hba = __hba;
 	int retries = hba->nutrs;
-	u32 utrlcnr;
+	u32 utrlcnr, utrldbr;
 
 	intr_status = ufshcd_readl(hba, REG_INTERRUPT_STATUS);
 	hba->ufs_stats.last_intr_status = intr_status;
@@ -7073,7 +7104,9 @@ static irqreturn_t ufshcd_intr(int irq, void *__hba)
 	utrlcnr = ufshcd_readl(hba, REG_UTP_TRANSFER_REQ_LIST_COMPL);
 
 	if ((intr_status & UTP_TRANSFER_REQ_COMPL) == UTP_TRANSFER_REQ_COMPL) {
-		if (utrlcnr == 0) {
+		utrldbr = ufshcd_readl(hba, REG_UTP_TRANSFER_REQ_DOOR_BELL);
+		utrlcnr = ufshcd_readl(hba, REG_UTP_TRANSFER_REQ_LIST_COMPL);
+		if (utrlcnr == 0 && utrldbr == 0) {
 			ufshcd_writel(hba, UTP_TRANSFER_REQ_COMPL, REG_INTERRUPT_STATUS);
 			return IRQ_HANDLED;
 		} else if ((utrlcnr & UFSCD_UTRLCNR_MASK) == 0) {
@@ -7113,6 +7146,74 @@ static irqreturn_t ufshcd_intr(int irq, void *__hba)
 
 	return retval;
 }
+
+#ifdef UFS_CLEAR_TIMER_INT
+
+#define APBTMR_CONTROL_INT		(1 << 2)
+
+static void ufshcd_clear_timer_irq(struct ufs_hba *hba)
+{
+	u32 ctrl;
+	ctrl = readl(hba->base_timer+(0x14*hba->timer_num)+0x8);
+	ctrl |= APBTMR_CONTROL_INT;
+	writel(ctrl,hba->base_timer+(0x14*hba->timer_num)+0x8);
+}
+
+
+static void ufshcd_start_timer(struct ufs_hba *hba)
+{
+	writel(0x0,hba->base_timer+(0x14*hba->timer_num)+0x8);
+	writel(100*200,hba->base_timer+(0x14*hba->timer_num));
+	writel(0x3,hba->base_timer+(0x14*hba->timer_num)+0x8);
+}
+
+
+//static long long timer_count = 0;
+
+static irqreturn_t ufshcd_timer_intr(int irq, void *data)
+{
+	struct ufs_hba *hba = (struct ufs_hba *)data;
+	u32 intr_status;
+
+//	timer_count ++;
+//	if ((timer_count % 30000) == 0)
+//		 pr_info("%s,in: timer_count= %lld \n", __func__, timer_count );
+
+	ufshcd_clear_timer_irq(hba);
+
+	intr_status = ufshcd_readl(hba, REG_INTERRUPT_STATUS);
+	if (intr_status) {
+		ufshcd_intr(irq, data);
+	}
+
+	ufshcd_start_timer(hba);
+
+	return IRQ_HANDLED;	
+}
+
+#else
+
+//static long long timer_count = 0;
+
+static irqreturn_t ufshcd_timer_intr_without_clr(int irq, void *data)
+{
+	struct ufs_hba *hba = (struct ufs_hba *)data;
+	u32 intr_status;
+
+//	timer_count ++;
+//	if ((timer_count % 30000) == 0)
+//		 pr_info("%s,in: timer_count= %lld \n", __func__, timer_count );
+
+	intr_status = ufshcd_readl(hba, REG_INTERRUPT_STATUS);
+	if (intr_status) {
+		ufshcd_intr(irq, data);
+	}
+
+	return IRQ_HANDLED;	
+}
+
+#endif
+
 
 static int ufshcd_clear_tm_cmd(struct ufs_hba *hba, int tag)
 {
@@ -10001,9 +10102,9 @@ static int ufshcd_wl_runtime_suspend(struct device *dev)
 	int ret;
 	ktime_t start = ktime_get();
 
-#ifdef CONFIG_BST_UFS_MULSYS
-	return 0;
-#endif
+	if (g_ufs_mulsys_flag) {
+		return 0;
+	}
 	hba = shost_priv(sdev->host);
 
 	ret = __ufshcd_wl_suspend(hba, UFS_RUNTIME_PM);
@@ -10024,9 +10125,9 @@ static int ufshcd_wl_runtime_resume(struct device *dev)
 	int ret = 0;
 	ktime_t start = ktime_get();
 
-#ifdef CONFIG_BST_UFS_MULSYS
-	return 0;
-#endif
+	if (g_ufs_mulsys_flag) {
+		return 0;
+	}
 	hba = shost_priv(sdev->host);
 
 	ret = __ufshcd_wl_resume(hba, UFS_RUNTIME_PM);
@@ -10049,9 +10150,9 @@ static int ufshcd_wl_suspend(struct device *dev)
 	int ret = 0;
 	ktime_t start = ktime_get();
 
-#ifdef CONFIG_BST_UFS_MULSYS
-	return 0;
-#endif
+	if (g_ufs_mulsys_flag) {
+		return 0;
+	}
 	hba = shost_priv(sdev->host);
 	down(&hba->host_sem);
 	hba->system_suspending = true;
@@ -10082,9 +10183,9 @@ static int ufshcd_wl_resume(struct device *dev)
 	int ret = 0;
 	ktime_t start = ktime_get();
 
-#ifdef CONFIG_BST_UFS_MULSYS
-	return 0;
-#endif
+	if (g_ufs_mulsys_flag) {
+		return 0;
+	}
 	hba = shost_priv(sdev->host);
 
 	if (pm_runtime_suspended(dev))
@@ -10110,9 +10211,9 @@ static void ufshcd_wl_shutdown(struct device *dev)
 	struct scsi_device *sdev = to_scsi_device(dev);
 	struct ufs_hba *hba;
 
-#ifdef CONFIG_BST_UFS_MULSYS
-	return;
-#endif
+	if (g_ufs_mulsys_flag) {
+		return;
+	}
 	hba = shost_priv(sdev->host);
 
 	down(&hba->host_sem);
@@ -10238,7 +10339,6 @@ int ufshcd_system_suspend(struct device *dev)
 	return 0;
 #endif
 
-#ifdef CONFIG_BST_UFS_MULSYS
 	int slot_start = 0;
 	int slot_num = 8;
 	int utmrd_slot_start = 0;
@@ -10246,51 +10346,64 @@ int ufshcd_system_suspend(struct device *dev)
 	struct utp_transfer_req_desc *utrdl_base_addr;
 	struct utp_task_req_desc *utmrdl_base_addr;
 
-	ufshcd_disable_irq(hba);
+	if (g_ufs_mulsys_flag) {
+	
+		ufshcd_disable_timer_irq(hba);
 
-	utrdl_base_addr = ioremap_wc(UFSHCD_UTRDL_BASEADDR, 0x1000);
-	if (!utrdl_base_addr) {
-		dev_err(dev, "ioremap_wc failed\n");
-		goto out;
+	#ifdef UFS_CLEAR_TIMER_INT
+		ufshcd_clear_timer_irq(hba);
+	#endif
+
+	#if 0
+		ufshcd_disable_irq(hba);
+	#endif
+
+		utrdl_base_addr = ioremap_wc(UFSHCD_UTRDL_BASEADDR, 0x1000);
+		if (!utrdl_base_addr) {
+			dev_err(dev, "ioremap_wc failed\n");
+			goto out;
+		}
+		utmrdl_base_addr = ioremap_wc(UFSHCD_UTMRDL_BASEADDR, 0x1000);
+		if (!utmrdl_base_addr) {
+			dev_err(dev, "ioremap_wc failed\n");
+			goto out;
+		}
+
+		utrd_backup_ptr = (char *)kzalloc(0x1000, GFP_KERNEL);
+		if (!utrd_backup_ptr) {
+			dev_err(dev, "Memory allocation failed\n");
+			goto out;
+		}
+
+		utmrd_backup_ptr = (char *)kzalloc(0x1000, GFP_KERNEL);
+		if (!utmrd_backup_ptr) {
+			dev_err(dev, "Memory allocation failed\n");
+			goto out;
+		}
+
+	#ifdef CONFIG_BST_UFS_UTRD_SLOT_START
+		slot_start = CONFIG_BST_UFS_UTRD_SLOT_START;
+	#endif
+	#ifdef CONFIG_BST_UFS_UTRD_SLOT_NUMBER
+		slot_num = CONFIG_BST_UFS_UTRD_SLOT_NUMBER;
+	#endif
+	#ifdef CONFIG_BST_UFS_UTMRD_SLOT_START
+		utmrd_slot_start = CONFIG_BST_UFS_UTMRD_SLOT_START;
+	#endif
+	#ifdef CONFIG_BST_UFS_UTMRD_SLOT_NUMBER
+		utmrd_slot_num = CONFIG_BST_UFS_UTMRD_SLOT_NUMBER;
+	#endif
+
+		memcpy(utrd_backup_ptr,&utrdl_base_addr[slot_start], slot_num*sizeof(struct utp_transfer_req_desc));
+		memcpy(utmrd_backup_ptr,&utmrdl_base_addr[utmrd_slot_start], utmrd_slot_num*sizeof(struct utp_task_req_desc));
+
+		iounmap(utrdl_base_addr);
+		iounmap(utmrdl_base_addr);
+
+		//dev_err(dev, "ufshcd_system_suspend done!! \n");
+		return 0;
 	}
-	utmrdl_base_addr = ioremap_wc(UFSHCD_UTMRDL_BASEADDR, 0x1000);
-	if (!utmrdl_base_addr) {
-		dev_err(dev, "ioremap_wc failed\n");
-		goto out;
-	}
 
-	utrd_backup_ptr = (char *)kzalloc(0x1000, GFP_KERNEL);
-	if (!utrd_backup_ptr) {
-		dev_err(dev, "Memory allocation failed\n");
-		goto out;
-	}
-
-	utmrd_backup_ptr = (char *)kzalloc(0x1000, GFP_KERNEL);
-	if (!utmrd_backup_ptr) {
-		dev_err(dev, "Memory allocation failed\n");
-		goto out;
-	}
-
-#ifdef CONFIG_BST_UFS_UTRD_SLOT_START
-	slot_start = CONFIG_BST_UFS_UTRD_SLOT_START;
-#endif
-#ifdef CONFIG_BST_UFS_UTRD_SLOT_NUMBER
-	slot_num = CONFIG_BST_UFS_UTRD_SLOT_NUMBER;
-#endif
-#ifdef CONFIG_BST_UFS_UTMRD_SLOT_START
-	utmrd_slot_start = CONFIG_BST_UFS_UTMRD_SLOT_START;
-#endif
-#ifdef CONFIG_BST_UFS_UTMRD_SLOT_NUMBER
-	utmrd_slot_num = CONFIG_BST_UFS_UTMRD_SLOT_NUMBER;
-#endif
-
-	memcpy(utrd_backup_ptr,&utrdl_base_addr[slot_start], slot_num*sizeof(struct utp_transfer_req_desc));
-	memcpy(utmrd_backup_ptr,&utmrdl_base_addr[utmrd_slot_start], utmrd_slot_num*sizeof(struct utp_task_req_desc));
-
-	iounmap(utrdl_base_addr);
-	iounmap(utmrdl_base_addr);
-	return 0;
-#endif
 
 	if (pm_runtime_suspended(hba->dev))
 		goto out;
@@ -10335,7 +10448,6 @@ int ufshcd_system_resume(struct device *dev)
 	return 0;
 #endif
 
-#ifdef CONFIG_BST_UFS_MULSYS
 	int slot_start = 0;
 	int slot_num = 8;
 	int utmrd_slot_start = 0;
@@ -10343,46 +10455,58 @@ int ufshcd_system_resume(struct device *dev)
 	struct utp_transfer_req_desc *utrdl_base_addr;
 	struct utp_task_req_desc *utmrdl_base_addr;
 
-	utrdl_base_addr = ioremap_wc(UFSHCD_UTRDL_BASEADDR, 0x1000);
-	if (!utrdl_base_addr) {
-		dev_err(dev, "ioremap_wc failed\n");
-		goto out;
+//	dev_err(dev, "ufshcd_system_resume start!! \n");
+
+	if (g_ufs_mulsys_flag) {
+		utrdl_base_addr = ioremap_wc(UFSHCD_UTRDL_BASEADDR, 0x1000);
+		if (!utrdl_base_addr) {
+			dev_err(dev, "ioremap_wc failed\n");
+			goto out;
+		}
+		utmrdl_base_addr = ioremap_wc(UFSHCD_UTMRDL_BASEADDR, 0x1000);
+		if (!utmrdl_base_addr) {
+			dev_err(dev, "ioremap_wc failed\n");
+			goto out;
+		}
+		if (!utrd_backup_ptr || !utmrd_backup_ptr ) {
+			dev_err(dev, "No Memory allocation\n");
+			goto out;
+		}
+
+	#ifdef CONFIG_BST_UFS_UTRD_SLOT_START
+		slot_start = CONFIG_BST_UFS_UTRD_SLOT_START;
+	#endif
+	#ifdef CONFIG_BST_UFS_UTRD_SLOT_NUMBER
+		slot_num = CONFIG_BST_UFS_UTRD_SLOT_NUMBER;
+	#endif
+	#ifdef CONFIG_BST_UFS_UTMRD_SLOT_START
+		utmrd_slot_start = CONFIG_BST_UFS_UTMRD_SLOT_START;
+	#endif
+	#ifdef CONFIG_BST_UFS_UTMRD_SLOT_NUMBER
+		utmrd_slot_num = CONFIG_BST_UFS_UTMRD_SLOT_NUMBER;
+	#endif
+
+		memcpy(&utrdl_base_addr[slot_start], utrd_backup_ptr, slot_num*sizeof(struct utp_transfer_req_desc));
+		memcpy(&utmrdl_base_addr[utmrd_slot_start], utmrd_backup_ptr, utmrd_slot_num*sizeof(struct utp_task_req_desc));
+
+		iounmap(utrdl_base_addr);
+		iounmap(utmrdl_base_addr);
+		kfree(utrd_backup_ptr);
+		kfree(utmrd_backup_ptr);
+
+		ufshcd_enable_timer_irq(hba);
+
+	#ifdef UFS_CLEAR_TIMER_INT
+		ufshcd_start_timer(hba);
+	#endif
+
+	#if 0
+		ufshcd_enable_irq(hba);
+	#endif
+
+		return 0;
 	}
-	utmrdl_base_addr = ioremap_wc(UFSHCD_UTMRDL_BASEADDR, 0x1000);
-	if (!utmrdl_base_addr) {
-		dev_err(dev, "ioremap_wc failed\n");
-		goto out;
-	}
-	if (!utrd_backup_ptr || !utmrd_backup_ptr ) {
-		dev_err(dev, "No Memory allocation\n");
-		goto out;
-	}
 
-#ifdef CONFIG_BST_UFS_UTRD_SLOT_START
-	slot_start = CONFIG_BST_UFS_UTRD_SLOT_START;
-#endif
-#ifdef CONFIG_BST_UFS_UTRD_SLOT_NUMBER
-	slot_num = CONFIG_BST_UFS_UTRD_SLOT_NUMBER;
-#endif
-#ifdef CONFIG_BST_UFS_UTMRD_SLOT_START
-	utmrd_slot_start = CONFIG_BST_UFS_UTMRD_SLOT_START;
-#endif
-#ifdef CONFIG_BST_UFS_UTMRD_SLOT_NUMBER
-	utmrd_slot_num = CONFIG_BST_UFS_UTMRD_SLOT_NUMBER;
-#endif
-
-	memcpy(&utrdl_base_addr[slot_start], utrd_backup_ptr, slot_num*sizeof(struct utp_transfer_req_desc));
-	memcpy(&utmrdl_base_addr[utmrd_slot_start], utmrd_backup_ptr, utmrd_slot_num*sizeof(struct utp_task_req_desc));
-
-	iounmap(utrdl_base_addr);
-	iounmap(utmrdl_base_addr);
-	kfree(utrd_backup_ptr);
-	kfree(utmrd_backup_ptr);
-
-	ufshcd_enable_irq(hba);
-	
-	return 0;
-#endif
 	if (pm_runtime_suspended(hba->dev))
 		goto out;
 
@@ -10413,9 +10537,9 @@ int ufshcd_runtime_suspend(struct device *dev)
 	int ret;
 	ktime_t start = ktime_get();
 
-#ifdef CONFIG_BST_UFS_MULSYS
-	return 0;
-#endif
+	if (g_ufs_mulsys_flag) {
+		return 0;
+	}
 	ret = ufshcd_suspend(hba);
 
 	trace_ufshcd_runtime_suspend(dev_name(hba->dev), ret,
@@ -10441,9 +10565,9 @@ int ufshcd_runtime_resume(struct device *dev)
 	int ret;
 	ktime_t start = ktime_get();
 
-#ifdef CONFIG_BST_UFS_MULSYS
-	return 0;
-#endif
+	if (g_ufs_mulsys_flag) {
+		return 0;
+	}
 	ret = ufshcd_resume(hba);
 
 	trace_ufshcd_runtime_resume(dev_name(hba->dev), ret,
@@ -10465,10 +10589,20 @@ EXPORT_SYMBOL(ufshcd_runtime_resume);
  */
 int ufshcd_shutdown(struct ufs_hba *hba)
 {
-#ifdef CONFIG_BST_UFS_MULSYS
-	ufshcd_free_irq(hba);
-	return 0;
-#endif
+
+	if (g_ufs_mulsys_flag) {
+		ufshcd_free_timer_irq(hba);
+	#ifdef UFS_CLEAR_TIMER_INT
+		ufshcd_clear_timer_irq(hba);
+	#endif
+		//pr_info("jun:%s \n",__func__);
+
+	#if 0
+		ufshcd_free_irq(hba);
+	#endif
+
+		return 0;
+	}
 	if (ufshcd_is_ufs_dev_poweroff(hba) && ufshcd_is_link_off(hba))
 		ufshcd_suspend(hba);
 
@@ -10762,6 +10896,33 @@ int ufshcd_init(struct ufs_hba *hba, void __iomem *mmio_base, unsigned int irq)
 	 */
 	mb();
 
+
+	hba->timer_irq = irq_of_parse_and_map(hba->dev->of_node, 1);
+	if (hba->timer_irq < 0) {
+		dev_err(dev, "get timer irq failed\n");
+		goto out_disable;
+	}	
+
+#ifdef UFS_CLEAR_TIMER_INT
+	err = devm_request_irq(dev, hba->timer_irq, ufshcd_timer_intr, IRQF_SHARED, "ufs-timer", hba);
+	if (err) {
+		dev_err(hba->dev, "request ufs timer irq failed\n");
+		goto out_disable;
+	}
+
+	ufshcd_start_timer(hba);
+
+#else
+	err = devm_request_irq(dev, hba->timer_irq, ufshcd_timer_intr_without_clr, IRQF_SHARED, "ufs-timer", hba);
+	if (err) {
+		dev_err(hba->dev, "request ufs timer irq failed\n");
+		goto out_disable;
+	}
+
+#endif
+
+
+#if 0
 	/* IRQ registration */
 	err = devm_request_irq(dev, irq, ufshcd_intr, IRQF_SHARED, UFSHCD, hba);
 	if (err) {
@@ -10770,6 +10931,7 @@ int ufshcd_init(struct ufs_hba *hba, void __iomem *mmio_base, unsigned int irq)
 	} else {
 		hba->is_irq_enabled = true;
 	}
+#endif
 
 	if (!is_mcq_supported(hba)) {
 		err = scsi_add_host(host, hba->dev);
@@ -10778,6 +10940,7 @@ int ufshcd_init(struct ufs_hba *hba, void __iomem *mmio_base, unsigned int irq)
 			goto out_disable;
 		}
 	}
+
 #ifdef CONFIG_BST_UFS_UTMRD_SLOT_START
 	utmrd_slot_start = CONFIG_BST_UFS_UTMRD_SLOT_START;
 #endif
@@ -10949,9 +11112,9 @@ static int ufshcd_wl_poweroff(struct device *dev)
 	struct scsi_device *sdev = to_scsi_device(dev);
 	struct ufs_hba *hba = shost_priv(sdev->host);
 
-#ifdef CONFIG_BST_UFS_MULSYS
-	return 0;
-#endif
+	if (g_ufs_mulsys_flag) {
+		return 0;
+	}
 	__ufshcd_wl_suspend(hba, UFS_SHUTDOWN_PM);
 	return 0;
 }

@@ -28,6 +28,8 @@ ifeq ($(KDIR),)
 $(error Must specify KDIR to point to the kernel to target))
 endif
 
+ccflags-y += -DDMA_BUF_NAMESPACE=1
+
 all:
 	$(MAKE) ARCH=$(ARCH) -C $(KDIR) M=$(CURDIR) EXTRA_CFLAGS="-I$(CURDIR)/../../../include" CONFIG_DMA_SHARED_BUFFER_TEST_EXPORTER=m
 

@@ -29,9 +29,8 @@
 #include <crypto/sm3_base.h>
 #include <crypto/rng.h>
 #include <crypto/sm2.h>
-#include "../../build/crypto/sm2signature.asn1.h"
 #include "bst_pke.h"
-#include "../bst_ske/bst_ske.h"
+#include "../common/bst_sa_common.h"
 
 #define MPI_NBYTES(m)   ((mpi_get_nbits(m) + 7) / 8)
 extern void sm2_print(uint8_t *array, uint8_t len, uint32_t line);
@@ -225,7 +224,7 @@ static int bst_sm2_ecc_os2ec(MPI_POINT result, MPI value)
 err_freex:
 	mpi_free(x);
 err_freebuf:
-	kfree(buf);
+	bst_kfree(buf);
 	return rc;
 }
 
@@ -286,7 +285,7 @@ static int bst_sm2_z_digest_update(struct shash_desc *desc,
 		crypto_sm3_update(desc, in, inlen);
 	}
 
-	kfree(in);
+	bst_kfree(in);
 	return 0;
 }
 
@@ -389,7 +388,7 @@ int bst_sm2_verify(struct akcipher_request *req)
 		ret = 1;
 		result[0] = 1;
 	}
-	kfree(buffer);
+	bst_kfree(buffer);
 
 	sg_copy_part_from_buf(req->dst, result, sizeof(result), 0);
 	// sg_copy_from_buffer(req->dst, sg_nents_for_len(req->dst, req->dst_len), result, sizeof(result));
@@ -412,13 +411,12 @@ int bst_sm2_set_pub_key(struct crypto_akcipher *tfm,
 	mpi_normalize(a);
 	rc = bst_sm2_ecc_os2ec(bst_ec->ec.Q, a);
 	mpi_free(a);
-	kfree(bst_ec->key);
+	bst_kfree(bst_ec->key);
 	bst_ec->key = kmalloc(keylen, GFP_KERNEL);
 	if (bst_ec->key == NULL)
 		return -ENOMEM;
 	
 	memcpy(bst_ec->key, key, keylen);
-	// sm2_print((uint8_t *)bst_ec->key, 10, __LINE__);
 	return rc;
 }
 
@@ -466,21 +464,23 @@ int bst_sm2_sign(struct akcipher_request *req)
 	uint8_t *signature;
 	MPI hash;
 	int ret;
-	// printk("%s:%d\n", __func__, __LINE__);
+	// bst_dbg(2, "%s:%d\n", __func__, __LINE__);
 	if (unlikely(!ec->Q))
 		return -EINVAL;
-	// printk("%s:%d 0x%x, 0x%x\n", __func__, __LINE__, req->src_len, req->dst_len);
+	// bst_dbg(2, "%s:%d 0x%x, 0x%x\n", __func__, __LINE__, req->src_len, req->dst_len);
 	buffer = kmalloc(req->src_len, GFP_KERNEL);
 	signature = kmalloc(SM2_BYTE_LEN*2, GFP_KERNEL);
-	if (!buffer || !signature)
+	if (!buffer || !signature) {
+		KFreeMem(buffer);
+		KFreeMem(signature);
 		return -ENOMEM;
-
-	// printk("%s:%d\n", __func__, __LINE__);
+	}
+	// bst_dbg(2, "%s:%d\n", __func__, __LINE__);
 	sg_pcopy_to_buffer(req->src,
 		sg_nents_for_len(req->src, req->src_len),
 		buffer, req->src_len, 0);
 
-	// printk("%s:%d\n", __func__, __LINE__);
+	// bst_dbg(2, "%s:%d\n", __func__, __LINE__);
 	ret = -ENOMEM;
 	//hash = mpi_read_raw_data(buffer + req->src_len, req->dst_len);
 	reverse_hash = kmalloc(32, GFP_KERNEL);
@@ -490,16 +490,17 @@ int bst_sm2_sign(struct akcipher_request *req)
 	hash = mpi_read_raw_data(reverse_hash, 32);
 	if (!hash)
 		goto error;
-	// printk("%s:%d\n", __func__, __LINE__);
+	// bst_dbg(2, "%s:%d\n", __func__, __LINE__);
 	ret = _bst_sm2_sign(bst_ec, hash, signature);
-	// printk("%s:%d ret = %d\n", __func__, __LINE__, ret);
+	// bst_dbg(2, "%s:%d ret = %d\n", __func__, __LINE__, ret);
 
 	sg_copy_part_from_buf(req->dst, signature, SM2_BYTE_LEN*2, 0);
 
 	mpi_free(hash);
 error:
-	kfree(buffer);
-	kfree(reverse_hash);
+	bst_kfree(buffer);
+	bst_kfree(signature);
+	bst_kfree(reverse_hash);
 	return ret;
 }
 
@@ -518,14 +519,15 @@ int bst_sm2_set_pri_key(struct crypto_akcipher *tfm,
 	reverse_byte_array((uint8_t *)key, reverse_key, keylen);
 	/* include the uncompressed flag '0x04' */
 	a = mpi_read_raw_data(reverse_key, keylen);
-	if (!a)
+	if (!a) {
+		bst_kfree(reverse_key);
 		return -ENOMEM;
-
+	}
 	mpi_normalize(a);
 	bst_ec->ec.d = a;
 	rc = 0;
 	// sm2_print((uint8_t *)bst_ec->ec.d->d, 10, __LINE__);
-	kfree(reverse_key);
+	bst_kfree(reverse_key);
 	return rc;
 }
 
@@ -542,6 +544,7 @@ int bst_sm2_init_tfm(struct crypto_akcipher *tfm)
 
 	bst_ec->key = NULL;
 	bst_ec->key_len = 0;
+	pke_enable_interrupt();
 	return bst_sm2_ec_ctx_init(bst_ec);
 }
 
@@ -549,7 +552,7 @@ void bst_sm2_exit_tfm(struct crypto_akcipher *tfm)
 {
 	struct bst_mpi_ec_ctx *bst_ec = akcipher_tfm_ctx(tfm);
 
-	kfree(bst_ec->key);
+	bst_kfree(bst_ec->key);
 	bst_ec->key_len = 0;
 	bst_sm2_ec_ctx_deinit(bst_ec);
 }

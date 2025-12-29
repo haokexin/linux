@@ -1,7 +1,0 @@
-compatible = "bst,imx390-yuv";
-data-type = <0x1e>;
-fv-polarity-low = <1>;
-fpd3-mode = "csi-2";
-serializer = "ti953";
-
-trigger-tx-pin = <0>;

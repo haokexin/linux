@@ -1117,7 +1117,7 @@ int bst_release_unclaimed_resources(struct bst_pipeline *pipe,
 	if (WARN_ON(IS_ERR_OR_NULL(st)))
 		return -EINVAL;
 
-	return bst_pipeline_unbound_components(pipe, st);;
+	return bst_pipeline_unbound_components(pipe, st);
 }
 
 bool bst_pipeline_disable(struct bst_pipeline *pipe,
@@ -1172,9 +1172,6 @@ void bst_pipeline_update(struct bst_pipeline *pipe,
 
 	DRM_DEBUG_ATOMIC("PIPE%d: active_comps: 0x%x, changed: 0x%lx.\n",
 			 pipe->id, new->active_comps, changed_comps);
-
-	if (changed_comps)
-		pipe->mdev->pipe_update_count[pipe->id]++;
 
 	for_each_set_bit(id, &changed_comps, 32) {
 		c = bst_pipeline_get_component(pipe, id);

@@ -226,7 +226,11 @@ static int dw_spi_dma_wait(struct dw_spi *dws, unsigned int len, u32 speed)
 
 	ms = len * MSEC_PER_SEC * BITS_PER_BYTE;
 	do_div(ms, speed);
-	ms += ms + 200;
+
+	if (spi_controller_is_slave(dws->master))
+		ms += ms + 3000;
+	else
+		ms += ms + 200;
 
 	if (ms > UINT_MAX)
 		ms = UINT_MAX;

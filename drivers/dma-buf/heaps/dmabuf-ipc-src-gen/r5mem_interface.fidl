@@ -1,0 +1,69 @@
+package com.bst.ipc.dmabuf
+
+interface r5mem {
+    version {major 1 minor 1}
+
+    enumeration ErrorEnum {
+        NO_ERROR = 0
+        SERVER_FAIL = -1
+    }
+
+    enumeration Consts {
+        SHARED_BUF_SIZE = 2
+        MAX_FD = 256
+        MAX_POOL_NUM_PER_MEM_TYPE = 4     // max pool number for each tlsf structure.
+    }
+
+    enumeration CmdType {
+        ALLOC = 0
+        ALLOC_AND_ATTACH = 1
+        SET_RANGE = 2
+        GET_USAGE = 3
+        CONFIG_SECURE_MEM = 4
+    
+        FREE = 5
+        ATTACH = 6
+        DETACH = 7
+        GET_PHYS_ADDR = 8
+        GET_PHYS_ADDR_AND_ATTACH = 9
+        CMD_MAX
+    }
+
+    // memory type
+    enumeration MemType {
+        TYPE_NORMAL = 0       // non-secure access memory
+        TYPE_SECURE = 1       // secure access memory
+        TYPE_HIFI   = 2       // global dmabuf for hifi
+        TYPE_MAX
+    }
+
+    // master list
+    enumeration MasterId {
+        COREIP = 0
+        NET
+        CV
+        DISPLAY
+        DISPLAY0
+        DISPLAY1
+        DISPLAY2
+        MEDIA_CODEC
+        GPU
+        MASTER_ID_MAX
+    }
+
+    struct driver_ipc_msg {
+        CmdType cmd
+        MemType mem_type 
+        UInt64[] payload
+    }
+
+    method send2r5 {
+        in {
+            driver_ipc_msg input
+        }
+        out {
+            driver_ipc_msg output
+        }
+        error ErrorEnum
+    }
+}

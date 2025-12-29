@@ -178,6 +178,16 @@ enum{
 #define DSI_CFG_POL(disp)	  (((disp)->hpol == 0 ? BIT(2) : 0) | ((disp)->vpol == 0 ? BIT(1) : 0))
 #define DSI_CFG_POL_INV(disp) (((disp)->hpol == 1 ? BIT(2) : 0) | ((disp)->vpol == 1 ? BIT(1) : 0))
 
+#define HSTT(_maxfreq, _c_lp2hs, _c_hs2lp, _d_lp2hs, _d_hs2lp)	\
+{					\
+	.maxfreq = _maxfreq,		\
+	.timing = {			\
+		.clk_lp2hs = _c_lp2hs,	\
+		.clk_hs2lp = _c_hs2lp,	\
+		.data_lp2hs = _d_lp2hs,	\
+		.data_hs2lp = _d_hs2lp,	\
+	}				\
+}
 enum mipi_test_mode {
 	MIPI_DSI_WRITE_TEST,
 	MIPI_DSI_READ_TEST,

@@ -1,8 +1,0 @@
-compatible = "bst,ox3c-yuv-hil";
-sensor-id = <0x36>;
-data-type = <0x1e>;
-serializer = "max96717f";
-
-sensor-fps = <20>;
-trigger-tx-pin = <0>;
-serializer-id = <0x40>;

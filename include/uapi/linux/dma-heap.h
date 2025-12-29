@@ -22,22 +22,37 @@
 /* Currently no heap flags */
 #define DMA_HEAP_VALID_HEAP_FLAGS (0)
 #else
-#define DMA_HEAP_IPC_USE_SECURE_MEMORY
-
 /* heap types*/
-#define DMA_HEAP_IPC_NORMAL_MEM  (00000001)     // normal memory, non-secure access
-#define DMA_HEAP_IPC_SECURE_MEM  (00000002)     // secure access memory
+#ifndef DMA_HEAP_IPC_NORMAL_MEM
+#define DMA_HEAP_IPC_NORMAL_MEM      (00000001)     // normal memory, non-secure access
+#endif
 
-/* Valid HEAP_FLAGS are DMA_HEAP_IPC_NORMAL_MEM, DMA_HEAP_IPC_SECURE_MEM while using global dma-buf. 
+#ifndef DMA_HEAP_IPC_SECURE_MEM
+#define DMA_HEAP_IPC_SECURE_MEM      (00000002)     // secure access memory
+#endif
+
+#ifndef DMA_HEAP_IPC_HIFI_MEM
+#define DMA_HEAP_IPC_HIFI_MEM        (00000004)     // dmabuf for hifi, non-secure access
+#endif
+
+/* Valid HEAP_FLAGS are DMA_HEAP_IPC_NORMAL_MEM, DMA_HEAP_IPC_SECURE_MEM, DMA_HEAP_IPC_HIFI_MEM while using global dma-buf. 
  * You can only choose one from them. Default is DMA_HEAP_IPC_NORMAL_MEM.
  */
-#define DMA_HEAP_VALID_HEAP_FLAGS    (DMA_HEAP_IPC_NORMAL_MEM | DMA_HEAP_IPC_SECURE_MEM)
+#undef DMA_HEAP_VALID_HEAP_FLAGS
+#define DMA_HEAP_VALID_HEAP_FLAGS    (DMA_HEAP_IPC_NORMAL_MEM | DMA_HEAP_IPC_SECURE_MEM | DMA_HEAP_IPC_HIFI_MEM)
 
 /* access permission on ipc secure memory */
+#ifndef IPC_SECURE_MEM_NONE
 #define IPC_SECURE_MEM_NONE     (00000000)      // not allowed to access
-#define IPC_SECURE_MEM_RDWR     (00000001)      // allowed to read and write
+#endif  // IPC_SECURE_MEM_NONE
 
-#define DMA_HEAP_IPC_VALID_ACCESS_FLAGS (IPC_SECURE_MEM_RDWR)
+#ifndef IPC_SECURE_MEM_RDWR
+#define IPC_SECURE_MEM_RDWR     (00000001)      // allowed to read and write
+#endif  // IPC_SECURE_MEM_RDWR
+
+#ifndef DMA_HEAP_IPC_VALID_ACCESS_FLAGS
+#define DMA_HEAP_IPC_VALID_ACCESS_FLAGS (IPC_SECURE_MEM_RDWR | IPC_SECURE_MEM_NONE)
+#endif  // DMA_HEAP_IPC_VALID_ACCESS_FLAGS
 
 #endif
 

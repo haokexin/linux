@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-2.0
-ifeq ($(CONFIG_ARCH_BST),y)
+ifeq ($(CONFIG_ARCH_BSTC1200),y)
 obj-y += bst/
 else
 obj-$(CONFIG_ARM_SMMU_V3) += arm_smmu_v3.o

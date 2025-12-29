@@ -491,7 +491,7 @@ static int pcm3168a_hw_params(struct snd_pcm_substream *substream,
 	u32 val, mask, shift, reg;
 	unsigned int fmt;
 	unsigned int tdm_slots;
-	int i, slot_width;
+	int slot_width;
 
 
 	if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK) {
@@ -557,7 +557,7 @@ static int pcm3168a_hw_params(struct snd_pcm_substream *substream,
 	}
 
 	if (master_mode)
-		val = i + 1;    //pcm3168a 作为master, 暂不支持
+		val = 1;    //pcm3168a 作为master, 暂不支持
 	else
 		val = 0;
 

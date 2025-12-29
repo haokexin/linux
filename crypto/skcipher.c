@@ -650,6 +650,40 @@ int crypto_skcipher_decrypt(struct skcipher_request *req)
 }
 EXPORT_SYMBOL_GPL(crypto_skcipher_decrypt);
 
+int crypto_skcipher_macgen(struct skcipher_request *req)
+{
+	struct crypto_skcipher *tfm = crypto_skcipher_reqtfm(req);
+	struct crypto_alg *alg = tfm->base.__crt_alg;
+	unsigned int cryptlen = req->cryptlen;
+	int ret;
+
+	crypto_stats_get(alg);
+	if (crypto_skcipher_get_flags(tfm) & CRYPTO_TFM_NEED_KEY)
+		ret = -ENOKEY;
+	else
+		ret = crypto_skcipher_alg(tfm)->macgen(req);
+	crypto_stats_skcipher_encrypt(cryptlen, ret, alg);
+	return ret;
+}
+EXPORT_SYMBOL_GPL(crypto_skcipher_macgen);
+
+int crypto_skcipher_macver(struct skcipher_request *req)
+{
+	struct crypto_skcipher *tfm = crypto_skcipher_reqtfm(req);
+	struct crypto_alg *alg = tfm->base.__crt_alg;
+	unsigned int cryptlen = req->cryptlen;
+	int ret;
+
+	crypto_stats_get(alg);
+	if (crypto_skcipher_get_flags(tfm) & CRYPTO_TFM_NEED_KEY)
+		ret = -ENOKEY;
+	else
+		ret = crypto_skcipher_alg(tfm)->macver(req);
+	crypto_stats_skcipher_decrypt(cryptlen, ret, alg);
+	return ret;
+}
+EXPORT_SYMBOL_GPL(crypto_skcipher_macver);
+
 static void crypto_skcipher_exit_tfm(struct crypto_tfm *tfm)
 {
 	struct crypto_skcipher *skcipher = __crypto_skcipher_cast(tfm);

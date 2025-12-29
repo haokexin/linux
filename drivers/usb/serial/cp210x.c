@@ -1000,7 +1000,7 @@ static speed_t cp210x_get_an205_rate(speed_t baud)
 			break;
 	}
 
-	return cp210x_an205_table1[i].rate;
+	return cp210x_an205_table1[min(i, (int)ARRAY_SIZE(cp210x_an205_table1) - 1)].rate;
 }
 
 static speed_t cp210x_get_actual_rate(speed_t baud)

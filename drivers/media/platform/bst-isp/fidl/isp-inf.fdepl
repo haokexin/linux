@@ -1,0 +1,15 @@
+import "platform:/plugin/com.bst.os.idl/deployment/ipc_spec.fdepl"
+import "isp.fidl"
+
+define com.bst.ipc.deployment for interface com.bst.ipc.isp.video {
+    MaxMethodNum = 10
+    MaxBroadcastNum = 10
+    method arm2isp {
+        MethodID = 1
+    }
+    broadcast isp2arm {
+        SubscribeMethodID = 10
+        UnsubscribeMethodID = 11
+        BroadcastID = 1
+    }
+}

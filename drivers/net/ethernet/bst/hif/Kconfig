@@ -1,7 +1,0 @@
-config BST_HIF_ETH
-	tristate "bst vmac hif driver"
-    depends on (BST_C1200_DB || BST_C1200_IVI)
-	default y
-	help
-	  This is the driver for the vmac hif.
-

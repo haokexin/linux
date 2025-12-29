@@ -101,4 +101,11 @@ config OF_DMA_DEFAULT_COHERENT
 	# arches should select this if DMA is coherent by default for OF devices
 	bool
 
+config BST_OF_DMA_NEED_SYNC_TO_POP
+	# arches should select this if DMA devices needs cache operations syncing to PoP
+	bool  "Enable cache operations sync to PoP for DMA devices"
+	default y if ARCH_BSTC1200
+	help
+		Enable default coherent-pop DMA for OF devices
+
 endif # OF

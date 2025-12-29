@@ -1,0 +1,47 @@
+//xxx-inf.fdepl
+import "platform:/plugin/com.bst.os.idl/deployment/ipc_spec.fdepl"
+import "safety.fidl"
+
+define com.bst.ipc.deployment for interface com.bst.ipc.safety.st_public1 {
+    MaxMethodNum = 255
+    MaxBroadcastNum = 255
+
+    EnableSection = false
+
+    method timesync_method {
+        MethodID = 1
+    }
+
+    method qspi_method {
+        MethodID = 4
+    }
+
+    method scmi_method {
+        MethodID = 5
+    }
+    
+    method gettemp_method {
+        MethodID = 6
+    }
+
+    method slt_method {
+        MethodID = 2
+    }
+    // remove some api to keep api compatibility
+}
+
+
+define com.bst.ipc.deployment for interface com.bst.ipc.safety.safetylib {
+    MaxMethodNum = 255
+    MaxBroadcastNum = 255
+
+    EnableSection = false
+
+    method fusacoreip_method {
+        MethodID = 76
+    }
+    
+    method fusaenable_method {
+        MethodID = 77
+    }
+}

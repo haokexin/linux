@@ -38,8 +38,10 @@
 #define SKE_DMA_CR 0x300   // 5 DMA 控制寄存器 RW 0x0
 #define SKE_DMA_SR 0x304   // 1 DMA 状态寄存器 W0C 0x0
 #define SKE_DMA_TO 0x308   // 16 DMA 超时阈值寄存器 RW 0x0
-#define SKE_DMA_SA 0x310   // – 0x314 32 DMA 源地址寄存器 RW 0x0
-#define SKE_DMA_DA 0x320   // – 0x324 32 DMA 目的地址寄存器 RW 0x0
+#define SKE_DMA_L_SADDR 0x310   // 32 DMA 源地址Low寄存器 RW 0x0
+#define SKE_DMA_H_SADDR 0x314   // 32 DMA 源地址High寄存器 RW 0x0
+#define SKE_DMA_L_DADDR 0x320   // 32 DMA 目的地址Low寄存器 RW 0x0
+#define SKE_DMA_H_DADDR 0x324   // 32 DMA 目的地址High寄存器 RW 0x0
 #define SKE_DMA_RLEN 0x330 // 32 DMA 读数据长度寄存器 RW 0x0
 #define SKE_DMA_WLEN 0x334 // 32 DMA 写数据长度寄存器 RW 0x0
 #define SKE_DMA_AWCC 0x340 // 19 DMA 写地址通道控制寄存器 RW 0x0
@@ -66,19 +68,34 @@ enum ske_crypto {
 	SKE_CRYPTO_ENCRYPT = 0, // encrypt
 	SKE_CRYPTO_DECRYPT,		// decrypt
 };
-
+//SKE Mac Action
+enum ske_mac {
+	SKE_GENERATE_MAC = SKE_CRYPTO_ENCRYPT, // generate
+	SKE_VERIFY_MAC = SKE_CRYPTO_DECRYPT,   // verify
+};
 
 enum ske_alg {
 	SKE_ALG_DES = 0,		  // DES
-	SKE_ALG_TDES_128 = 1,	  // TDES 128 bits key
-	SKE_ALG_TDES_192 = 2,	  // TDES 192 bits key
-	SKE_ALG_TDES_EEE_128 = 3, // TDES_EEE 128 bits key
-	SKE_ALG_TDES_EEE_192 = 4, // TDES_EEE 192 bits key
-	SKE_ALG_AES_128 = 5,	  // AES 128 bits key
-	SKE_ALG_AES_192 = 6,	  // AES 192 bits key
-	SKE_ALG_AES_256 = 7,	  // AES 256 bits key
-	SKE_ALG_SM4 = 8,		  // SM4
+	SKE_ALG_TDES,
+	SKE_ALG_AES,
+	SKE_ALG_TDES_128,	  // TDES 128 bits key
+	SKE_ALG_TDES_192,	  // TDES 192 bits key
+	SKE_ALG_TDES_EEE_128, // TDES_EEE 128 bits key
+	SKE_ALG_TDES_EEE_192, // TDES_EEE 192 bits key
+	SKE_ALG_AES_128,	  // AES 128 bits key
+	SKE_ALG_AES_192,	  // AES 192 bits key
+	SKE_ALG_AES_256,	  // AES 256 bits key
+	SKE_ALG_SM4,		  // SM4
 };
+
+//hash callback function type
+typedef void (*SKE_CALLBACK)(void);
+
+enum ske_hp_mode {
+	SKE_HP_CPU_MODE = 0,
+	SKE_HP_DMA_MODE = 1,
+};
+
 // SKE return code
 enum SKE_RET_CODE {
 	SKE_SUCCESS = 0,
@@ -102,4 +119,25 @@ enum ske_wait_mode {
 	WAIT_TILL_OUTPUT_READY,		   // wait till ske_hp output is ready
 	WAIT_TILL_CALC_DONE			   // wait till ske_hp calculating is done
 } ;
+
+struct dma_alloc_addr {
+	uint8_t *virt_in;
+	uint8_t *virt_out;
+	dma_addr_t phys_in;
+	dma_addr_t phys_out;
+	uint32_t alloc_size;
+};
+
+// SKE alg infos
+const char *ske_alg_info[] = {
+	"des",		 
+	"tdes_128",	 
+	"tdes_192",	 
+	"tdes_eee_128",
+	"tdes_eee_192",
+	"aes_128",	 
+	"aes_192",	 
+	"aes_256",	 
+	"sm4",		 
+};
 #endif //__BST_SKE_H__

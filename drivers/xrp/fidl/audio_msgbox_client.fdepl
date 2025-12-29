@@ -1,0 +1,13 @@
+//audio_ipc_inf.fdepl
+import "audio_ipc_inf.fdepl"
+
+define com.bst.ipc.deployment for provider as audio_msgbox_client {
+    ProviderType = Client
+    RTE = LinuxKernel
+    SrcEndID = CPU_0
+    FID = DEF
+    SID = 7
+    instance com.bst.ipc.audio.audio_ipc {
+        DstEndID = MEDIA_0
+    }
+}

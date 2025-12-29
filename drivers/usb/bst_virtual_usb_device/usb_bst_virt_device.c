@@ -122,6 +122,22 @@ void virtual_usb_delete(struct kref *kref)
 	kfree(vdev);
 }
 
+static int device_driver_dummy_hcd(struct usb_interface *interface)
+{
+	struct usb_device *udev = interface_to_usbdev(interface);
+	const char		*driver_name = NULL;
+
+	if (udev->bus->controller->driver)
+		driver_name = udev->bus->controller->driver->name;
+	else
+		driver_name = udev->bus->sysdev->driver->name;
+	if (driver_name && (strcmp(driver_name, "dummy_hcd") != 0)) {
+		dev_err(&interface->dev, "not dummy device\n");
+		return 0;
+	}
+	return 1;
+}
+
 static int virtual_usb_probe(struct usb_interface *interface,
 			     const struct usb_device_id *id)
 {
@@ -132,6 +148,8 @@ static int virtual_usb_probe(struct usb_interface *interface,
 	msg_sub_callback_t cb =
 	    (msg_sub_callback_t) push_pdu_to_msglist_bulk_out;
 
+	if (!device_driver_dummy_hcd(interface))
+		return -1;
 	/* allocate memory for our device state and initialize it */
 	vdev = virtual_device_alloc(interface);
 	if (!vdev) {
@@ -145,11 +163,6 @@ static int virtual_usb_probe(struct usb_interface *interface,
 	ret = usb_set_bulk_eps(vdev, interface);
 	if (ret)
 		goto error;
-
-	if (get_system_pid() != CPU_0) {
-		if (urb_buffer_size > 0x4000)
-			urb_buffer_size = 0x4000;
-	}
 
 	urb_pool_init(&vdev->pool, urb_max_number, urb_buffer_size);
 	urb_pool_submit_urb(vdev);
@@ -261,6 +274,15 @@ static int virtual_usb_resume(struct usb_interface *intf)
 	return 0;
 }
 
+
+static int virtual_usb_resume_reset(struct usb_interface *intf)
+{
+	struct usb_virtual_device *dev = usb_get_intfdata(intf);
+
+	usb_local_send_adb_err(dev);
+	return 0;
+}
+
 static int virtual_usb_pre_reset(struct usb_interface *intf)
 {
 	struct usb_virtual_device *dev = usb_get_intfdata(intf);
@@ -290,6 +312,7 @@ struct usb_driver virtual_usb_driver = {
 	.disconnect = virtual_usb_disconnect,
 	.suspend = virtual_usb_suspend,
 	.resume = virtual_usb_resume,
+	.reset_resume = virtual_usb_resume_reset,
 	.pre_reset = virtual_usb_pre_reset,
 	.post_reset = virtual_usb_post_reset,
 	.id_table = virtual_usb_table,

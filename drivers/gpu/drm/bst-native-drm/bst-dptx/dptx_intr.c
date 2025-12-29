@@ -5,6 +5,7 @@
  */
 #include "dptx_drv.h"
 #include "api/api.h"
+#include "dptx_csr.h"
 #include "dptx_utils.h"
 
 static int handle_test_link_training(struct dptx *dptx)
@@ -1856,8 +1857,6 @@ static int handle_hotplug(struct dptx *dptx)
 	struct drm_dp_sideband_msg_rx raw;
 	struct drm_dp_sideband_msg_reply_body rep;
 
-	int vc_payload_size;
-
 	memset(&raw, 0, sizeof(raw));
 	memset(&rep, 0, sizeof(rep));
 
@@ -2016,8 +2015,6 @@ static int handle_hotplug(struct dptx *dptx)
 		dptx_video_set_core_bpc(dptx, i);
 		dptx_video_set_timing_info(dptx, i);
 		dptx_video_set_MSA(dptx, i);
-		vc_payload_size = dptx_get_vc_payload_size(dptx);
-
 	}
 	dptx_dbg(dptx, "Configure Controller for Audio Mode");
 	dptx_audio_core_config(dptx);
@@ -2025,6 +2022,16 @@ static int handle_hotplug(struct dptx *dptx)
 	dptx_audio_timestamp_sdp_en(dptx);
 	if (vparams->pix_enc == YCBCR420)
 		dptx_vsd_ycbcr420_send(dptx, 1);
+
+	dptx_mux_enable(dptx, false);
+	retval = dptx_read_reg(dptx, dptx->regs[DPTX], GENERAL_INTERRUPT);
+	dptx_info(dptx, "Before clear: [%s | %s]\n", retval & BIT(8) ? "UNDERFLOW" : " ", retval & BIT(6) ? "OVERFLOW" : " ");
+	if (retval & (BIT(6) | BIT(8))) {
+		dptx_write_reg(dptx, dptx->regs[DPTX], GENERAL_INTERRUPT, retval & (BIT(6) | BIT(8)));
+		retval = dptx_read_reg(dptx, dptx->regs[DPTX], GENERAL_INTERRUPT);
+		dptx_info(dptx, "After clear: [%s | %s]\n", retval & BIT(8) ? "UNDERFLOW" : " ", retval & BIT(6) ? "OVERFLOW" : " ");
+	}
+	dptx_mux_enable(dptx, true);
 
 	return 0;
 }
@@ -2189,9 +2196,6 @@ irqreturn_t dptx_irq(int irq, void *dev)
 
 		dptx_dbg(dptx, "%s: HPD_EVENT\n", __func__);
 		hpdsts = dptx_read_reg(dptx, dptx->regs[DPTX], HPD_STATUS);
-		dptx_write_regfield(
-			dptx, dptx->field_hpd_event_en,
-			0);
 
 		dptx_dbg(dptx, "%s: HPDSTS = 0x%08x\n", __func__, hpdsts);
 

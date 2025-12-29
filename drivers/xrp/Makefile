@@ -41,5 +41,6 @@ ccflags-$(CONFIG_XRP_HW_HIKEY960) += -I$(srctree)/drivers/hisi/hifi_mailbox
 ccflags-y += -I$(srctree)/drivers/bst_ipc_msgbx/ipc_app_layer/include -I$(srctree)/drivers/bst_ipc_msgbx/ipc_app_layer/ \
 			-I$(srctree)/drivers/bst_ipc_msgbx/include -I$(srctree)/drivers/bst_ipc_msgbx/ipc_app_layer/posix/ \
 			-I$(srctree)/drivers/bst_ipc_msgbx/ipc_trans_layer/include -I$(srctree)/include/bst \
+			-I$(srctree)/drivers/xrp/src-gen \
 
-obj-y += test_client.o sample_client.o
+obj-y += src-gen/audio_ipc_client.o src-gen/audio_msgbox_client.o

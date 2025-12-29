@@ -39,8 +39,8 @@ static char *virt_subdev_submodule_to_string(uint32_t subdev,
 		switch (submodule_id) {
 		case SUBMODULE_ID_DP_VIDEO:
 			return "SUBMODULE_ID_DP_VIDEO";
-		case SUBMODULE_ID_DP_AUDIO:
-			return "SUBMODULE_ID_DP_AUDIO";
+		//case SUBMODULE_ID_DP_AUDIO:
+		//	return "SUBMODULE_ID_DP_AUDIO";
 		case SUBMODULE_ID_DP_INVAILD:
 			return "SUBMODULE_ID_DP_INVAILD";
 		default:
@@ -125,21 +125,12 @@ static char *client_owner_role_to_string(uint8_t role)
 	return NULL;
 }
 
-static char *client_id_to_string(uint32_t client_id) {
-	if (client_id == ADAS_LINUX_OS_MAGIC)
-		return "ADAS_LINUX_OS_MAGIC";
-	if (client_id == IVI_ANDROID_OS_MAGIC)
-		return "IVI_ANDROID_OS_MAGIC";
-	if (client_id == DB_QNX_OS_MAGIC)
-		return "DB_QNX_OS_MAGIC";
-	if (client_id == DB_LINUX_OS_MAGIC)
-		return "DB_LINUX_OS_MAGIC";
-	if (client_id == RT_RTOS_OS_MAGIC)
-		return "RT_RTOS_OS_MAGIC";
-	if (client_id == SF_RTOS_OS_MAGIC)
-		return "SF_RTOS_OS_MAGIC";
-
-	return NULL;
+static void client_id_to_string(uint32_t client_id, char* sys_name) {
+	sys_name[0] = (client_id & 0xff000000) >> 24;
+	sys_name[1] = (client_id & 0xff0000) >> 16;
+	sys_name[2] = (client_id & 0xff00) >> 8;
+	sys_name[3] = client_id & 0xff;
+	sys_name[4] = '\0';
 }
 
 static void hexnum_to_bin(struct seq_file *s, uint32_t hex)
@@ -153,15 +144,12 @@ static void hexnum_to_bin(struct seq_file *s, uint32_t hex)
 }
 
 int bst_virt_subdev_dump_info(struct seq_file *s, uint8_t subdev) {
-	struct bst_super_device *super_dev = s->private;
 	struct bst_subdev_info_req request = { 0 };
 	struct bst_subdev_info_result response = { 0 };
 	int ret, i, j;
+	char sys_name[8];
 
 	request.want_subdev = subdev;
-	request.client_id = super_dev->super_info.guest_os_client_id;
-	request.platform_id = super_dev->super_info.platform_id;
-
 	ret = bst_display_glb_cmd_get_subdev_info(&request, &response);
 	if (ret)
 		return -EINVAL;
@@ -170,14 +158,15 @@ int bst_virt_subdev_dump_info(struct seq_file *s, uint8_t subdev) {
 	seq_printf(s, "        exec_subdev:%s\n", virt_subdev_to_string(response.exec_subdev));
 	seq_printf(s, "         client_num:%d\n", response.clist.client_num);
 	for (i = 0; i < response.clist.client_num; i++) {
-		seq_printf(s, "         --------- Client_ID: %s ---------\n", client_id_to_string(response.clist.cinfo[i].client_id));
+		client_id_to_string(response.clist.cinfo[i].client_id, sys_name);
+		seq_printf(s, "         --------- Client_ID: %s ---------\n", sys_name);
 		seq_printf(s, "               role:%s\n", client_owner_role_to_string(response.clist.cinfo[i].role));
 		seq_printf(s, "               submodule_num:%d\n", response.clist.cinfo[i].submodule_num);
 		seq_printf(s, "               privilege_flags:%#x\n", response.clist.cinfo[i].reserve);
 		for (j = 0; j < SUBMODULE_IDS_MAX - 1; j++) {
 			if (IS_DC_SUBDEV_TYPE(subdev)) {
 				if (j < SUBMODULE_ID_DC_LAYER3)
-					seq_printf(s, "               zpos-%d:%s\n", j,
+					seq_printf(s, "               submodule_id[%d]:%s\n", j,
 					   virt_subdev_submodule_to_string(subdev, response.clist.cinfo[i].submodule_ids[j]));
 				else
 					seq_printf(s, "               submodule_id[%d]:%s\n", j,
@@ -219,8 +208,6 @@ static int virt_dc_info_show(struct seq_file *s, void *unused)
 		   "---|------------------------------------------"
 		   "-----------------------------------------------------|\n");
 	seq_printf(s, "                   --dev info--\n");
-	seq_printf(s, "             client_id:%#x\n",
-		   dev->base_dev->dev_info.client_id);
 	seq_printf(s, "                 arch_id:%#x\n",
 		   dev->base_dev->dev_info.arch_id);
 	seq_printf(s, "                 core_id:%#x\n",
@@ -233,7 +220,10 @@ static int virt_dc_info_show(struct seq_file *s, void *unused)
 		   dev->base_dev->dev_info.arch_id);
 	seq_printf(s, "             device_type:%#x\n",
 		   dev->base_dev->dev_info.device_type);
-
+	seq_printf(s, "             vsync_count:%lld\n",
+		   dev->vsync_count);
+	seq_printf(s, "             flush_count:%lld\n",
+		   dev->flush_count);
 	return 0;
 }
 
@@ -364,8 +354,6 @@ static int virt_dp_dump_show(struct seq_file *s, void *unused)
 		   "---|------------------------------------------"
 		   "-----------------------------------------------------|\n");
 	seq_printf(s, "                   --dev info--\n");
-	seq_printf(s, "               client_id:%#x\n",
-		   dev->base_dev->dev_info.client_id);
 	seq_printf(s, "                 arch_id:%#x\n",
 		   dev->base_dev->dev_info.arch_id);
 	seq_printf(s, "                 core_id:%#x\n",

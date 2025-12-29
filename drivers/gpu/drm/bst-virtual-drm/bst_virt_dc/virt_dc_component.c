@@ -49,7 +49,7 @@ static uint32_t get_valid_inputs(struct bst_display_submodule_header *submodule,
 	int i;
 
 	for (i = 0; i < PIPELINE_INFO_N_VALID_INPUTS(submodule->pipeline_info); i++) {
-		get_resources_id(submodule->input_ids[i], BST_MAX_1PIPE_LAYERS,
+		get_resources_id(submodule->input_ids[i], MAX_LAYER_NUM_PER_PIPE,
 				 min_fw_layer_id, &comp_id);
 		if (comp_id == 0xFFFFFFFF)
 			continue;
@@ -80,21 +80,6 @@ static void to_rot_ctrl(uint32_t rot, struct bst_display_layer_cfg *cfg)
 		cfg->layer_reflect = DC_LAYER_REFLECT_TYPE_X;
 	if (rot & DRM_MODE_REFLECT_Y)
 		cfg->layer_reflect = DC_LAYER_REFLECT_TYPE_Y;
-}
-
-static uint8_t to_local_scaler_ch(uint8_t fw_scaler_ch)
-{
-	uint8_t local_scaler_ch = BST_VIRT_DC_SCALER_NULL;
-	switch (fw_scaler_ch) {
-	case DC_SCALER_CH0:
-		local_scaler_ch = BST_VIRT_DC_SCALER_CH0;
-		break;
-	case DC_SCALER_CH1:
-		local_scaler_ch = BST_VIRT_DC_SCALER_CH1;
-		break;
-	}
-
-	return local_scaler_ch;
 }
 
 static u32 to_fw_afbc_mode(u64 modifier)
@@ -204,19 +189,18 @@ static void dc_layer_update(struct bst_virt_component *c,
 	const struct drm_format_info *info = fb->format;
 	struct bst_fb *bfb = to_bfb(fb);
 	uint32_t subdev_session = c->subdev_session;
-	struct bst_display_layer_cfg layer_cfg = { 0 };
-	struct bst_display_trust_layer_cfg trust_layer_cfg = { 0 };
-	struct bst_display_scaler_cfg scaler_cfg = { 0 };
-	struct bst_display_crop_cfg crop_cfg = {0};
-	struct bst_display_coeffs_cfg ctm_coeffs_cfg = { 0 };
+	struct bst_display_layer_cfg layer_cfg;
 	struct bst_display_comm_reply reply = { 0 };
+	struct virt_dc_dev *dc = c->pipe->subdevs[BST_VIRT_DC_IDX]->virt_dev_data;
+	u8 i = 0, count = 0;
 	int ret;
-	int block_h, coeffs_size;
+	int block_h;
 	uint32_t fw_layer_id = c->fw_id;
-	const s32 *yuv2rgb_coeffs;
+	// const s32 *yuv2rgb_coeffs;
 	u8 use_fourcc_std = true;
-	u8 use_user_cmt_lut = false;
+	// u8 use_user_cmt_lut = false;
 
+	memset(&layer_cfg, 0, sizeof(struct bst_display_layer_cfg));
 	if (info->num_planes > 2)
 		layer_cfg.p2_ptr = st->addr[2];
 
@@ -232,23 +216,17 @@ static void dc_layer_update(struct bst_virt_component *c,
 		layer_cfg.pixel_format_standard =
 			layer->supported_pix_fmt_stds & BIT(DC_PIX_FMT_STD_TYPE_FOURCC);
 		layer_cfg.pixel_format = fb->format->format;
-	} else {
-		layer_cfg.pixel_format_standard =
-			layer->supported_pix_fmt_stds & BIT(DC_PIX_FMT_STD_TYPE_LOCAL);
-		layer_cfg.pixel_format = bfb->format_caps->fw_id;
 	}
 	layer_cfg.num_planars = info->num_planes;
 	layer_cfg.afbc_mode = to_fw_afbc_mode(fb->modifier);
 
-	crop_cfg.crop_type = DC_LAYER_CROP_TYPE_NORMAL;
-	crop_cfg.client_id = c->client_id;
+	layer_cfg.crop.crop_type = DC_LAYER_CROP_TYPE_NORMAL;
 	if (fb->modifier) {
-		crop_cfg.fw_layer_id = fw_layer_id;
-		crop_cfg.crop_type = DC_LAYER_CROP_TYPE_AFBC;
-		crop_cfg.crop_left = st->afbc_crop.afbc_crop_l;
-		crop_cfg.crop_right = st->afbc_crop.afbc_crop_r;
-		crop_cfg.crop_top = st->afbc_crop.afbc_crop_t;
-		crop_cfg.crop_bottom = st->afbc_crop.afbc_crop_b;
+		layer_cfg.crop.crop_type = DC_LAYER_CROP_TYPE_AFBC;
+		layer_cfg.crop.crop_left = st->afbc_crop.afbc_crop_l;
+		layer_cfg.crop.crop_right = st->afbc_crop.afbc_crop_r;
+		layer_cfg.crop.crop_top = st->afbc_crop.afbc_crop_t;
+		layer_cfg.crop.crop_bottom = st->afbc_crop.afbc_crop_b;
 		if (fb->modifier & AFBC_FORMAT_MOD_TILED)
 			layer_cfg.p1_ptr = st->addr[0] + bfb->offset_payload;
 		else
@@ -256,139 +234,123 @@ static void dc_layer_update(struct bst_virt_component *c,
 	}
 
 	if (memcmp(&st->afbc_crop_old, &st->afbc_crop, sizeof(st->afbc_crop))) {
-		ret = bst_display_dc_cmd_update_layer_crop(subdev_session, &crop_cfg, &reply);
-		if (ret || reply.status != DISP_COMM_REPLAY_OK)
-			DRM_ERROR("layer crop falied!!\n");
+		layer_cfg.crop.update_flag = true;
 		st->afbc_crop_old = st->afbc_crop;
 	}
 
 	if (fb->format->is_yuv) {
-		if(use_user_cmt_lut ) {
-			memset(&reply, 0, sizeof(reply));
-			yuv2rgb_coeffs = bst_select_yuv2rgb_coeffs(
-							plane_st->color_encoding,
-							plane_st->color_range);
-			ctm_coeffs_cfg.client_id = c->client_id;
-			ctm_coeffs_cfg.coeffs_type = BST_DC_COEFFS_TYPE_LAYER_CTM;
-			ctm_coeffs_cfg.coeffs_num = BST_DC_N_CTM_COEFFS;
-			coeffs_size = sizeof(ctm_coeffs_cfg.coeffs_table);
-			memcpy(&ctm_coeffs_cfg.coeffs_table[0], &yuv2rgb_coeffs[0], coeffs_size);
-			ret = bst_display_dc_cmd_update_coeffs_table(subdev_session, &ctm_coeffs_cfg, &reply);
-			if (ret || reply.status != DISP_COMM_REPLAY_OK)
-				DRM_ERROR(":%s update layer ctm table falied!!\n", __func__);
-			layer_cfg.ctm_color_lut_standard =
-				layer->supported_ctm_lut_stds & BIT(DC_CTM_COLOR_STD_TYPE_USER);
-		} else {
+		// if(use_user_cmt_lut ) {
+		// 	memset(&reply, 0, sizeof(reply));
+		// 	yuv2rgb_coeffs = bst_select_yuv2rgb_coeffs(
+		// 					plane_st->color_encoding,
+		// 					plane_st->color_range);
+		// 	ctm_coeffs_cfg.client_id = c->client_id;
+		// 	ctm_coeffs_cfg.coeffs_type = BST_DC_COEFFS_TYPE_LAYER_CTM;
+		// 	ctm_coeffs_cfg.coeffs_num = BST_DC_N_CTM_COEFFS;
+		// 	coeffs_size = sizeof(ctm_coeffs_cfg.coeffs_table);
+		// 	memcpy(&ctm_coeffs_cfg.coeffs_table[0], &yuv2rgb_coeffs[0], coeffs_size);
+		// 	ret = bst_display_dc_cmd_update_coeffs_table(subdev_session, &ctm_coeffs_cfg, &reply);
+		// 	if (ret || reply.status != DISP_COMM_REPLAY_OK)
+		// 		DRM_ERROR(":%s update layer ctm table falied!!\n", __func__);
+		// 	layer_cfg.ctm_color_lut_standard =
+		// 		layer->supported_ctm_lut_stds & BIT(DC_CTM_COLOR_STD_TYPE_USER);
+		// } else {
 			layer_cfg.ctm_color_encoding = to_fw_color_encoding(plane_st->color_encoding);
 			layer_cfg.ctm_color_range = to_fw_color_range(plane_st->color_range);
 			layer_cfg.ctm_color_lut_standard =
 				layer->supported_ctm_lut_stds & BIT(DC_CTM_COLOR_STD_TYPE_ITUR);
-		}
+		// }
 		layer_cfg.ctm_color_lut_changed = true;
 	}
 
 	memset(&reply, 0, sizeof(reply));
+	layer_cfg.fw_layer_id = fw_layer_id;
 	layer_cfg.layer_en = true;
 	to_rot_ctrl(st->rot, &layer_cfg);
 	layer_cfg.hsize = st->hsize;
 	layer_cfg.vsize = st->vsize;
-	layer_cfg.client_id = c->client_id;
-	layer_cfg.fw_layer_id = fw_layer_id;
-	ret = bst_display_dc_cmd_update_layer(subdev_session, &layer_cfg, &reply);
-	if (ret || reply.status != DISP_COMM_REPLAY_OK)
-		DRM_ERROR("layer update falied!!\n");
+	layer_cfg.cin.hsize = st->cin.hsize;
+	layer_cfg.cin.vsize = st->cin.vsize;
+	layer_cfg.cin.hoffset = st->cin.hoffset;
+	layer_cfg.cin.voffset = st->cin.voffset;
+	layer_cfg.cin.pixel_blend_mode = (st->cin.pixel_blend_mode == DRM_MODE_BLEND_PIXEL_NONE) ?
+				MODE_BLEND_PIXEL_NONE : MODE_BLEND_PREMULTI;
+	layer_cfg.cin.layer_alpha = st->cin.layer_alpha;
+
+	if (!(dc->enabled_layers_map & (fw_layer_id - SUBMODULE_ID_DC_LAYER_START))) {
+		dc->enabled_layers_map |= (fw_layer_id - SUBMODULE_ID_DC_LAYER_START);
+	}
+	for (i = 0; i < MAX_LAYER_NUM_PER_PIPE; i++) {
+		if (dc->enabled_layers_map & BIT(i)) {
+			count++;
+		}
+		if ((count > 1) && (layer_cfg.hsize >= 3840)) {
+			DRM_WARN_ONCE("Warning, 4K uses more than one hw layer!!\n");
+		}
+	}
 
 	if (0) {  // trust layer function not implemented now
-		trust_layer_cfg.client_id = c->client_id;;
-		trust_layer_cfg.trust_mode = DC_LAYER_TRUST_MODE_TZC;
-		trust_layer_cfg.trust_prot_nasid = 0xA;
-		trust_layer_cfg.trust_nprot_nasid = 0xA;
-		trust_layer_cfg.compiz_hsize = st->hsize;
-		trust_layer_cfg.compiz_vsize = st->hsize;
-		trust_layer_cfg.compiz_in.enable = true;
-		trust_layer_cfg.compiz_in.hsize = st->hsize;
-		trust_layer_cfg.compiz_in.vsize = st->vsize;
-		trust_layer_cfg.compiz_in.hoffset = 0;
-		trust_layer_cfg.compiz_in.voffset = 0;
-		trust_layer_cfg.compiz_in.pixel_blend_mode = MODE_BLEND_PREMULTI;
-		trust_layer_cfg.compiz_in.layer_alpha = 0xFF;
-		memcpy(&trust_layer_cfg.layer, &layer_cfg, sizeof(trust_layer_cfg.layer));
-		ret = bst_display_dc_cmd_update_trust_layer(subdev_session, &trust_layer_cfg, &reply);
-		if (ret || reply.status != DISP_COMM_REPLAY_OK)
-			DRM_ERROR("trust layer update falied!!\n");
-	}
-	memset(&reply, 0, sizeof(reply));
-	if (st->scaler.en_scaling) {
-		scaler_cfg.en_scaling = 1;
-		scaler_cfg.client_id = c->client_id;
-		scaler_cfg.fw_layer_id = fw_layer_id;
-		scaler_cfg.en_alpha = st->scaler.en_alpha;
-		scaler_cfg.en_img_enh = st->scaler.en_img_enhancement;
-		scaler_cfg.hsize_in = st->scaler.hsize_in;
-		scaler_cfg.vsize_in = st->scaler.vsize_in;
-		scaler_cfg.hsize_out = st->scaler.hsize_out;
-		scaler_cfg.vsize_out = st->scaler.vsize_out;
-		scaler_cfg.total_hsize_in = st->scaler.total_hsize_in;
-		scaler_cfg.total_vsize_in = st->scaler.total_vsize_in;
-		scaler_cfg.total_hsize_out = st->scaler.total_hsize_out;
-		scaler_cfg.left_crop = st->scaler.left_crop;
-		scaler_cfg.right_crop = st->scaler.right_crop;
-		scaler_cfg.alpha_scaling_method = DC_LAYER_SCALER_METHOD_POLYPHASE_FIR;
-		scaler_cfg.rgb_scaling_method = DC_LAYER_SCALER_METHOD_POLYPHASE_FIR;
-	} else {
-		scaler_cfg.en_scaling = 0;
-		scaler_cfg.client_id = c->client_id;
-		scaler_cfg.fw_layer_id = fw_layer_id;
+		layer_cfg.trust_cfg.enable = true;
+		layer_cfg.trust_cfg.trust_mode = DC_LAYER_TRUST_MODE_TZC;
+		layer_cfg.trust_cfg.trust_prot_nasid = 0xA;
+		layer_cfg.trust_cfg.trust_nprot_nasid = 0xA;
 	}
 
-	if (memcmp(&st->scaler_old, &st->scaler, sizeof(st->scaler))) {
-		ret = bst_display_dc_cmd_update_layer_scaler(
-			subdev_session, &scaler_cfg, &reply);
-		if (ret || reply.status != DISP_COMM_REPLAY_OK) {
-			DRM_WARN("warning, scaler update %s!! ret:%d reply status:%d\n",
-				  reply.status == DISP_COMM_REPLAY_BUSY ? "BUSY" : "FAILED",
-				  ret, reply.status);
-			if (reply.status == DISP_COMM_REPLAY_BUSY) {
-				remove_scaler_from_slot(layer);
-			}
-		} else
-			st->scaler_old = st->scaler;
+#ifdef DISPLAY_SUPPORT_SCALE
+	if (st->scaler.en_scaling) {
+		layer_cfg.scale.en_scaling = 1;
+		layer_cfg.scale.en_alpha = st->scaler.en_alpha;
+		layer_cfg.scale.en_img_enh = st->scaler.en_img_enhancement;
+		layer_cfg.scale.hsize_in = st->scaler.hsize_in;
+		layer_cfg.scale.vsize_in = st->scaler.vsize_in;
+		layer_cfg.scale.hsize_out = st->scaler.hsize_out;
+		layer_cfg.scale.vsize_out = st->scaler.vsize_out;
+		layer_cfg.scale.total_hsize_in = st->scaler.total_hsize_in;
+		layer_cfg.scale.total_vsize_in = st->scaler.total_vsize_in;
+		layer_cfg.scale.total_hsize_out = st->scaler.total_hsize_out;
+		layer_cfg.scale.left_crop = st->scaler.left_crop;
+		layer_cfg.scale.right_crop = st->scaler.right_crop;
+		layer_cfg.scale.alpha_scaling_method = DC_LAYER_SCALER_METHOD_POLYPHASE_FIR;
+		layer_cfg.scale.rgb_scaling_method = DC_LAYER_SCALER_METHOD_POLYPHASE_FIR;
+	} else {
+		layer_cfg.scale.en_scaling = 0;
 	}
+#endif
+
+	ret = bst_display_dc_cmd_update_layer(subdev_session, &layer_cfg, &reply);
+	if (ret || reply.base.status != DISP_COMM_REPLAY_OK)
+		DRM_ERROR("layer update falied!!\n");
 }
 
 static void dc_layer_disable(struct bst_virt_component *c)
 {
-	struct bst_display_submodule_disable submodule_dis = { 0 };
+	struct bst_display_submodule_req submodule_req = { 0 };
 	uint32_t subdev_session = c->subdev_session;
 	struct bst_display_comm_reply reply = { 0 };
-	struct bst_display_scaler_cfg scaler_cfg = { 0 };
+	struct virt_dc_dev *dc = c->pipe->subdevs[BST_VIRT_DC_IDX]->virt_dev_data;
+#ifdef DISPLAY_SUPPORT_SCALE
 	struct bst_virt_component_state *c_st = priv_to_comp_st(c->obj.state);
 	struct bst_virt_layer_state *st = to_layer_st(c_st);
-	uint32_t fw_layer_id = c->fw_id;
+#endif
 	int ret;
 
-	submodule_dis.client_id = c->client_id;
-	submodule_dis.submodule_type = DC_SUBMODULE_TYPE_LAYER;
-	submodule_dis.submodule_id = c->fw_id;
-
-	scaler_cfg.en_scaling = 0;
-	scaler_cfg.client_id = c->client_id;
-	scaler_cfg.fw_layer_id = fw_layer_id;
-	st->scaler.en_scaling = scaler_cfg.en_scaling;
-
-	if (memcmp(&st->scaler_old, &st->scaler, sizeof(st->scaler))) {
-		ret = bst_display_dc_cmd_update_layer_scaler(subdev_session, &scaler_cfg, &reply);
-		if (ret || reply.status != DISP_COMM_REPLAY_OK) {
-			DRM_ERROR("scaler update falied!!\n");
-		} else
-			st->scaler_old = st->scaler;
-		remove_scaler_from_slot(to_layer(c));
+	//submodule_req.submodule_type = DC_SUBMODULE_TYPE_LAYER;
+	submodule_req.submodule_id = c->fw_id;
+	if (dc->enabled_layers_map & (c->fw_id - SUBMODULE_ID_DC_LAYER_START)) {
+		dc->enabled_layers_map &= ~(c->fw_id - SUBMODULE_ID_DC_LAYER_START);
 	}
-	ret = bst_display_dc_cmd_disable_submodule(subdev_session, &submodule_dis, &reply);
-	if (!ret && reply.status == DISP_COMM_REPLAY_OK)
-		DRM_DEBUG_ATOMIC("layer%d disable ok!!\n", submodule_dis.submodule_id);
+#ifdef DISPLAY_SUPPORT_SCALE
+	st->scaler.en_scaling = 0;
+	//if (memcmp(&st->scaler_old, &st->scaler, sizeof(st->scaler))) {
+	//	st->scaler_old = st->scaler;
+	//	remove_scaler_from_slot(to_layer(c));
+	//}
+#endif
+	ret = bst_display_dc_cmd_disable_submodule(subdev_session, &submodule_req, &reply);
+	if (!ret && reply.base.status == DISP_COMM_REPLAY_OK)
+		DRM_DEBUG_ATOMIC("layer%d disable ok!!\n", submodule_req.submodule_id);
 	else
-		DRM_ERROR("layer%d disable falied!!\n", submodule_dis.submodule_id);
+		DRM_ERROR("layer%d disable falied!!\n", submodule_req.submodule_id);
 }
 
 static void dc_layer_dump(struct bst_virt_component *c, struct seq_file *sf)
@@ -411,7 +373,6 @@ static int dc_layer_init(struct virt_dc_dev *dc,
 	uint32_t submodule_type = SUBMODULE_INFO_SUBMODULE_TYPE(submodule->submodule_info);
 	uint32_t fw_layer_id = SUBMODULE_INFO_SUBMODULE_ID(submodule->submodule_info);
 	uint32_t subdev_session = dc->base_dev->dev_info.subdev_session;
-	uint32_t client_id = dc->base_dev->dev_info.client_id;
 	struct bst_display_layer_info fw_layer_info = { 0 };
 	struct bst_display_layer_req fw_layer_req = { 0 };
 	uint32_t layer_id = 0, min_fw_layer_id = dc->min_fw_layer_id;
@@ -423,21 +384,19 @@ static int dc_layer_init(struct virt_dc_dev *dc,
 		return PTR_ERR(comp);
 	}
 
-	get_resources_id(submodule->submodule_info, BST_MAX_1PIPE_LAYERS, min_fw_layer_id,
+	get_resources_id(submodule->submodule_info, MAX_LAYER_NUM_PER_PIPE, min_fw_layer_id,
 			 &layer_id);
 	comp = bst_virt_component_add(dc->base_dev->this_pipe, dc->base_dev,
 				      sizeof(*layer), layer_id, fw_layer_id,
 				      &dc_layer_funcs, 0,
 				      get_valid_inputs(submodule, min_fw_layer_id), 1,
-				      client_id, "VIRT_LAYER-%d", layer_id);
+				      "VIRT_LAYER-%d", layer_id);
 	if (IS_ERR(comp)) {
 		DRM_ERROR("Failed to add layer component\n");
 		return PTR_ERR(comp);
 	}
 
 	layer = to_layer(comp);
-
-	fw_layer_req.client_id = dc->base_dev->dev_info.client_id;
 	fw_layer_req.fw_layer_id = fw_layer_id;
 	ret = bst_display_dc_cmd_get_layer_info(subdev_session, &fw_layer_req,
 				       &fw_layer_info);
@@ -471,23 +430,24 @@ static int dc_layer_init(struct virt_dc_dev *dc,
 	layer->supported_ctm_lut_stds = fw_layer_info.supported_ctm_color_std_types;
 
 	layer->init_zpos = fw_layer_info.default_zpos;
+#ifdef DISPLAY_SUPPORT_SCALE
 	set_range(&layer->scaler_hsize, 4, fw_layer_info.max_scaler_hsize);
 	set_range(&layer->scaler_vsize, 4, fw_layer_info.max_scaler_vsize);
 	layer->max_downscaling = fw_layer_info.max_downscale_ratio;
 	layer->max_upscaling = fw_layer_info.max_upscale_ratio;
-	layer->valid_scaler_channel = to_local_scaler_ch(fw_layer_info.available_scaler_channel);
+	layer->supported_scale = fw_layer_info.supported_scale;
+#endif
 
-	DRM_INFO("DC_DEV(session_id:%x) add CRTC%d_LAYER%d ok\n", subdev_session,
+	DRM_DEBUG("DC_DEV(session_id:%x) add CRTC%d_LAYER%d ok\n", subdev_session,
 		 pipe_id, layer_id);
-	DRM_INFO(
+	DRM_DEBUG(
 		"		layer_type:%s, max_size(%d X %d),rot_support:0x%x",
 		layer->layer_type == BST_DRM_FMT_RICH_LAYER ? "RICH" : "SIMPLE",
 		layer->line_sz, dc->max_vsize, layer->supported_rots);
-	DRM_INFO(
-		"		default_alpha:0x%x,init_zpos:%d,scaler_range[down-%d~up-%d],valid_scaler_ch:%d\n",
+	DRM_DEBUG(
+		"		default_alpha:0x%x,init_zpos:%d,scaler support[%d], range[down-%d~up-%d]\n",
 		fw_layer_info.default_layer_alpha, layer->init_zpos,
-		layer->max_downscaling, layer->max_upscaling,
-		layer->valid_scaler_channel);
+		layer->supported_scale, layer->max_downscaling, layer->max_upscaling);
 
 	return 0;
 }
@@ -497,68 +457,65 @@ static void dc_wb_layer_update(struct bst_virt_component *c,
 {
 	struct bst_virt_layer_state *st = to_layer_st(state);
 	struct drm_connector_state *conn_st = state->wb_conn->state;
-	struct bst_fb *bfb = to_bfb(conn_st->writeback_job->fb);
+	// struct bst_fb *bfb = to_bfb(conn_st->writeback_job->fb);
 	struct bst_display_wb_layer_cfg wb_lcfg = {0};
 	struct drm_framebuffer *fb = conn_st->writeback_job->fb;
 	const struct drm_format_info *info = fb->format;
 	uint32_t subdev_session = c->subdev_session;
-	uint32_t fw_layer_id = c->fw_id;
 	int32_t block_h = drm_format_info_block_height(info, 0);
 	struct bst_display_comm_reply reply = { 0 };
 	int ret;
 	struct bst_virt_layer *layer = to_layer(c);
 	u8 use_fourcc_std = true;
 
-	if (info->num_planes > 2)
-		wb_lcfg.layer.p2_ptr = st->addr[2];
+	if (info->num_planes > 2) {
+		DRM_ERROR("wirteback format=[%d],num_planes[%d] unsupport !\n",
+				fb->format->format, info->num_planes);
+		return;
+	}
 
 	if (info->num_planes > 1) {
 		block_h = drm_format_info_block_height(info, 1);
-		wb_lcfg.layer.p1_stride = fb->pitches[1] * block_h;
-		wb_lcfg.layer.p1_ptr = st->addr[1];
+		wb_lcfg.p1_stride = fb->pitches[1] * block_h;
+		wb_lcfg.p1_ptr = st->addr[1];
 	}
-	wb_lcfg.layer.p0_stride = fb->pitches[0] * block_h;
-	wb_lcfg.layer.p0_ptr = st->addr[0];
+	wb_lcfg.p0_stride = fb->pitches[0] * block_h;
+	wb_lcfg.p0_ptr = st->addr[0];
 	if (use_fourcc_std) {
-		wb_lcfg.layer.pixel_format_standard =
+		wb_lcfg.pixel_format_standard =
 			layer->supported_pix_fmt_stds & BIT(DC_PIX_FMT_STD_TYPE_FOURCC);
-		wb_lcfg.layer.pixel_format = fb->format->format;
-	} else {
-		wb_lcfg.layer.pixel_format_standard =
-			layer->supported_pix_fmt_stds & BIT(DC_PIX_FMT_STD_TYPE_LOCAL);
-		wb_lcfg.layer.pixel_format = bfb->format_caps->fw_id;
+		wb_lcfg.pixel_format = fb->format->format;
 	}
-	wb_lcfg.layer.layer_en = true;
-	to_rot_ctrl(st->rot, &wb_lcfg.layer);
-	wb_lcfg.layer.hsize = st->hsize;
-	wb_lcfg.layer.vsize = st->vsize;
+	// else {
+	// 	wb_lcfg.layer.pixel_format_standard =
+	// 		layer->supported_pix_fmt_stds & BIT(DC_PIX_FMT_STD_TYPE_LOCAL);
+	// 	wb_lcfg.layer.pixel_format = bfb->format_caps->fw_id;
+	// }
+	wb_lcfg.layer_en = true;
+	wb_lcfg.hsize = st->hsize;
+	wb_lcfg.vsize = st->vsize;
 
-	wb_lcfg.layer.client_id = c->client_id;
-	wb_lcfg.client_id = c->client_id;
-	wb_lcfg.layer.fw_layer_id = fw_layer_id;
-	wb_lcfg.valid_input_id = DC_SUBMODULE_TYPE_COMPOSER;
+	wb_lcfg.input_id = DC_SUBMODULE_TYPE_COMPOSER;
 	wb_lcfg.precision_reduce_mode = DC_LAYER_WB_PRECISION_REDUCE_MODE_TRUNCATION;
 	wb_lcfg.frame_mode = DC_LAYER_WB_FRAME_MODE_ONE;
 
 	ret = bst_display_dc_cmd_update_wb_layer(subdev_session, &wb_lcfg, &reply);
-	if (ret || reply.status != DISP_COMM_REPLAY_OK)
+	if (ret || reply.base.status != DISP_COMM_REPLAY_OK)
 		DRM_ERROR("wirteback layer update falied!!\n");
-
 }
 
 static void dc_wb_layer_disable(struct bst_virt_component *c)
 {
-	struct bst_display_submodule_disable submodule_dis = { 0 };
+	struct bst_display_submodule_req submodule_req = { 0 };
 	uint32_t subdev_session = c->subdev_session;
 	struct bst_display_comm_reply reply = { 0 };
 	int ret;
 
-	submodule_dis.client_id = c->client_id;
-	submodule_dis.submodule_type = DC_SUBMODULE_TYPE_WB_LAYER;
-	submodule_dis.submodule_id = c->fw_id;
+	//submodule_req.submodule_type = DC_SUBMODULE_TYPE_WB_LAYER;
+	submodule_req.submodule_id = c->fw_id;
 
-	ret = bst_display_dc_cmd_disable_submodule(subdev_session, &submodule_dis, &reply);
-	if (!ret && reply.status == DISP_COMM_REPLAY_OK)
+	ret = bst_display_dc_cmd_disable_submodule(subdev_session, &submodule_req, &reply);
+	if (!ret && reply.base.status == DISP_COMM_REPLAY_OK)
 		DRM_DEBUG("wirteback layer disable ok!!\n");
 	else
 		DRM_ERROR("wirteback layer disable falied!!\n");
@@ -577,13 +534,12 @@ static const struct bst_virt_component_funcs dc_wb_layer_funcs = {
 static int dc_wb_layer_init(struct virt_dc_dev *dc,
 				struct bst_display_submodule_header *submodule)
 {
-	struct bst_virt_component *comp;
+	struct bst_virt_component *comp = NULL;
 	struct bst_virt_layer *wb_layer;
 	uint32_t pipe_id = dc->base_dev->this_pipe->pipe_id;
 	uint32_t submodule_type = SUBMODULE_INFO_SUBMODULE_TYPE(submodule->submodule_info);
 	uint32_t fw_layer_id = SUBMODULE_INFO_SUBMODULE_ID(submodule->submodule_info);
 	uint32_t subdev_session = dc->base_dev->dev_info.subdev_session;
-	uint32_t client_id = dc->base_dev->dev_info.client_id;
 	struct bst_display_layer_info fw_layer_info = { 0 };
 	struct bst_display_layer_req fw_layer_req = { 0 };
 	uint32_t layer_id = 0, min_fw_layer_id = dc->min_fw_layer_id;
@@ -598,20 +554,19 @@ static int dc_wb_layer_init(struct virt_dc_dev *dc,
 		return PTR_ERR(comp);
 	}
 
-	get_resources_id(submodule->submodule_info, BST_MAX_1PIPE_LAYERS, min_fw_layer_id,
+	get_resources_id(submodule->submodule_info, MAX_LAYER_NUM_PER_PIPE, min_fw_layer_id,
 			 &layer_id);
 	comp = bst_virt_component_add(dc->base_dev->this_pipe, dc->base_dev,
 					sizeof(*wb_layer), layer_id, fw_layer_id,
 					&dc_wb_layer_funcs, 1,
 					get_valid_inputs(submodule, min_fw_layer_id), 0,
-					client_id, "VIRT_WB_LAYER-0");
+					"VIRT_WB_LAYER-0");
 
 	if (IS_ERR(comp)) {
 		DRM_ERROR("Failed to add layer component\n");
 		return PTR_ERR(comp);
 	}
 
-	fw_layer_req.client_id = dc->base_dev->dev_info.client_id;
 	fw_layer_req.fw_layer_id = fw_layer_id;
 	ret = bst_display_dc_cmd_get_layer_info(subdev_session,
 					&fw_layer_req, &fw_layer_info);
@@ -629,7 +584,7 @@ static int dc_wb_layer_init(struct virt_dc_dev *dc,
 	set_range(&wb_layer->hsize_in, 64, fw_layer_info.max_line_size);
 	set_range(&wb_layer->vsize_in, 64, dc->max_vsize);
 
-	DRM_INFO("DC_DEV(session_id:%x) add CRTC%d_WB_LAYER ok\n", subdev_session,
+	DRM_DEBUG("DC_DEV(session_id:%x) add CRTC%d_WB_LAYER ok\n", subdev_session,
 		 pipe_id);
 
 	return 0;
@@ -690,117 +645,120 @@ static void dc_crtc_update(struct bst_virt_component *c,
 	struct bst_display_coeffs_cfg ctm_cfg = { 0 };
 	uint16_t coeffs_size = 0, i = 0;
 	unsigned long changed_active_inputs;
+	bool update_flag = false;
+	struct bst_virt_device *subdev;
 
+	subdev = (struct bst_virt_device *)(c->base_dev);
 	if (crtc_st->color_mgmt_changed) {
-		if (crtc_st->gamma_lut) {
-			gamma_cfg.client_id = c->client_id;
-			gamma_cfg.coeffs_type = BST_DC_COEFFS_TYPE_OUT_GAMMA;
-			gamma_cfg.coeffs_num = BST_DC_N_GAMMA_COEFFS;
-			coeffs_size = sizeof(gamma_cfg.coeffs_table);
-			memcpy(&gamma_cfg.coeffs_table[0], &st->fgamma_coeffs[0], coeffs_size);
-			ret = bst_display_dc_cmd_update_coeffs_table(subdev_session, &gamma_cfg, &reply);
-			if (ret || reply.status != DISP_COMM_REPLAY_OK)
-				DRM_ERROR(":%s update gamma table falied!!\n", __func__);
-			memset(&reply, 0, sizeof(reply));
-			composer_cfg.ips.gamma_changed = true;
-		}
+		if (!subdev->dev_info.is_owner_device) {
+			DRM_ERROR(":%s Color change is not supported!\n", __func__);
+		} else {
+			if (crtc_st->gamma_lut) {
+				gamma_cfg.submodule_id = SUBMODULE_ID_DC_COMPOSER;
+				gamma_cfg.coeffs_type = BST_DC_COEFFS_TYPE_OUT_GAMMA;
+				gamma_cfg.coeffs_num = BST_DC_N_GAMMA_COEFFS;
+				coeffs_size = sizeof(gamma_cfg.coeffs_table);
+				memcpy(&gamma_cfg.coeffs_table[0], &st->fgamma_coeffs[0], coeffs_size);
+				ret = bst_display_dc_cmd_update_coeffs_table(subdev_session, &gamma_cfg, &reply);
+				if (ret || reply.base.status != DISP_COMM_REPLAY_OK)
+					DRM_ERROR(":%s update gamma table falied!!\n", __func__);
+				memset(&reply, 0, sizeof(reply));
+				composer_cfg.ips.gamma_changed = true;
+				update_flag = true;
+			}
 
-		if (crtc_st->ctm) {
-			ctm_cfg.client_id = c->client_id;
-			ctm_cfg.coeffs_type = BST_DC_COEFFS_TYPE_OUT_CTM;
-			ctm_cfg.coeffs_num = BST_DC_N_CTM_COEFFS;
-			coeffs_size = sizeof(ctm_cfg.coeffs_table);
-			memcpy(&ctm_cfg.coeffs_table[0], &st->ctm_coeffs[0], coeffs_size);
-			ret = bst_display_dc_cmd_update_coeffs_table(subdev_session, &ctm_cfg, &reply);
-			if (ret || reply.status != DISP_COMM_REPLAY_OK)
-				DRM_ERROR(":%s update ctm table falied!!\n", __func__);
-			memset(&reply, 0, sizeof(reply));
-			composer_cfg.ips.ctm_color_lut_changed = true;
+			if (crtc_st->ctm) {
+				ctm_cfg.submodule_id = SUBMODULE_ID_DC_COMPOSER;
+				ctm_cfg.coeffs_type = BST_DC_COEFFS_TYPE_OUT_CTM;
+				ctm_cfg.coeffs_num = BST_DRM_N_CTM_COEFFS;
+				// coeffs_size = sizeof(ctm_cfg.coeffs_table);
+				memcpy(&ctm_cfg.coeffs_table[0], &st->ctm_coeffs[0], BST_DRM_N_CTM_COEFFS*sizeof(u32));
+				ret = bst_display_dc_cmd_update_coeffs_table(subdev_session, &ctm_cfg, &reply);
+				if (ret || reply.base.status != DISP_COMM_REPLAY_OK)
+					DRM_ERROR(":%s update ctm table falied!!\n", __func__);
+				memset(&reply, 0, sizeof(reply));
+				composer_cfg.ips.ctm_color_lut_changed = true;
+				update_flag = true;
+			}
 		}
 	}
 
-	composer_cfg.client_id = c->client_id;
-	composer_cfg.video_mode.dual_link = c->pipe->dual_link;
-	composer_cfg.video_mode.timing_changed = 1;
-	ratio = aspect_gcd(mode->crtc_hdisplay, mode->crtc_vdisplay);
-	composer_cfg.video_mode.timing.pixel_clock = mode->clock;
-	composer_cfg.video_mode.timing.interlaced = 0;
+	if (crtc_st->mode_changed) {
+		update_flag = true;
+		composer_cfg.video_mode.timing_changed = true;
+		composer_cfg.video_mode.enable = crtc_st->enable;
+		composer_cfg.video_mode.dual_link = c->pipe->dual_link;
+		ratio = aspect_gcd(mode->crtc_hdisplay, mode->crtc_vdisplay);
+		composer_cfg.video_mode.timing.pixel_clock = mode->clock;
+		composer_cfg.video_mode.timing.interlaced = 0;
+		composer_cfg.video_mode.timing.h_image_size = mode->crtc_hdisplay / ratio;
+		composer_cfg.video_mode.timing.h_active = mode->crtc_hdisplay;
+		composer_cfg.video_mode.timing.h_sync_offset = mode->crtc_hsync_start - mode->crtc_hdisplay;
+		composer_cfg.video_mode.timing.h_sync_pulse_width = mode->crtc_hsync_end - mode->crtc_hsync_start;
+		composer_cfg.video_mode.timing.h_blanking = mode->crtc_htotal - mode->crtc_hdisplay;
+		composer_cfg.video_mode.timing.h_sync_polarity = mode->flags & DRM_MODE_FLAG_PHSYNC ? 1 : 0;
+		composer_cfg.video_mode.timing.v_image_size = mode->crtc_vdisplay / ratio;
+		composer_cfg.video_mode.timing.v_active = mode->crtc_vdisplay;
+		composer_cfg.video_mode.timing.v_sync_offset = mode->crtc_vsync_start - mode->crtc_vdisplay;
+		composer_cfg.video_mode.timing.v_sync_pulse_width = mode->crtc_vsync_end - mode->crtc_vsync_start;
+		composer_cfg.video_mode.timing.v_blanking = mode->crtc_vtotal - mode->crtc_vdisplay;
+		composer_cfg.video_mode.timing.v_sync_polarity = mode->flags & DRM_MODE_FLAG_PVSYNC ? 1 : 0;
 
-	composer_cfg.video_mode.timing.h_image_size = mode->crtc_hdisplay / ratio;
-	composer_cfg.video_mode.timing.h_active = mode->crtc_hdisplay;
-	composer_cfg.video_mode.timing.h_sync_offset = mode->crtc_hsync_start - mode->crtc_hdisplay;
-	composer_cfg.video_mode.timing.h_sync_pulse_width = mode->crtc_hsync_end - mode->crtc_hsync_start;
-	composer_cfg.video_mode.timing.h_blanking = mode->crtc_htotal - mode->crtc_hdisplay;
-	composer_cfg.video_mode.timing.h_sync_polarity = mode->flags & DRM_MODE_FLAG_PHSYNC ? 1 : 0;
-
-	composer_cfg.video_mode.timing.v_image_size = mode->crtc_vdisplay / ratio;
-	composer_cfg.video_mode.timing.v_active = mode->crtc_vdisplay;
-	composer_cfg.video_mode.timing.v_sync_offset = mode->crtc_vsync_start - mode->crtc_vdisplay;
-	composer_cfg.video_mode.timing.v_sync_pulse_width = mode->crtc_vsync_end - mode->crtc_vsync_start;
-	composer_cfg.video_mode.timing.v_blanking = mode->crtc_vtotal - mode->crtc_vdisplay;
-	composer_cfg.video_mode.timing.v_sync_polarity = mode->flags & DRM_MODE_FLAG_PVSYNC ? 1 : 0;
-
-	composer_cfg.ips.hsize = st->hsize;
-	composer_cfg.ips.vsize = st->vsize;
-	composer_cfg.ips.color_depth = st->color_depth;
-	composer_cfg.ips.dither_mode = DC_COMPOSER_IPS_DITHER_MODE_ON;
-	switch(st->color_format){
-		case DRM_COLOR_FORMAT_RGB444:
-			composer_cfg.ips.color_format = BST_DC_OUT_COLOR_FORMAT_RGB444;
-		break;
-		case DRM_COLOR_FORMAT_YCBCR444:
-			composer_cfg.ips.color_format = BST_DC_OUT_COLOR_FORMAT_YCRCB444;
-		break;
-		case DRM_COLOR_FORMAT_YCBCR422:
-			composer_cfg.ips.color_format = BST_DC_OUT_COLOR_FORMAT_YCRCB422;
-		break;
-		case DRM_COLOR_FORMAT_YCBCR420:
-			composer_cfg.ips.color_format = BST_DC_OUT_COLOR_FORMAT_YCRCB420;
-		break;
-		default:
-			composer_cfg.ips.color_format = BST_DC_OUT_COLOR_FORMAT_RGB444;
-		break;
+		composer_cfg.ips.base_cfg_changed = true;
+		composer_cfg.ips.hsize = st->hsize;
+		composer_cfg.ips.vsize = st->vsize;
+		composer_cfg.ips.color_depth = st->color_depth;
+		composer_cfg.ips.dither_mode = DC_COMPOSER_IPS_DITHER_MODE_ON;
+		switch(st->color_format){
+			case DRM_COLOR_FORMAT_RGB444:
+				composer_cfg.ips.color_format = BST_DC_OUT_COLOR_FORMAT_RGB444;
+			break;
+			case DRM_COLOR_FORMAT_YCBCR444:
+				composer_cfg.ips.color_format = BST_DC_OUT_COLOR_FORMAT_YCRCB444;
+			break;
+			case DRM_COLOR_FORMAT_YCBCR422:
+				composer_cfg.ips.color_format = BST_DC_OUT_COLOR_FORMAT_YCRCB422;
+			break;
+			case DRM_COLOR_FORMAT_YCBCR420:
+				composer_cfg.ips.color_format = BST_DC_OUT_COLOR_FORMAT_YCRCB420;
+			break;
+			default:
+				composer_cfg.ips.color_format = BST_DC_OUT_COLOR_FORMAT_RGB444;
+			break;
+		}
 	}
 
-	composer_cfg.compiz.hsize = st->hsize;
-	composer_cfg.compiz.vsize = st->vsize;
 	changed_active_inputs = state->changed_active_inputs;
-	memset(composer_cfg.compiz.cins, 0, sizeof(struct bst_virt_crtc_input_cfg) * 5);
-	for_each_set_bit(i, &changed_active_inputs, 5) {
-		composer_cfg.compiz.cins[i].enable = st->cins[i].enable;
-		composer_cfg.compiz.cins[i].hsize = st->cins[i].hsize;
-		composer_cfg.compiz.cins[i].vsize = st->cins[i].vsize;
-		composer_cfg.compiz.cins[i].hoffset = st->cins[i].hoffset;
-		composer_cfg.compiz.cins[i].voffset = st->cins[i].voffset;
-		composer_cfg.compiz.cins[i].layer_alpha = st->cins[i].layer_alpha;
-		composer_cfg.compiz.cins[i].pixel_blend_mode =
-			st->cins[i].pixel_blend_mode == DRM_MODE_BLEND_PIXEL_NONE ?
-				MODE_BLEND_PIXEL_NONE : MODE_BLEND_PREMULTI;
-		composer_cfg.compiz.valid_input_ids[i] = state->inputs[i].component->fw_id;
-		composer_cfg.compiz.changed_active_inputs = state->changed_active_inputs;
+	if (0 != changed_active_inputs) {
+		for_each_set_bit(i, &changed_active_inputs, 5) {
+			composer_cfg.compiz.valid_input_ids[i] = state->inputs[i].component->fw_id;
+		}
+		composer_cfg.compiz.active_inputs_mask = state->changed_active_inputs;
+		composer_cfg.compiz.valid_input_num = hweight32(changed_active_inputs);
+
+		update_flag = true;
 	}
 
-	composer_cfg.compiz.valid_input_num =
-		hweight32(changed_active_inputs);
-
-	ret = bst_display_dc_cmd_update_composer(subdev_session, &composer_cfg, &reply);
-	if (ret || reply.status != DISP_COMM_REPLAY_OK)
-		DRM_ERROR("UNC:%s falied!!\n", __func__);
+	if (update_flag)
+	{
+		ret = bst_display_dc_cmd_update_composer(subdev_session, &composer_cfg, &reply);
+		if (ret || reply.base.status != DISP_COMM_REPLAY_OK)
+			DRM_ERROR("UNC:%s falied!!\n", __func__);
+	}
 }
 
 static void dc_crtc_disable(struct bst_virt_component *c)
 {
-	struct bst_display_submodule_disable submodule_dis = { 0 };
+	struct bst_display_submodule_req submodule_req = { 0 };
 	uint32_t subdev_session = c->subdev_session;
 	struct bst_display_comm_reply reply = { 0 };
 	int ret;
 
-	submodule_dis.client_id = c->client_id;
-	submodule_dis.submodule_type = DC_SUBMODULE_TYPE_COMPOSER;
-	submodule_dis.submodule_id = c->fw_id;
+	//submodule_req.submodule_type = DC_SUBMODULE_TYPE_COMPOSER;
+	submodule_req.submodule_id = c->fw_id;
 
-	ret = bst_display_dc_cmd_disable_submodule(subdev_session, &submodule_dis, &reply);
-	if (!ret && reply.status == DISP_COMM_REPLAY_OK)
+	ret = bst_display_dc_cmd_disable_submodule(subdev_session, &submodule_req, &reply);
+	if (!ret && reply.base.status == DISP_COMM_REPLAY_OK)
 		DRM_INFO("dc_crtc disable ok!!\n");
 	else
 		DRM_ERROR("dc_crtc disable falied!!\n");
@@ -816,6 +774,7 @@ static const struct bst_virt_component_funcs dc_crtc_funcs = {
 	.dump_log = dc_crtc_dump,
 };
 
+#if 0
 static void dc_shared_crtc_disable(struct bst_virt_component *c)
 {
 }
@@ -823,37 +782,25 @@ static void dc_shared_crtc_disable(struct bst_virt_component *c)
 static void dc_shared_crtc_update(struct bst_virt_component *c,
 			  struct bst_virt_component_state *state)
 {
-	struct bst_virt_dc_crtc_state *st = to_dc_crtc_st(state);
 	uint32_t subdev_session = c->subdev_session;
 	struct bst_display_composer_cfg composer_cfg = {0};
 	struct bst_display_comm_reply reply = {0};
 	unsigned long changed_active_inputs;
 	int ret, i = 0;
 
-	composer_cfg.client_id = c->client_id;
-	composer_cfg.compiz.hsize = st->hsize;
-	composer_cfg.compiz.vsize = st->vsize;
 	changed_active_inputs = state->changed_active_inputs;
-	memset(composer_cfg.compiz.cins, 0, sizeof(struct bst_virt_crtc_input_cfg) * 5);
-	for_each_set_bit(i, &changed_active_inputs, 5) {
-		composer_cfg.compiz.cins[i].enable = st->cins[i].enable;
-		composer_cfg.compiz.cins[i].hsize = st->cins[i].hsize;
-		composer_cfg.compiz.cins[i].vsize = st->cins[i].vsize;
-		composer_cfg.compiz.cins[i].hoffset = st->cins[i].hoffset;
-		composer_cfg.compiz.cins[i].voffset = st->cins[i].voffset;
-		composer_cfg.compiz.cins[i].layer_alpha = st->cins[i].layer_alpha;
-		composer_cfg.compiz.cins[i].pixel_blend_mode =
-			st->cins[i].pixel_blend_mode == DRM_MODE_BLEND_PIXEL_NONE ?
-				MODE_BLEND_PIXEL_NONE : MODE_BLEND_PREMULTI;
-		composer_cfg.compiz.valid_input_ids[i] = state->inputs[i].component->fw_id;
-		composer_cfg.compiz.changed_active_inputs = state->changed_active_inputs;
+	if (0 == changed_active_inputs) {
+		return;
 	}
 
-	composer_cfg.compiz.valid_input_num =
-		hweight32(changed_active_inputs);
+	for_each_set_bit(i, &changed_active_inputs, 5) {
+		composer_cfg.compiz.valid_input_ids[i] = state->inputs[i].component->fw_id;
+	}
+	composer_cfg.compiz.active_inputs_mask = state->changed_active_inputs;
+	composer_cfg.compiz.valid_input_num = hweight32(changed_active_inputs);
 
 	ret = bst_display_dc_cmd_update_composer(subdev_session, &composer_cfg, &reply);
-	if (ret || reply.status != DISP_COMM_REPLAY_OK)
+	if (ret || reply.base.status != DISP_COMM_REPLAY_OK)
 		DRM_ERROR("UNC:%s falied!!\n", __func__);
 }
 static const struct bst_virt_component_funcs dc_shared_crtc_funcs = {
@@ -861,6 +808,7 @@ static const struct bst_virt_component_funcs dc_shared_crtc_funcs = {
 	.disable = dc_shared_crtc_disable,
 	.dump_log = dc_crtc_dump,
 };
+#endif
 
 static int dc_crtc_init(struct virt_dc_dev *dc,
 		       struct bst_display_submodule_header *submodule)
@@ -870,32 +818,36 @@ static int dc_crtc_init(struct virt_dc_dev *dc,
 	uint32_t pipe_id = dc->base_dev->this_pipe->pipe_id;
 	uint32_t fw_id = SUBMODULE_INFO_SUBMODULE_ID(submodule->submodule_info);
 	uint32_t comp_id = 0, min_fw_layer_id = dc->min_fw_layer_id;
-	uint32_t client_id = dc->base_dev->dev_info.client_id;
+	struct bst_display_composer_request cfg = {0};
 	struct bst_display_composer_info composer_info = { 0 };
 	uint32_t subdev_session = dc->base_dev->dev_info.subdev_session;
 
-	get_resources_id(submodule->submodule_info, BST_MAX_1PIPE_LAYERS, min_fw_layer_id,
+	get_resources_id(submodule->submodule_info, MAX_LAYER_NUM_PER_PIPE, min_fw_layer_id,
 			 &comp_id);
-	if (dc->base_dev->dev_info.is_owner_device) {
+	//if (dc->base_dev->dev_info.is_owner_device)
+	{
 		comp = bst_virt_component_add(dc->base_dev->this_pipe, dc->base_dev,
 						sizeof(*dc_crtc), comp_id, fw_id,
 						&dc_crtc_funcs, submodule->input_id_num,
 						get_valid_inputs(submodule, min_fw_layer_id), 1,
-						client_id, "VIRT_CRTC-%d", pipe_id);
-	} else {
+						"VIRT_CRTC-%d", pipe_id);
+	}
+	#if 0
+	else {
 		comp = bst_virt_component_add(dc->base_dev->this_pipe, dc->base_dev,
 						sizeof(*dc_crtc), comp_id, fw_id,
 						&dc_shared_crtc_funcs, submodule->input_id_num,
 						get_valid_inputs(submodule, min_fw_layer_id), 1,
-						client_id, "VIRT_CRTC(shared)-%d", pipe_id);
+						"VIRT_CRTC(shared)-%d", pipe_id);
 	}
+	#endif
 	if (IS_ERR(comp)) {
 		DRM_ERROR("Failed to add dc_crtc component\n");
 		return PTR_ERR(comp);
 	}
 
 	dc_crtc = to_dc_crtc(comp);
-	bst_display_dc_cmd_get_composer_info(subdev_session, &composer_info);
+	bst_display_dc_cmd_get_composer_info(subdev_session, &cfg, &composer_info);
 	dc_crtc->supported_color_depths = composer_info.supported_color_depths;
 	dc_crtc->supported_color_formats = composer_info.supported_color_formats;
 	dc_crtc->supports_csc = composer_info.supports_csc;

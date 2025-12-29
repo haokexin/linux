@@ -953,8 +953,15 @@ static void iommu_dma_sync_single_for_device(struct device *dev,
 	if (is_swiotlb_buffer(dev, phys))
 		swiotlb_sync_single_for_device(dev, phys, size, dir);
 
+#ifdef CONFIG_BST_OF_DMA_NEED_SYNC_TO_POP
+	if(dev_dma_need_sync_to_pop(dev))
+		arch_sync_dma_for_device_pop(phys, size, dir);
+	else if (!dev_is_dma_coherent(dev))
+		arch_sync_dma_for_device(phys, size, dir);
+#else /* CONFIG_BST_OF_DMA_NEED_SYNC_TO_POP */
 	if (!dev_is_dma_coherent(dev))
 		arch_sync_dma_for_device(phys, size, dir);
+#endif
 }
 
 static void iommu_dma_sync_sg_for_cpu(struct device *dev,
@@ -985,6 +992,11 @@ static void iommu_dma_sync_sg_for_device(struct device *dev,
 			iommu_dma_sync_single_for_device(dev,
 							 sg_dma_address(sg),
 							 sg->length, dir);
+#ifdef CONFIG_BST_OF_DMA_NEED_SYNC_TO_POP
+	else if (dev_dma_need_sync_to_pop(dev))
+		for_each_sg(sgl, sg, nelems, i)
+			arch_sync_dma_for_device_pop(sg_phys(sg), sg->length, dir);
+#endif
 	else if (!dev_is_dma_coherent(dev))
 		for_each_sg(sgl, sg, nelems, i)
 			arch_sync_dma_for_device(sg_phys(sg), sg->length, dir);
@@ -996,6 +1008,9 @@ static dma_addr_t iommu_dma_map_page(struct device *dev, struct page *page,
 {
 	phys_addr_t phys = page_to_phys(page) + offset;
 	bool coherent = dev_is_dma_coherent(dev);
+#ifdef CONFIG_BST_OF_DMA_NEED_SYNC_TO_POP
+	bool flag_sync_to_pop = dev_dma_need_sync_to_pop(dev);
+#endif
 	int prot = dma_info_to_prot(dir, coherent, attrs);
 	struct iommu_domain *domain = iommu_get_dma_domain(dev);
 	struct iommu_dma_cookie *cookie = domain->iova_cookie;
@@ -1035,8 +1050,15 @@ static dma_addr_t iommu_dma_map_page(struct device *dev, struct page *page,
 		memset(padding_start, 0, padding_size);
 	}
 
+#ifdef CONFIG_BST_OF_DMA_NEED_SYNC_TO_POP
+	if (flag_sync_to_pop && !(attrs & DMA_ATTR_SKIP_CPU_SYNC))
+		arch_sync_dma_for_device_pop(phys, size, dir);
+	else if (!coherent && !(attrs & DMA_ATTR_SKIP_CPU_SYNC))
+		arch_sync_dma_for_device(phys, size, dir);
+#else /* CONFIG_BST_OF_DMA_NEED_SYNC_TO_POP */
 	if (!coherent && !(attrs & DMA_ATTR_SKIP_CPU_SYNC))
 		arch_sync_dma_for_device(phys, size, dir);
+#endif
 
 	iova = __iommu_dma_map(dev, phys, size, prot, dma_mask);
 	if (iova == DMA_MAPPING_ERROR && is_swiotlb_buffer(dev, phys))

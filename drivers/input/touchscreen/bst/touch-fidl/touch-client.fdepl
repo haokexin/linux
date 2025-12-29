@@ -1,0 +1,13 @@
+//touch-client.fdepl
+import "touch-inf.fdepl"
+
+define com.bst.ipc.deployment for provider as touchclient {
+    ProviderType = Client
+    RTE = LinuxKernel
+    SrcEndID = CPU_4 //adas: CPU_4 ivi: CPU_0 move to driver to configure
+    FID = DEF
+    SID = 3
+    instance com.bst.ipc.soc.bst_touch {
+        DstEndID = DMA_0 //REALTIME_0 //DMA_0 //SAFETY_0
+    }
+}

@@ -16,6 +16,9 @@
 #include <linux/dma-mapping.h>
 #include <linux/kernel.h>
 #include <linux/ktime.h>
+#include <linux/fs.h>
+#include <linux/namei.h>
+#include <linux/security.h>
 #ifdef CONFIG_DEBUG_FS
 #include <linux/debugfs.h>
 #include <linux/seq_file.h>
@@ -261,15 +264,42 @@ static int save_wb_fb_to_file(struct bst_drm_resv_memblock* memblk,
     return 0;
 }
 
+int bst_writeback_mkdir(const char *pathname, umode_t mode)
+{
+	struct dentry *dentry;
+	struct path path;
+	int error;
+
+	error = kern_path(pathname, LOOKUP_DIRECTORY, &path);
+	if (!error) {
+		// printk(KERN_INFO "Directory already exists: %s\n", pathname);
+		path_put(&path);
+		return 0;
+	}
+
+	dentry = kern_path_create(AT_FDCWD, pathname, &path, LOOKUP_DIRECTORY);
+	if (IS_ERR(dentry))
+		return PTR_ERR(dentry);
+	if (!IS_POSIXACL(path.dentry->d_inode))
+		mode &= ~current_umask();
+	error = security_path_mkdir(&path, dentry, mode);
+	if (!error)
+		error = vfs_mkdir(mnt_user_ns(path.mnt), path.dentry->d_inode,
+				  dentry, mode);
+	done_path_create(&path, dentry);
+	return error;
+}
+
 static int bst_force_writeback_show(struct seq_file *sf, void *x)
 {
 	struct bst_dev *mdev = sf->private;
 	struct dpu_wb_cfg cfg = {0};
 	uint32_t buf_sz;
 	uint32_t i, hsize, vsize;
-    char fname[80] = {0};
-	uint32_t* raw_val;
+        char fname[80] = {0};
+	//uint32_t* raw_val;
 
+	bst_writeback_mkdir("/mnt/drm", S_IRUGO | S_IWUSR);
 	seq_puts(sf, "\n====== bst drm writeback start=========\n");
 	pm_runtime_get_sync(mdev->dev);
 	for (i = 0; i < mdev->n_pipelines; i++) {
@@ -283,11 +313,11 @@ static int bst_force_writeback_show(struct seq_file *sf, void *x)
 			goto out;
 		}
 
-		raw_val = (u32 *)mdev->wb_memblock[i];
+		//raw_val = (u32 *)mdev->wb_memblock[i];
 		seq_printf(sf, "\n alloc writeback buffer at pa=0x%llx,va=0x%llx\n",
 			(u64)mdev->wb_memblock[i]->phys_addr,
 			(u64)mdev->wb_memblock[i]->vaddr);
-	    snprintf(fname, 80, "/data/drm/wb_fb_dpu%d_pipe%d_idx%d.RA24",
+	    snprintf(fname, 80, "/mnt/drm/wb_fb_dpu%d_pipe%d_idx%d.RA24",
 				mdev->chip.display_id, i, mdev->dump_idx[i]++);
 
 		cfg.active_input = (i == 0 ? DPU_CU0 : DPU_CU1);
@@ -306,31 +336,35 @@ static int bst_force_writeback_show(struct seq_file *sf, void *x)
 		cfg.layer_cfg.p1_stride = 0;
 		cfg.layer_cfg.num_planes = 1;
 
+		mdev->resv_mem_ops->flush_write_buffer();
 		mdev->funcs->force_writeback(mdev, &cfg, i);
+
+		mdev->resv_mem_ops->invalid_cache(mdev->wb_memblock[i]);
+		
 		save_wb_fb_to_file(mdev->wb_memblock[i], buf_sz, fname);
 
 		// line-1 begin / end
-		seq_printf(sf, "\n line-first START[0x%08x,0x%08x,0x%08x,0x%08x]\n",
-			raw_val[0],
-			raw_val[1],
-			raw_val[2],
-			raw_val[4]);
-		seq_printf(sf, "\n line-first   END[0x%08x,0x%08x,0x%08x,0x%08x]\n",
-			raw_val[hsize - 4],
-			raw_val[hsize - 3],
-			raw_val[hsize - 2],
-			raw_val[hsize - 1]);
+		//seq_printf(sf, "\n line-first START[0x%08x,0x%08x,0x%08x,0x%08x]\n",
+		//	raw_val[0],
+		//	raw_val[1],
+		//	raw_val[2],
+		//	raw_val[4]);
+		//seq_printf(sf, "\n line-first   END[0x%08x,0x%08x,0x%08x,0x%08x]\n",
+		//	raw_val[hsize - 4],
+		//	raw_val[hsize - 3],
+		//	raw_val[hsize - 2],
+		//	raw_val[hsize - 1]);
 		// line-last begin / end
-		seq_printf(sf, "\n line-last  START[0x%08x,0x%08x,0x%08x,0x%08x]\n",
-			raw_val[hsize * (vsize-1)],
-			raw_val[hsize * (vsize-1) + 1],
-			raw_val[hsize * (vsize-1) + 2],
-			raw_val[hsize * (vsize-1) + 3]);
-		seq_printf(sf, "\n line-last    END[0x%08x,0x%08x,0x%08x,0x%08x]\n",
-			raw_val[hsize * vsize - 4],
-			raw_val[hsize * vsize - 3],
-			raw_val[hsize * vsize - 2],
-			raw_val[hsize * vsize - 1]);
+		//seq_printf(sf, "\n line-last  START[0x%08x,0x%08x,0x%08x,0x%08x]\n",
+		//	raw_val[hsize * (vsize-1)],
+		//	raw_val[hsize * (vsize-1) + 1],
+		//	raw_val[hsize * (vsize-1) + 2],
+		//	raw_val[hsize * (vsize-1) + 3]);
+		//seq_printf(sf, "\n line-last    END[0x%08x,0x%08x,0x%08x,0x%08x]\n",
+		//	raw_val[hsize * vsize - 4],
+		//	raw_val[hsize * vsize - 3],
+		//	raw_val[hsize * vsize - 2],
+		//	raw_val[hsize * vsize - 1]);
 
 		mdev->resv_mem_ops->free(mdev->wb_memblock[i]);
 		mdev->wb_memblock[i] = NULL;
@@ -589,10 +623,11 @@ static int bst_parse_dt(struct device *dev, struct bst_dev *mdev)
 		DRM_ERROR("could not get IRQ number.\n");
 		return mdev->irq;
 	}
-
-	ret = of_reserved_mem_device_init(dev);
-	if (ret && ret != -ENODEV)
-		return ret;
+	/* Using the global cma pool */
+	/* 	ret = of_reserved_mem_device_init(dev);
+	 *if (ret && ret != -ENODEV)
+	 *	return ret;
+	 */
 	ret = 0;
 
 	for_each_available_child_of_node(np, child) {

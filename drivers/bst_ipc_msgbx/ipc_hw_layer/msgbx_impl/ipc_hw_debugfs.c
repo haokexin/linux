@@ -8,14 +8,16 @@
 #include <linux/sysfs.h>
 #include <linux/device.h>
 
+static int msgbox_debug = 1;
 
-static int msgbox_debug;
-
-bool msgbox_debug_has_en(void)
+int msgbox_log_level_get(void)
 {
-	return msgbox_debug == 1 ? true : false;
+	if(msgbox_debug < 0 || msgbox_debug > 4)
+		return 1;
+	return msgbox_debug;
 }
-EXPORT_SYMBOL(msgbox_debug_has_en);
+EXPORT_SYMBOL(msgbox_log_level_get);
+
 
 static int __init msgbox_debug_bootargs(char *str)
 {
@@ -36,10 +38,16 @@ static ssize_t msgbox_debug_store(struct kobject *kobj,
 				  size_t count)
 {
 	int ret = 0;
+	int new_level = 0;
 
-	ret = kstrtoint(buf, 10, &msgbox_debug);
+	ret = kstrtoint(buf, 10, &new_level);
 	if (ret < 0)
 		return ret;
+	if (new_level < 0 || new_level > 4) {
+		pr_info("Invalid log level: %d\n", new_level);
+		return -EINVAL;
+	}
+	msgbox_debug = new_level;
 
 	return count;
 }

@@ -95,6 +95,20 @@ static const struct drm_display_mode bst_evm_direct_lvds_modes[] = {
 		.vtotal = 1080 + 4 + 5 + 36,
 		.flags = DRM_MODE_FLAG_NHSYNC | DRM_MODE_FLAG_NVSYNC,
 	},
+#if defined(CONFIG_C1200_SLT) || defined(CONFIG_C1200_MASS)
+	{	/*3840x2160@30Hz*/
+		.clock = 297000,
+		.hdisplay = 3840,
+		.hsync_start = 3840 + 176,
+		.hsync_end = 3840 + 176 + 88,
+		.htotal = 3840 + 176 + 88 + 296,
+		.vdisplay = 2160,
+		.vsync_start = 2160 + 8,
+		.vsync_end = 2160 + 8 + 10,
+		.vtotal = 2160 + 8 + 10 + 72,
+		.flags = DRM_MODE_FLAG_NVSYNC | DRM_MODE_FLAG_NHSYNC,
+	},
+#endif
 };
 
 static int panel_lvds_get_modes(struct drm_panel *panel,

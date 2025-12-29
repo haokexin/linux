@@ -1,0 +1,19 @@
+//xxx-inf.fdepl
+import "platform:/plugin/com.bst.os.idl/deployment/ipc_spec.fdepl"
+import "virt-bl.fidl"
+
+define com.bst.ipc.deployment for interface com.bst.ipc.soc.backlight {
+    MaxMethodNum = 95
+    MaxBroadcastNum = 20
+
+    method virt_bl_request {
+        MethodID = 80
+    }
+
+    broadcast virt_bl_broadcast {
+        SubscribeMethodID = 86
+        UnsubscribeMethodID = 87
+        BroadcastID = 88
+    }
+
+}

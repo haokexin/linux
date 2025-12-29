@@ -24,7 +24,7 @@ static int dptx_handle_aux_reply(struct dptx *dptx)
 		if (count > 5000)
 			return -ETIMEDOUT;
 
-		udelay(1);
+		usleep_range(1, 2);
 	}
 
 	auxsts = dptx_read_reg(dptx, dptx->regs[DPTX], AUX_STATUS);
@@ -126,7 +126,7 @@ static int dptx_aux_rw(struct dptx *dptx, bool rw, bool i2c, bool mot,
 	unsigned int br;
 
 again:
-	mdelay(1);
+	msleep(1);
 	tries++;
 	if (tries > 20) {
 		dptx_err(dptx, "AUX exceeded retries\n");

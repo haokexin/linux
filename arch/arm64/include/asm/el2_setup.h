@@ -187,7 +187,13 @@
 	__init_el2_timers
 	__init_el2_debug
 	__init_el2_lor
+/* We want to let the ivi and the adas system be isolated in C1296,
+ * ATF will set the unique VTTBR_EL2.VMID for the two system.
+ * So we don't want the VTTBR_EL2 be cleared here.
+ */
+#ifndef CONFIG_ARCH_BSTC1200
 	__init_el2_stage2
+#endif
 	__init_el2_gicv3
 	__init_el2_hstr
 	__init_el2_nvhe_idregs

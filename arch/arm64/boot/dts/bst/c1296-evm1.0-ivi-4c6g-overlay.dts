@@ -1,0 +1,129 @@
+/dts-v1/;
+/plugin/;
+
+/{
+    fragment_root {
+        target-path = "/";
+        __overlay__ {
+            /* This section was used on AOSP v9.0 for defining first-stage fstab records */
+            model = "BST C1296 EVM1.0 4C6G";
+            firmware {
+                android {
+                    compatible = "android,firmware";
+
+                    fstab {
+                        compatible = "android,fstab";
+                    };
+                };
+            };
+        };
+    };
+};
+
+&scmi_pinctrl {
+	i2s0_pinctrl:i2s0_pinctrl  {
+        mux {
+            pins = "SC_I2S0_SCK", "SC_I2S0_MCK", "SC_I2S0_WS", "SC_I2S0_DIN0", "SC_I2S0_DOUT0";
+            function = "i2s0";
+        };
+    };
+    pcm2_pinctrl:pcm2_pinctrl  {
+        mux {
+            pins = "SC_I2S2_SCK", "SC_I2S2_WS", "SC_I2S2_DIN0", "SC_I2S2_DOUT0";
+            function = "pcm2";
+        };
+    };
+	i2s2_pinctrl:i2s2_pinctrl  {
+        mux {
+            pins = "SC_I2S2_MCK";
+            function = "i2s2";
+        };
+    };
+};
+
+&i2c0 {
+	status = "disable";
+};
+
+&i2c1 {
+	status = "disable";
+};
+
+&i2c2 {
+	status = "okay";
+};
+
+&i2c3 {
+	status = "disable";
+};
+
+&i2c4 {
+	status = "okay";
+/*
+	ccg7d@08 {
+		compatible = "bst,ccgx";
+		reg = <0x08>;
+		status = "okay";
+		int-gpio = <&porte 25 GPIO_ACTIVE_LOW>;
+		connector {
+			compatible = "usb-c-connector";
+			label = "USB-C";
+			data-role = "dual";
+			power-role = "source";
+			//try-power-role = "sink";
+			//source-pdos = <PDO_FIXED(5000, 2000, PDO_FIXED_USB_COMM)>;
+			//sink-pdos = <PDO_FIXED(5000, 2000, PDO_FIXED_USB_COMM)
+			//             PDO_VAR(5000, 12000, 2000)>;
+			//op-sink-microwatt = <10000000>;
+			ports {
+				#address-cells = <1>;
+				#size-cells = <0>;
+				port@0 {
+						reg = <0>;
+						typec_usb_port: endpoint@0 {
+								remote-endpoint = <&usb3_role_switch>;
+						};
+						typec_switch_port: endpoint@1 {
+								remote-endpoint = <&usb3_orientation_switch>;
+						};
+						typec_mode_switch_port: endpoint@2 {
+								remote-endpoint = <&usb3_mode_switch>;
+						};
+				};
+			};
+		};
+	};*/
+};
+
+&i2c5 {
+	status = "disable";
+};
+
+&i2c6 {
+	status = "disable";
+};
+
+&i2c7 {
+	status = "disable";
+};
+
+&i2s0 {
+    status = "okay";
+    use-dma;
+    pinctrl-names = "default";
+    pinctrl-0 = <&i2s0_pinctrl>;
+};
+
+&tdm2 {
+    status = "okay";
+	pinctrl-names = "default";
+    pinctrl-0 = <&pcm2_pinctrl &i2s2_pinctrl>;
+};
+
+&es8316 {
+    status = "okay";
+};
+
+&pcm3168a {
+    status = "okay";
+};

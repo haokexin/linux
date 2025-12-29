@@ -1468,7 +1468,7 @@ config BST_MRDUMP_PHYS_BASE_ADDR
 	hex "The phyiscal address for minidump"
 	default 0x94c000000 if BST_C1200_ADAS
 	default 0x8b5000000 if BST_C1200_DB
-	default 0xd00000000 if BST_C1200_IVI
+	default 0xdb0000000 if BST_C1200_IVI
 	help
 	  Setting the value of the phyiscal address for minidump.
 

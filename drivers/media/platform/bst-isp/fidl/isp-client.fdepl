@@ -1,0 +1,14 @@
+// isp-client.fdepl
+import "isp-inf.fdepl"
+
+define com.bst.ipc.deployment for provider as isp_msgbx_client {
+    ProviderType = Client
+    RTE = LinuxKernel
+    SrcEndID = CPU_6
+    FID = DEF
+    SID = 1
+    instance com.bst.ipc.isp.video {
+        DstEndID = ISPCV_4
+        NotUseSwitchCase = false
+    }
+}

@@ -738,15 +738,15 @@ static void scmi_handle_response(struct scmi_chan_info *cinfo,
 	}
 
 	while(!info->desc->ops->poll_done(cinfo, xfer)){
-		udelay(5);
+		udelay(1);
 		count++;
-		if(count > 1000){
-			dev_err(info->dev,"timed out in resp(caller: %d) - polling\n",count);
-			break;
+		if(count > 5000000){
+			dev_err(info->dev,"token %d scmi wait 5s timeout\n",info->desc->ops->get_count(cinfo));
+			count=0;
+			continue;
 		}
 	}
 		
-
 
 	/* rx.len could be shrunk in the sync do_xfer, so reset to maxsz */
 	if (xfer->hdr.type == MSG_TYPE_DELAYED_RESP)
@@ -2459,7 +2459,7 @@ static int scmi_probe(struct platform_device *pdev)
 
 	//u32 irq;
 
-	msgbox_client_init();
+	//msgbox_client_init();
 	desc = of_device_get_match_data(dev);
 	if (!desc)
 		return -EINVAL;
@@ -2829,7 +2829,7 @@ subsys_initcall(scmi_driver_init);
 
 static void __exit scmi_driver_exit(void)
 {
-	msgbox_client_destroy();
+	//msgbox_client_destroy();
 
 	scmi_base_unregister();
 

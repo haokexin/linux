@@ -475,8 +475,9 @@ void aee_wdt_atf_info(unsigned int cpu, struct pt_regs *regs)
 #ifdef CONFIG_BST_RAM_CONSOLE
 		aee_rr_rec_fiq_step(AEE_FIQ_STEP_WDT_IRQ_STACK);
 #endif
-		for (cpu = 0; cpu < AEE_BST_CPU_NUMS; cpu++)
+		for_each_online_cpu(cpu) {
 			aee_save_reg_stack_sram(cpu);
+		}
 		aee_sram_fiq_log("\n\n");
 	} else {
 		aee_wdt_printf(
@@ -627,7 +628,7 @@ int __init mrdump_wdt_init(void)
 	atomic_set(&wdt_enter_fiq, 0);
 	atomic_set(&aee_wdt_zap_lock, 1);
 
-	for (i = 0; i < AEE_BST_CPU_NUMS; i++) {
+	for_each_online_cpu(i) {
 		wdt_percpu_log_buf[i] = kzalloc(WDT_PERCPU_LOG_SIZE,
 				GFP_KERNEL);
 		wdt_percpu_log_length[i] = 0;

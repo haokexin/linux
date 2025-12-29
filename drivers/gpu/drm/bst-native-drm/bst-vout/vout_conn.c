@@ -29,7 +29,7 @@ struct bst_vout_conn {
 	u32 bus_flags;
 	struct drm_display_mode mode;
 	void __iomem *pinmux_base;
-	struct videomode *vm;
+	struct videomode *vm[VOUT_TIMING_NUM];
 };
 
 static inline struct bst_vout_conn *con_to_bst_vc(struct drm_connector *c)
@@ -66,19 +66,25 @@ static int bst_vout_set_display_source(struct bst_vout_conn *vc,
 static int bst_vc_connector_get_modes(struct drm_connector *connector)
 {
 	struct bst_vout_conn *bst_vc = con_to_bst_vc(connector);
+	int i;
 
-	if (bst_vc->vm) {
+	if (bst_vc->vm[0]) {
 		struct drm_display_mode *mode;
 
-		mode = drm_mode_create(connector->dev);
-		if (!mode) {
-			DRM_DEV_ERROR(bst_vc->dev,
-				"failed to create a new display mode\n");
-			return 0;
+		for(i = 0; i < VOUT_TIMING_NUM; i ++) {
+			mode = drm_mode_create(connector->dev);
+			if (!mode) {
+				DRM_DEV_ERROR(bst_vc->dev,
+					"failed to create a new display mode\n");
+				return 0;
+			}
+			drm_display_mode_from_videomode(bst_vc->vm[i], mode);
+			mode->type = DRM_MODE_TYPE_DRIVER;
+			if(0 == i) {
+				mode->type |= DRM_MODE_TYPE_PREFERRED;
+			}
+			drm_mode_probed_add(connector, mode);
 		}
-		drm_display_mode_from_videomode(bst_vc->vm, mode);
-		mode->type = DRM_MODE_TYPE_DRIVER | DRM_MODE_TYPE_PREFERRED;
-		drm_mode_probed_add(connector, mode);
 		return 1;
 	}
 
@@ -202,28 +208,35 @@ static int bst_vout_conn_parse_dt(struct bst_vout_conn *vc){
 	struct device *dev = vc->dev;
 	struct device_node *dn = dev->of_node;
 	struct device_node *np;
+	int i;
 
 	np = of_get_child_by_name(dn, "display-timings");
 	if (np) {
 		struct videomode *vm;
 		int ret;
 
-		of_node_put(np);
-
-		vm = devm_kzalloc(dev, sizeof(*(vc->vm)), GFP_KERNEL);
-		if (!vm)
-			return -ENOMEM;
-
-		ret = of_get_videomode(dn, vm, 0);
-		if (ret < 0) {
-			devm_kfree(dev, vm);
-			return ret;
+		if(of_get_child_count(np) != VOUT_TIMING_NUM) {
+			DRM_ERROR("need %d timings for test\n", VOUT_TIMING_NUM);
 		}
 
-		vc->vm = vm;
-		return 0;
+		of_node_put(np);
+
+		for(i = 0; i < VOUT_TIMING_NUM; i ++) {
+			vm = devm_kzalloc(dev, sizeof(struct videomode), GFP_KERNEL);
+			if (!vm)
+				return -ENOMEM;
+
+			ret = of_get_videomode(dn, vm, i);
+			if (ret < 0) {
+				DRM_ERROR("can't found videomode\n");
+				devm_kfree(dev, vm);
+				return ret;
+			}
+			vc->vm[i] = vm;
+		}
 	} else {
 		DRM_ERROR("failed to find display timing device tree\n");
+		return -ENOENT;
 	}
 
 	return 0;

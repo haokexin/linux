@@ -1,0 +1,1105 @@
+// SPDX-License-Identifier: GPL-2.0+
+/dts-v1/;
+#include <generated/autoconf.h>
+#include <dt-bindings/mailbox/bst_msgbox.h>
+#include <dt-bindings/media/bst-isp.h>
+
+#include "bstc1200.dtsi"
+#include "bstc1200-soc-cluster0.dtsi"
+#include "bstc1200-soc-cluster1.dtsi"
+
+/ {
+	compatible = "bst,c1200";
+	model = "BST C1236 CDCU2.0 8C4G";
+
+	chosen {
+		bootargs = "earlycon=uart8250,mmio32,0x20008000 console=ttyS0,115200n8 rdinit=/sbin/init root=/dev/ram rw init=/linuxrc rodata=n";
+		stdout-path = "uart0";
+	};
+
+	memory@800151000 {
+		device_type = "memory";
+		reg = < 0x8 0x00151000 0x0 0x00001000
+				0x8 0x01400000 0x0 0x01000000
+				0x8 0x00254000 0x0 0x00001000
+				0x8 0x06a10000 0x0 0x00100000
+				0x8 0x0e000000 0x0 0x1000000
+				0x8 0x10000000 0x1 0xb0000000
+				0xc 0x00000000 0x0 0x800000
+				0xc 0x02C00000 0x0 0xBD400000
+				0xc 0x08000000 0x1 0xb8000000
+			>;
+	};
+
+	reserved-memory {
+		#address-cells = <2>;
+		#size-cells = <2>;
+		ranges;
+
+		its_table_reserved: its_table@806a10000 {
+			reg = <0x8 0x06a10000 0x0 0x100000>;
+		};
+
+        bst_ufs_reserved: bst_ufs@800000000 {
+            compatible = "shared-dma-pool";
+            reg = <0x8 0x000000 0x0 0x20000>;
+            no-map;
+        };
+
+		scmi_buf_reserved: scmi_buf@800151000 {
+			compatible = "shared-dma-pool";
+			reg = <0x8 0x151000 0x0 0x1000>;
+			no-map;
+		};
+
+		bst_nor_flash_code_reserved: bst_nor_flash@800130000 {
+			compatible = "shared-dma-pool";
+			reg = <0x8 0x130000 0x0 0x10000>;
+			no-map;
+		};
+
+		bst_touchscreen_reserved: bst_touchscreen@806610000 {
+			compatible = "shared-dma-pool";
+			reg = <0x8 0x06610000 0x0 0x40000>; //1M //256k
+			no-map;
+		};
+
+		bst_sramemmc0_reserved: bst_sramemmc0@5170000{
+			compatible = "shared-dma-pool";
+			reg = <0x0 0x5170000 0x0 0x8000>;
+			no-map;
+		};
+
+		bst_sramemmc1_reserved: bst_sramemmc1@5178000{
+			compatible = "shared-dma-pool";
+			reg = <0x0 0x5178000 0x0 0x8000>;
+			no-map;
+		};
+
+		bst_minidump_reserved: bst_minidump@94c000000 {
+			compatible = "bst,minidump";
+			reg = <0x9 0x4c000000 0x0 0xA00000>;
+			no-map;
+		};
+
+		bst_mrdump_cb_reserved: bst_mrdump@94ca00000 {
+			compatible = "bst,mrdump_cb";
+			reg = <0x9 0x4ca00000 0x0 0x200000>;
+			no-map;
+		};
+
+		bst_ipc_reserved: bst_ipc@800300000 {
+			compatible = "shared-dma-pool";
+			reg = <0x8 0x00300000 0x0 0x400000>;
+ 			no-map;
+ 		};
+
+		bstn_fw_code_reserved: bstn@810000000 {
+			compatible = "shared-dma-pool";
+			reg = <0x8 0x10000000 0x0 0x2000000>;
+			no-map;
+		};
+
+		bst_lwnn_fw_code_reserved: bst_lwnn@812000000 {
+			compatible = "shared-dma-pool";
+			reg = <0x8 0x12000000 0x0 0x8000000>;
+			no-map;
+		};
+
+		/* Reserved for exchange message between driver and firmware */
+		isp_fw_msg_rsv: bst_isp_msg@821000000 {
+			reg = <0x8 0x21000000 0x0 0x1000000>;
+			/* Reserved IOVA for fixed map */
+			iommu-addresses = <&isp 0x0 0x3E000000 0x0 0x42000000>;
+			no-map;
+		};
+
+		/* Reserved exclusively for firmware */
+		isp_fw_buf_rsv: bst_isp_buf@822000000 {
+			reg = <0x8 0x22000000 0x0 0x15000000>;
+			no-map;
+		};
+
+		/*reserved for global secure dmabuf */
+		global_dmabuf_secure_reserved: global_secure_dmabuf@850000000 {
+			compatible = "shared-dma-pool";
+			reg = <0x8 0x50000000 0x0 0x03000000
+                   0xc 0x50000000 0x0 0x03000000
+			>;
+			no-map;
+		};
+		/*reserved for global normal dmabuf */
+		global_dmabuf_normal_reserved: global_normal_dmabuf@837000000 {
+			compatible = "shared-dma-pool";
+			reg = <0x8 0x53000000 0x0 0x2d000000
+				   0x8 0x37000000 0x0 0x19000000
+				  >;
+		};
+		/*reserved for global hifi dmabuf */
+		global_dmabuf_hifi_reserved: global_hifi_dmabuf@806480000 {
+			compatible = "shared-dma-pool";
+			reg = <0x8 0x06480000 0x0 0x00080000>;
+			no-map;
+		};
+
+		bst_optee_reserved: bst_optee@801400000 {
+			compatible = "shared-dma-pool";
+			reg = <0x8 0x1400000 0x0 0x1000000>;
+			no-map;
+		};
+
+		bst_usb_virt_reserved: usb_virt@80e000000 {
+			reg = <0x8 0x0e000000 0x0 0x1000000>;
+			no-map;
+		};
+		/* Reserved exclusively for dpu firmware */
+		bst_dpu_buf_reserved: bst_dpu_buf@806920000 {
+			compatible = "shared-dma-pool";
+			reg = <0x8 0x06920000 0x0 0x1000>;
+			no-map;
+		};
+
+		bst_hwrng_buf_reserved: bst_hwrng_buf@806d30000 {
+			compatible = "shared-dma-pool";
+			reg = <0x8 0x06d30000 0x0 0x1000>;
+		};
+
+		/* Reserved for crypto dmabuf */
+		bst_crypto_dmabuf_reserved: bst_crypto_dmabuf@806d33000 {
+			compatible = "shared-dma-pool";
+			reg = <0x8 0x06d33000 0x0 0xA00000>;  //10M
+			no-map;
+		};
+	};
+
+	firmware {
+		optee {
+                compatible = "linaro,optee-tz";
+                method = "smc";
+                chip-number = <2>;
+        };
+	};
+
+	tee {
+		#address-cells = <0x2>;
+		#size-cells = <0x2>;
+		reg = <0x0 0x18060000 0x0 0x1f000>;
+		memory-region = <&bst_optee_reserved>;
+		mbox-names = "bst-mbox";
+		chip-number = <2>;
+	};
+};
+
+
+	&firmware_scmi {
+
+		shmem = <&scmi_buf_reserved>;
+		reg = <0x0 0x20011014 0 0x14>;
+		status = "okay";
+
+		scmi_voltage: protocol@17 {
+
+			regulators {
+				#address-cells = <1>;
+				#size-cells = <0>;
+				v_qmmc: regulator {
+					reg = <0>;
+					regulator-name = "voltage_qmmc";
+					regulator-min-microvolt = <1800000>;
+					regulator-max-microvolt = <3300000>;
+					regulator-always-on;
+				};
+			};
+
+		};
+
+		scmi_pinctrl: protocol@19 {
+
+				mmc_pinctrl:mmc_pinctrl {
+				config {
+					pins = "SC_SDMMC0_RSTB","SC_SDMMC0_STROB","SC_SDMMC0_CLK","SC_SDMMC0_CMD"
+					,"SC_SDMMC0_DAT0","SC_SDMMC0_DAT1","SC_SDMMC0_DAT2","SC_SDMMC0_DAT3","SC_SDMMC0_DAT4","SC_SDMMC0_DAT5","SC_SDMMC0_DAT6","SC_SDMMC0_DAT7";
+					drive-strength = <5>;
+					bias-pull-up;
+				};
+			};
+
+			mmc_pinctrl1:mmc_pinctrl1 {
+				config {
+					pins = "SC_SDMMC0_CLK";
+					drive-strength = <6>;
+					bias-pull-up;
+				};
+			};
+
+			mmc_pinconfig:mmc_pinconfig {
+				config {
+					pins = "SC_SDMMC0_PVDD0", "SC_SDMMC0_PVDD1", "SC_SDMMC0_PVDD2";
+					low-power-disable;
+				};
+			};
+
+
+			mmc_pinconfig1:mmc_pinconfig1 {
+				config {
+					pins = "SC_SDMMC0_PVDD0", "SC_SDMMC0_PVDD1", "SC_SDMMC0_PVDD2";
+					low-power-enable;
+				};
+			};
+
+			isp_pinctrl: isp_pinctrl {
+				mux {
+					/* ISP FSYNC 0, 1, 2, 5, 6, 7 */
+					pins = "ISP_FSYNC0", "ISP_FSYNC1", "ISP_FSYNC2", "WK_GPIO33", "WK_GPIO34","WK_GPIO35";
+					function = "isp";
+				};
+			};
+			deser_pinctrl: deser_pinctrl {
+				deser_pdb_pins {
+					/* Deser 0 PDB, Deser 1 PDB, Deser 2 PDB */
+					pins = "WK_GPIO15", "WK_GPIO20", "WK_GPIO21";
+					function = "gpio";
+				};
+				deser_status_pins {
+					/* Deser 0 LOCK, ERR, Deser 1 LOCK, ERR, Deser 2 LOCK, ERR */
+					pins = "SC_SDMMC0_WP", "SC_SDMMC1_STROBE", "SC_SDMMC1_CLK", "SC_SDMMC1_CMD", "SC_SDMMC1_DAT0", "SC_SDMMC1_DAT1";
+					function = "gpio";
+					bias-pull-up;
+					input-enable;
+				};
+			};
+			hpd_pinctrl:hpd_pinctrl {
+				mux {
+					pins = "EDP_HPD";
+					function = "edp";
+				};
+			};
+			lvds0_pinconfig:lvds0_pinconfig {
+				config {
+					pins = "LVDS0_ODD_TX0", "LVDS0_ODD_TX1", "LVDS0_ODD_TX2", "LVDS0_ODD_TX3", "LVDS0_ODD_CLKN";
+					input-enable;
+				};
+			};
+			lvds1_pinconfig:lvds1_pinconfig {
+				config {
+					pins = "LVDS0_EVEN_TX0", "LVDS0_EVEN_TX1", "LVDS0_EVEN_TX2", "LVDS0_EVEN_TX3", "LVDS0_EVEN_CLKN";
+					input-enable;
+				};
+			};
+			soc_xgmac_pinctrl:soc_xgmac_pinctrl {
+				mux {
+					pins = "SC_UART2_TXD", "SC_UART2_RXD";    //PAD NAME
+					function = "xgmac";
+				};
+			};
+
+			i2c5_pinctrl:i2c5_pinctrl {
+				mux {
+					pins = "SC_I2C5_SCL", "SC_I2C5_SDA";
+					function = "i2c5";
+				};
+			};
+			i2c6_pinctrl:i2c6_pinctrl {
+				mux {
+					pins = "SC_I2C6_SCL", "SC_I2C6_SDA";
+					function = "i2c6";
+				};
+			};
+			i2c7_pinctrl:i2c7_pinctrl {
+				mux {
+					pins = "SC_I2C7_SCL", "SC_I2C7_SDA";
+					function = "i2c7";
+				};
+			};
+		};
+	};
+
+&hwrng {
+	status = "okay";
+	memory-region = <&bst_hwrng_buf_reserved>;
+	msgbx-pid = <0x14>;
+};
+
+&i2c0 {
+	status = "disable";
+};
+&i2c1 {
+	status = "disable";
+};
+&i2c2 {
+	status = "disable";
+};
+&i2c3 {
+	status = "disable";
+};
+&i2c4 {
+	status = "disable";
+};
+
+
+&i2c5 {
+	broken-runtime;
+	clock-frequency = <1000000>;
+	i2c-sda-falling-time-ns = <10>;
+	i2c-scl-falling-time-ns = <10>;
+	i2c-sda-hold-time-ns = <10>;
+
+	pinctrl-names = "default";
+	pinctrl-0 = <&i2c5_pinctrl>;
+	status = "disable";
+};
+
+&i2c6 {
+
+	broken-runtime;
+	clock-frequency = <1000000>;
+	pinctrl-names = "default";
+	i2c-sda-falling-time-ns = <10>;
+	i2c-scl-falling-time-ns = <10>;
+	i2c-sda-hold-time-ns = <10>;
+	pinctrl-0 = <&i2c6_pinctrl>;
+	status = "disable";
+};
+
+&i2c7 {
+
+	roken-runtime;
+	clock-frequency = <1000000>;
+	i2c-sda-falling-time-ns = <10>;
+	i2c-scl-falling-time-ns = <10>;
+	i2c-sda-hold-time-ns = <10>;
+	pinctrl-names = "default";
+	pinctrl-0 = <&i2c7_pinctrl>;
+	status = "disable";
+};
+
+
+
+&i2cq0 {
+	uid = <1>;
+	ipc-sem = <1 0 12>;	// Master 1, bank 0, sem 12
+	role = <ROLE_MASTER>;
+};
+&i2cq1 {
+	uid = <1>;
+	ipc-sem = <1 0 12>;	// Master 1, bank 0, sem 12
+	role = <ROLE_MASTER>;
+};
+&i2cq2 {
+	uid = <1>;
+	ipc-sem = <1 0 12>;	// Master 1, bank 0, sem 12
+	role = <ROLE_MASTER>;
+};
+&csi0 {
+	uid = <1>;
+	ipc-sem = <1 0 13>;	// Master 1, bank 0, sem 13
+};
+&csi1 {
+	uid = <1>;
+	ipc-sem = <1 0 13>;	// Master 1, bank 0, sem 13
+};
+&csi2 {
+	uid = <1>;
+	ipc-sem = <1 0 13>;	// Master 1, bank 0, sem 13
+};
+#if defined(CONFIG_VIDEO_BST_ISP_MULTI_OS)
+&isp_bus {
+	dma-ranges = <0x0 0xC0000000 0x8 0xDB400000 0x0 0x3E000000>,
+		     <0x0 0x3E000000 0x0 0x3E000000 0x0 0x02000000>,	// Reserved to restrict IOVA area
+		     <0x0 0x40000000 0x0 0x20000000 0x0 0x07000000>,	// Outer registers area
+		     <0x0 0x47000000 0x0 0x30000000 0x0 0x01000000>,	// Outer registers area
+		     <0x0 0x50000000 0x0 0x50000000 0x0 0x10000000>,	// ISPCV inner registers
+		     <0x0 0x60000000 0x8 0x00200000 0x0 0x00600000>,	// IPC area, see bst_ipc_reserved, 2MB aligned
+		     <0x0 0x60600000 0x8 0x21000000 0x0 0x16000000>;	// For isp_fw_msg_rsv, isp_fw_buf_rsv
+};
+#endif
+&isp {
+	uid = <1>;
+	msgbox-cpu = <CPU_6 0 0>;
+	ipc-cpu = <3>;		// ARM3
+	ipc-sem = <1 0 14>;	// Master 1, bank 0, sem 14
+	role = <ROLE_MASTER>;
+};
+
+&uart0 {
+	status = "disable";
+};
+&uart1 {
+		dmas = <&gdma0 53>,
+			<&gdma0 52>;
+	dma-names = "tx", "rx";
+	status = "okay";
+};
+&uart2 {
+	status = "disable";
+};
+&uart3 {
+	status = "disable";
+};
+
+&spi0 {
+	status = "disable";
+	clocks= <&scmi_clk GATE_LSP0_SSI_M_WCLK_EN>,
+		<&scmi_clk GATE_LSP0_SSI_M_PCLK_EN>;
+	clock-names = "wclk", "pclk";
+	resets = <&scmi_reset RST_LSP0_SSI_M_WCLK_SW>;
+	reset-names = "spi";
+};
+&spi1 {
+	status = "disable";
+	clocks= <&scmi_clk GATE_LSP0_SSI_S_WCLK_EN>,
+		<&scmi_clk GATE_LSP0_SSI_S_PCLK_EN>;
+	clock-names = "wclk", "pclk";
+	resets = <&scmi_reset RST_LSP0_SSI_S_WCLK_SW>;
+	reset-names = "spi";
+};
+&spi2 {
+	status = "disable";
+	clocks= <&scmi_clk GATE_LSP1_SSI_M_WCLK_EN>,
+		<&scmi_clk GATE_LSP1_SSI_M_PCLK_EN>;
+	clock-names = "wclk", "pclk";
+	resets = <&scmi_reset RST_LSP1_SSI_M_WCLK_SW>;
+	reset-names = "spi";
+};
+&spi3 {
+	status = "disable";
+	clocks= <&scmi_clk GATE_LSP1_SSI_S_WCLK_EN>,
+		<&scmi_clk GATE_LSP1_SSI_S_PCLK_EN>;
+	clock-names = "wclk", "pclk";
+	resets = <&scmi_reset RST_LSP1_SSI_S_WCLK_SW>;
+	reset-names = "spi";
+};
+
+&i2s0 {
+	status = "disable";
+};
+&i2s1 {
+	status = "disable";
+};
+&i2s2 {
+	status = "disable";
+};
+&i2s3 {
+	status = "disable";
+};
+
+&tdm0 {
+	status = "disable";
+};
+&tdm1 {
+	status = "disable";
+};
+&tdm2 {
+	status = "disable";
+};
+&tdm3 {
+	status = "disable";
+};
+
+&watchdog0 {
+	status = "disable";
+};
+&watchdog1 {
+	status = "disable";
+};
+&watchdog2 {
+	status = "disable";
+};
+&watchdog3 {
+	status = "disable";
+};
+
+
+&watchdog_soc0 {
+	status = "okay";
+};
+&watchdog_soc1 {
+	status = "okay";
+};
+&watchdog_soc2 {
+	status = "okay";
+};
+&watchdog_soc3 {
+	status = "okay";
+};
+
+&watchdog_soc4 {
+	status = "okay";
+	bst_wdt_name = "soc_a78_wdt4";
+};
+&watchdog_soc5 {
+	status = "okay";
+	bst_wdt_name = "soc_a78_wdt5";
+};
+&watchdog_soc6 {
+	status = "okay";
+	bst_wdt_name = "soc_a78_wdt6";
+};
+&watchdog_soc7 {
+	status = "okay";
+	bst_wdt_name = "soc_a78_wdt7";
+};
+
+
+&watchdog_db0 {
+	status = "disable";
+};
+&watchdog_db1 {
+	status = "disable";
+};
+&watchdog_db2 {
+	status = "disable";
+};
+&watchdog_db3 {
+	status = "disable";
+};
+
+&lsp0_pwm0 {
+	status = "disable";
+};
+&lsp1_pwm0 {
+	status = "disable";
+};
+
+&gpio0 {
+	status = "okay";
+	pinctrl-names = "default";
+	pinctrl-0 = <&isp_pinctrl &deser_pinctrl>;
+};
+
+&porta {
+		interrupts = <GIC_SPI 253 (IRQ_TYPE_LEVEL_HIGH)>;
+};
+
+&gpio1 {
+	status = "okay";
+};
+
+&portb {
+		interrupts = <GIC_SPI 253 (IRQ_TYPE_LEVEL_HIGH)>;
+};
+
+&gpio2 {
+	status = "okay";
+};
+
+&portc {
+		interrupts = <GIC_SPI 253 (IRQ_TYPE_LEVEL_HIGH)>;
+};
+&gpio3 {
+	status = "okay";
+};
+
+&portd {
+		interrupts = <GIC_SPI 253 (IRQ_TYPE_LEVEL_HIGH)>;
+};
+&gpio4 {
+	status = "okay";
+};
+
+&porte {
+		interrupts = <GIC_SPI 253 (IRQ_TYPE_LEVEL_HIGH)>;
+};
+&gpio5 {
+	status = "okay";
+};
+
+&portf {
+		interrupts = <GIC_SPI 253 (IRQ_TYPE_LEVEL_HIGH)>;
+};
+&gpio6 {
+	status = "okay";
+};
+
+&portg {
+		interrupts = <GIC_SPI 253 (IRQ_TYPE_LEVEL_HIGH)>;
+};
+&gpio7 {
+	status = "okay";
+};
+
+&porth {
+		interrupts = <GIC_SPI 253 (IRQ_TYPE_LEVEL_HIGH)>;
+};
+
+&gpiokeys {
+	status = "disable";
+	//status = "okay"; //for STR SW3 WAKEUP
+};
+
+&thermal {
+	status = "okay";
+};
+
+&can0 {
+	status = "okay";
+};
+
+&swdma0 {
+	status = "disable";
+};
+
+
+&gdma0 {
+	status = "okay";
+	dma-channels = <30>;
+	snps,chan-start = <0>;
+	snps,block-size = <1048576 1048576 1048576 1048576 1048576 1048576
+						1048576 1048576 1048576 1048576 1048576 1048576 1048576 1048576
+						1048576 1048576 1048576 1048576 1048576 1048576 1048576 1048576
+						1048576 1048576 1048576 1048576 1048576 1048576 1048576 1048576>;
+
+	snps,priority = <29 28 27 26 25 24
+					23 22 21 20 19 18 17 16
+					15 14 13 12 11 10 9 8
+					7 6 5 4 3 2 1 0>;
+	interrupts = <      GIC_SPI 385 (GIC_CPU_MASK_SIMPLE(8) | IRQ_TYPE_LEVEL_HIGH)
+						GIC_SPI 386 (GIC_CPU_MASK_SIMPLE(8) | IRQ_TYPE_LEVEL_HIGH)
+						GIC_SPI 387 (GIC_CPU_MASK_SIMPLE(8) | IRQ_TYPE_LEVEL_HIGH)
+						GIC_SPI 388 (GIC_CPU_MASK_SIMPLE(8) | IRQ_TYPE_LEVEL_HIGH)
+						GIC_SPI 389 (GIC_CPU_MASK_SIMPLE(8) | IRQ_TYPE_LEVEL_HIGH)
+						GIC_SPI 390 (GIC_CPU_MASK_SIMPLE(8) | IRQ_TYPE_LEVEL_HIGH)
+						GIC_SPI 391 (GIC_CPU_MASK_SIMPLE(8) | IRQ_TYPE_LEVEL_HIGH)
+						GIC_SPI 392 (GIC_CPU_MASK_SIMPLE(8) | IRQ_TYPE_LEVEL_HIGH)
+						GIC_SPI 393 (GIC_CPU_MASK_SIMPLE(8) | IRQ_TYPE_LEVEL_HIGH)
+						GIC_SPI 394 (GIC_CPU_MASK_SIMPLE(8) | IRQ_TYPE_LEVEL_HIGH)
+						GIC_SPI 395 (GIC_CPU_MASK_SIMPLE(8) | IRQ_TYPE_LEVEL_HIGH)
+						GIC_SPI 396 (GIC_CPU_MASK_SIMPLE(8) | IRQ_TYPE_LEVEL_HIGH)
+						GIC_SPI 397 (GIC_CPU_MASK_SIMPLE(8) | IRQ_TYPE_LEVEL_HIGH)
+						GIC_SPI 398 (GIC_CPU_MASK_SIMPLE(8) | IRQ_TYPE_LEVEL_HIGH)
+						GIC_SPI 399 (GIC_CPU_MASK_SIMPLE(8) | IRQ_TYPE_LEVEL_HIGH)
+						GIC_SPI 400 (GIC_CPU_MASK_SIMPLE(8) | IRQ_TYPE_LEVEL_HIGH)
+						GIC_SPI 401 (GIC_CPU_MASK_SIMPLE(8) | IRQ_TYPE_LEVEL_HIGH)
+						GIC_SPI 402 (GIC_CPU_MASK_SIMPLE(8) | IRQ_TYPE_LEVEL_HIGH)
+						GIC_SPI 403 (GIC_CPU_MASK_SIMPLE(8) | IRQ_TYPE_LEVEL_HIGH)
+						GIC_SPI 404 (GIC_CPU_MASK_SIMPLE(8) | IRQ_TYPE_LEVEL_HIGH)
+						GIC_SPI 405 (GIC_CPU_MASK_SIMPLE(8) | IRQ_TYPE_LEVEL_HIGH)
+						GIC_SPI 406 (GIC_CPU_MASK_SIMPLE(8) | IRQ_TYPE_LEVEL_HIGH)
+						GIC_SPI 407 (GIC_CPU_MASK_SIMPLE(8) | IRQ_TYPE_LEVEL_HIGH)
+						GIC_SPI 408 (GIC_CPU_MASK_SIMPLE(8) | IRQ_TYPE_LEVEL_HIGH)
+						GIC_SPI 409 (GIC_CPU_MASK_SIMPLE(8) | IRQ_TYPE_LEVEL_HIGH)
+						GIC_SPI 410 (GIC_CPU_MASK_SIMPLE(8) | IRQ_TYPE_LEVEL_HIGH)
+						GIC_SPI 411 (GIC_CPU_MASK_SIMPLE(8) | IRQ_TYPE_LEVEL_HIGH)
+						GIC_SPI 412 (GIC_CPU_MASK_SIMPLE(8) | IRQ_TYPE_LEVEL_HIGH)
+						GIC_SPI 413 (GIC_CPU_MASK_SIMPLE(8) | IRQ_TYPE_LEVEL_HIGH)
+						GIC_SPI 414 (GIC_CPU_MASK_SIMPLE(8) | IRQ_TYPE_LEVEL_HIGH)>;
+                };
+				
+
+&mmu600_soc{
+	status = "okay";
+};
+
+
+&usbdwc3 {
+		//iommus = <&mmu600_soc 1>;
+};
+&bst_usb_msg{
+	msgbox-pid = "CPU_0";
+};
+&usbdrd_dwc3 {
+	status = "disable";
+};
+
+&usbdwc2 {
+		iommus = <&mmu600_soc 2>;
+};
+&dwc3 {
+	status = "okay";
+};
+
+&timer0 {
+	status = "disable";
+};
+
+&timer1 {
+    interrupts = <GIC_SPI 253 IRQ_TYPE_LEVEL_HIGH>; 
+	timer-chan = <0x0>;
+    status = "okay";	                   
+};
+
+&mmc0 {
+	memory-region = <&bst_sramemmc0_reserved>;
+
+	pinctrl-names = "default","sd_pvdd3-3","sd_pvdd1-8";
+	pinctrl-0 = <&mmc_pinctrl &mmc_pinctrl1>;
+	pinctrl-1 = <&mmc_pinconfig>;
+	pinctrl-2 = <&mmc_pinconfig1>;
+
+
+	status = "okay";
+};
+
+&nor_flash {
+	memory-region = <&bst_nor_flash_code_reserved>;
+	status = "okay";
+};
+
+
+&mmu600_pcie {
+	status = "disable";
+};
+&mmu600_codec {
+	status = "disable";
+};
+
+&mmu600_coreip {
+	status = "okay";
+};
+
+&ufs {
+    interrupts = <GIC_SPI 118 IRQ_TYPE_EDGE_RISING
+					GIC_SPI 253 IRQ_TYPE_LEVEL_HIGH>; 
+	ufs-timer = <0x0>;
+    status = "disable";
+};
+
+&pcie_phy {
+	dmc-lane = <0x1>; /* bit0: 1=2x2ports, 0=1x4ports */
+	dmc-mode = <0x3>; /* (bit1 for ctl0)/(bit0 for ctl1):1=RC-mode, 0=EP-mode */
+	pcie-ctl0 = <1>;  /* Controller reset */
+	pcie-ctl1 = <1>;  /* Controller reset */
+	pcie-ref-clk0 = <1>; /* 0=onchip_clk, 1=pad_clk*/
+	pcie-ref-clk1 = <1>; /* 0=onchip_clk, 1=pad_clk, 2=repeat_clk */
+};
+
+&pcie1 {
+	status = "okay";
+	reset-gpio = <&portg 25 GPIO_ACTIVE_HIGH>;
+	reset-gpio-active-high;
+	pre-init;
+};
+
+&codec0 {
+	compatible = "arm china,linlon-v5";
+	status = "okay";
+	/* PMU_CODEC0 value defined in safety power domain */
+	power-domains = <&scmi_devpd 0x19>;
+};
+&codec1 {
+	compatible = "arm china,linlon-v5-1";
+	status = "okay";
+	power-domains = <&scmi_devpd 0x1a>;
+};
+
+&mipi_dsi0 {
+	status = "disable";
+};
+&mipi_dsi1 {
+	status = "disable";
+};
+&mipi_csr {
+	status = "disable";
+};
+
+&bst_dptx {
+	status = "disable";
+	pinctrl-names = "default";
+	pinctrl-0 = <&hpd_pinctrl>;
+};
+
+&xrp0 {
+	status = "disable";
+};
+
+&csi_tx {
+	status = "okay";
+};
+
+&bst_dpu0 {
+	status = "disable";
+};
+&bst_dpu2 {
+	status = "disable";
+};
+&bst_dpu1 {
+	status = "disable";
+};
+
+&lvds_conn {
+	status = "disable";
+	pinctrl-names = "default";
+	pinctrl-0 = <&lvds0_pinconfig &lvds1_pinconfig>;
+};
+
+&bst_disp_fw_msgbx {
+	status = "disable";
+	msgbx-pid = "CPU_4";   /* "CPU_4" - "CPU_7" */
+};
+
+&bst_disp_fw_ipc {
+	status = "okay";
+	memory-region = <&bst_dpu_buf_reserved>;
+	ipc-pid = "ARM2"; /* "ARM2"/"ARM3" */
+};
+
+&bst_virt_dpu0 {
+	status = "okay";
+	os-type = "ADAS";
+	/* 
+	 * case 1:
+	 * 	pipeline0 : "DEVICE_TYPE_VIRT_DC_PIPE0"
+	 * 	pipeline1 : "DEVICE_TYPE_VIRT_DC_PIPE1"
+	 * case 2:
+	 * 	pipeline0 : "DEVICE_TYPE_VIRT_DC_PIPE2"
+	 * 	pipeline1 : "DEVICE_TYPE_VIRT_DC_PIPE3"
+	 * 
+	 */
+	pipeline@0 {
+		status = "okay";
+		layer-num = <4>;
+		port@0 {
+			virt_pipe0_out: endpoint@0 {
+				remote-endpoint = <&virt_dsi0_in>;
+			};
+		};
+	};
+	pipeline@1 {
+		status = "okay";
+		layer-num = <4>;
+		port@0 {
+			virt_pipe1_out: endpoint@0 {
+				remote-endpoint = <&virt_dsi1_in>;
+			};
+		};
+	};
+};
+
+&bst_virt_dsi0 {
+	status = "okay";
+	backlight = <&backlight_dsi0>;
+	ports {
+		port@0 {
+			virt_dsi0_in: endpoint@0 {
+				remote-endpoint = <&virt_pipe0_out>;
+			};
+		};
+	};
+};
+
+&bst_virt_dsi1 {
+	status = "okay";
+	backlight = <&backlight_dsi1>;
+	ports {
+		port@0 {
+			virt_dsi1_in: endpoint@0 {
+				remote-endpoint = <&virt_pipe1_out>;
+			};
+		};
+	};
+};
+&gpu_ivi {
+	status = "disable";
+};
+
+&gpu_adas {
+	status = "okay";
+};
+
+&gpu_db {
+	status = "disable";
+};
+
+&pinctrl {
+	status = "disable";
+};
+
+&gtc {
+	status = "okay";
+};
+
+&xgmac0 {
+	status = "okay";
+	max-speed = <1000>;
+	snps,ps-speed = <1000>;
+	phy-handle = <&eth_phy0>;
+	extend-op = <20>;
+	phy-mode = "sgmii";
+	mac-mode = "gmii";
+	fpe-hs = <0>;
+	xpcs-addr = <0>;
+	dma-coherent-pop;
+	snps,tso;
+	/*bypass;  //bool, set: bypass , non set : non bypass
+	pinctrl-names = "default";
+        pinctrl-0 = <&soc_xgmac_pinctrl>;*/
+	fixed-link {
+		speed = <1000>;
+		full-duplex;
+		pause;
+	};
+	mdio {
+		compatible = "snps,dwmac-mdio";
+		#address-cells = <1>;
+		#size-cells = <0>;
+		status = "okay";
+		eth_phy0: eth_phy0@0 {
+			compatible = "marvell,88E1510", "ethernet-phy-id0141.0DD1", "ethernet-phy-ieee802.3-c22";
+			device_type = "ethernet-phy";
+			max-speed = <1000>;
+			reg = <0x1>;
+			reset-active-low;
+			reset-gpios = <&porte 16 1>; //gpio 144
+			reset-assert-us = <20000>;
+			reset-deassert-us = <20000>;
+		};
+
+	};
+};
+
+&vmac {
+	status = "disable";
+};
+
+&gic600 {
+	status = "okay";
+};
+
+&its1_x2 {
+	status = "okay";
+	memory-region = <&its_table_reserved>;
+};
+
+&msgbox {
+	status = "okay";
+	spi-irq-num = <4>;
+	filter-num = <8>;
+	// id = <0x0>;
+	// end0 and end1 spi irq
+	interrupts =    <
+			GIC_PPI 2 (GIC_CPU_MASK_SIMPLE(8) | IRQ_TYPE_LEVEL_LOW)
+			GIC_PPI 3 (GIC_CPU_MASK_SIMPLE(8) | IRQ_TYPE_LEVEL_LOW)
+			GIC_PPI 4 (GIC_CPU_MASK_SIMPLE(8) | IRQ_TYPE_LEVEL_LOW)
+			GIC_PPI 15 (GIC_CPU_MASK_SIMPLE(8) | IRQ_TYPE_LEVEL_LOW)
+			/*end16 ~ end19*/
+			GIC_SPI 544 (IRQ_TYPE_LEVEL_HIGH)
+			GIC_SPI 545 (IRQ_TYPE_LEVEL_HIGH)
+			GIC_SPI 546 (IRQ_TYPE_LEVEL_HIGH)
+			GIC_SPI 547 (IRQ_TYPE_LEVEL_HIGH)
+			GIC_SPI 548 (IRQ_TYPE_LEVEL_HIGH)
+			GIC_SPI 549 (IRQ_TYPE_LEVEL_HIGH)
+			GIC_SPI 550 (IRQ_TYPE_LEVEL_HIGH)
+			GIC_SPI 551 (IRQ_TYPE_LEVEL_HIGH)
+			GIC_SPI 552 (IRQ_TYPE_LEVEL_HIGH)
+			GIC_SPI 553 (IRQ_TYPE_LEVEL_HIGH)
+			GIC_SPI 554 (IRQ_TYPE_LEVEL_HIGH)
+			GIC_SPI 555 (IRQ_TYPE_LEVEL_HIGH)
+			GIC_SPI 556 (IRQ_TYPE_LEVEL_HIGH)
+			GIC_SPI 557 (IRQ_TYPE_LEVEL_HIGH)
+			GIC_SPI 558 (IRQ_TYPE_LEVEL_HIGH)
+			GIC_SPI 559 (IRQ_TYPE_LEVEL_HIGH)
+			/*end20 ~ end23*/
+			GIC_SPI 560 (IRQ_TYPE_LEVEL_HIGH)
+			GIC_SPI 561 (IRQ_TYPE_LEVEL_HIGH)
+			GIC_SPI 562 (IRQ_TYPE_LEVEL_HIGH)
+			GIC_SPI 563 (IRQ_TYPE_LEVEL_HIGH)
+			GIC_SPI 564 (IRQ_TYPE_LEVEL_HIGH)
+			GIC_SPI 565 (IRQ_TYPE_LEVEL_HIGH)
+			GIC_SPI 566 (IRQ_TYPE_LEVEL_HIGH)
+			GIC_SPI 567 (IRQ_TYPE_LEVEL_HIGH)
+			GIC_SPI 568 (IRQ_TYPE_LEVEL_HIGH)
+			GIC_SPI 569 (IRQ_TYPE_LEVEL_HIGH)
+			GIC_SPI 570 (IRQ_TYPE_LEVEL_HIGH)
+			GIC_SPI 571 (IRQ_TYPE_LEVEL_HIGH)
+			GIC_SPI 572 (IRQ_TYPE_LEVEL_HIGH)
+			GIC_SPI 573 (IRQ_TYPE_LEVEL_HIGH)
+			GIC_SPI 574 (IRQ_TYPE_LEVEL_HIGH)
+			GIC_SPI 575 (IRQ_TYPE_LEVEL_HIGH)
+			>;
+	#mbox-cells = <0x1>;
+};
+
+&arm_pmu {
+	status = "disable";
+};
+
+&ipc {
+	status = "okay";
+	memory-region = <&bst_ipc_reserved>;
+};
+&mbox {
+	status = "okay";
+	memory-region = <&bst_ipc_reserved>;
+};
+
+&cv_bus {
+	dma-ranges = <0x0 0xc0000000 0x8 0xdb000000 0x0 0x40000000>;
+};
+
+&bst_cvsmm {
+	status = "okay";
+	iommus = <&mmu600_coreip 2>;
+};
+
+&hwcv {
+	status = "okay";
+	use-cvsmm;
+	ipc-sem = <1 0 8>; //<master_id bank_id msg_id>
+};
+
+&bstdsp {
+	status = "okay";
+	dma-heap-name = "reserved";
+	iommu-group = <&bst_cvsmm>;
+	//dma-coherent;
+};
+&bstnpu {
+	status = "disable";
+	dma-heap-name = "reserved";
+	iommus = <&mmu600_coreip 1>,<&mmu600_coreip 4>;
+	//dma-coherent;
+};
+&bstn_bus {
+	/*           cpu va          net va         size          */
+	dma-ranges = <0x0 0xC0000000 0x0 0xC0000000 0x0 0x40000000>;  /* msg */
+};
+&bstn {
+	status = "okay";
+	iommus = <&mmu600_coreip 1>,<&mmu600_coreip 4>;
+	//dma-coherent;
+};
+&lwnn {
+	status = "okay";
+};
+
+&virtouch {
+	status = "okay";
+	memory-region = <&bst_touchscreen_reserved>;
+	/*
+	 * client-id:
+	 * 0x41444153: "ADAS"
+	 */
+	client-id = <0x41444153>; // as same as display client id
+	/*
+	 * screens-id:
+	 * 0x7: screen_dsi0  adas
+	 * 0x8: screen_dsi1  adas
+	 */
+	screens-id = <0x7>, <0x8>;
+};
+
+&sqbuffer {
+	status = "okay";
+};
+
+&backlight_dsi0 {
+	client-id = <0x41444153>;
+	status = "okay";
+};
+&backlight_dsi1 {
+	client-id = <0x41444153>;
+	status = "okay";
+};
+
+&bst_ske {
+	status = "okay";
+	memory-region = <&bst_crypto_dmabuf_reserved>;
+};
+&bst_hfe {
+	status = "okay";
+	memory-region = <&bst_crypto_dmabuf_reserved>;
+};
+&bst_pke {
+	status = "okay";
+	memory-region = <&bst_crypto_dmabuf_reserved>;
+};

@@ -46,8 +46,7 @@ int bst_bl_set_brightness(struct virt_bl_resource *res, unsigned int brightness)
 //查询背光值
 int bst_bl_get_brightness(struct virt_bl_resource *res, unsigned int *brightness);
 
-int bst_bl_suspend(struct virt_bl_resource *res);
-int bst_bl_resume(struct virt_bl_resource *res);
+int bst_bl_declare_resource(struct virt_bl_resource *res);
 
 //初始化
 int bst_backlight_init(void);

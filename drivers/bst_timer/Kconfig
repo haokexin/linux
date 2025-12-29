@@ -1,0 +1,6 @@
+config BST_LSP_TIMER
+	tristate "BST LSP TIMER support"
+	default y
+	help
+	  Enable support for Black Sesame Team lsp timer.
+

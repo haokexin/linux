@@ -23,6 +23,10 @@
 #include <sound/dmaengine_pcm.h>
 #include "local1-tdm.h"
 #include <linux/debugfs.h>
+#include <linux/pinctrl/pinctrl.h>
+#include <linux/pinctrl/pinmux.h>
+#include <linux/dma/bst-dma.h>
+#include "../../../drivers/pinctrl/core.h"
 
 #define TDM_WCLK (884736000UL)
 //#define TDM_WCLK   (36864000UL)
@@ -36,6 +40,12 @@ void __iomem *sc_lsp1_crm_ctrl_base;
 struct dentry *tdm_debugfs;
 static int tdm_num = 1;
 static int dma_num = 0;
+static struct bst_dma_snd_peripheral_cfg tdm_dma_peripheral_cfg = {
+	/**
+	 * tell the DMA driver to select gdma block transfer mode.
+	 **/
+	.dma_transfer_mode = 1U,
+};
 
 
 static int send_safety_usrmsg(u32 fault_code, u32 strategy_code)
@@ -211,7 +221,8 @@ static void tdm_start(struct dw_tdm_dev *dev,
 		chan_nr = config->rx_chan_nr;
 	}
 
-	tdm_write_reg(dev->tdm_base, IER, ((TDM_SLOT_NUM_8-1)<<8)|(1<<5)|(1<<1)|(1<<0));   //设置TDM FORMAT: I2S TDM , pcm3168a固定 8 slot num
+	//set tdm format: I2S TDM , the slot count of the codec pcm3168a is 8, so default is 8
+	tdm_write_reg(dev->tdm_base, IER, ((dev->slot_cnt-1)<<8)|(1<<5)|(1<<1)|(1<<0));
 	if (!dev->use_dma)
 		tdm_enable_irqs(dev, substream->stream, chan_nr);   //unmask all irqs
 
@@ -247,6 +258,25 @@ static void tdm_stop(struct dw_tdm_dev *dev,
 	if (!dev->active) {
 		tdm_write_reg(dev->tdm_base, CER, 0);
 		tdm_write_reg(dev->tdm_base, IER, 0);
+	}
+}
+
+static void bst_tdm_tdm_sel_init(int lsp_crm)
+{
+	u32 reg_val;
+	if (lsp_crm == 0) {
+		writel(0xabcd1234, sc_lsp0_crm_ctrl_base + 0x84);
+		reg_val = readl(sc_lsp0_crm_ctrl_base + 0x1c);
+		reg_val = reg_val & (~(1<<15));
+		writel(reg_val, sc_lsp0_crm_ctrl_base + 0x1c);
+		writel(0x0, sc_lsp0_crm_ctrl_base + 0x84);
+	}
+	if (lsp_crm == 1) {
+		writel(0xabcd1234, sc_lsp1_crm_ctrl_base + 0x84);
+		reg_val = readl(sc_lsp1_crm_ctrl_base + 0x1c);
+		reg_val = reg_val & (~(1<<15));
+		writel(reg_val, sc_lsp1_crm_ctrl_base + 0x1c);
+		writel(0x0, sc_lsp1_crm_ctrl_base + 0x84);
 	}
 }
 
@@ -320,33 +350,46 @@ static void dw_tdm_config(struct dw_tdm_dev *dev, int stream)
 		dmacr_reg = tdm_read_reg(dev->tdm_base, DMACR);
 		pr_info("%s DMACR == (0x%x)\n", __func__, dmacr_reg);
 	}
-
 }
 
-static int bst_set_tdm_clk(unsigned int freq, int lsp_crm)
+static int bst_set_tdm_clk(struct dw_tdm_dev *dev, unsigned int freq, int lsp_crm)
 {
-	u32 tmp, clk_div;
+	u32 tmp = 0;
+	u32 clk_div = 0;
 
-	if (freq) {
+	if (freq != 0 ) {
+		clk_div = TDM_WCLK / freq;
+		if (clk_div < CLK_DIV_MIN || clk_div > CLK_DIV_MAX)
+			clk_div = 0x240;
+
 		if (lsp_crm == 0) {
-			pr_info("%s set lsp0 tdm sclk\n", __func__);
-			tmp = ioread32(sc_lsp0_crm_ctrl_base + 0x0c);
-			clk_div = TDM_WCLK / freq;
-
-			if (clk_div < CLK_DIV_MIN || clk_div > CLK_DIV_MAX)
-				clk_div = 0x240;
-
-			iowrite32((tmp & (~(0xffff << 0))) | ((clk_div & 0xffff) << 0), sc_lsp0_crm_ctrl_base + 0x0c);
-		}
-		if (lsp_crm == 1) {
-			pr_info("%s set lsp1 tdm sclk\n", __func__);
-			tmp = ioread32(sc_lsp1_crm_ctrl_base + 0x178);
-			clk_div = TDM_WCLK / freq;
-
-			if (clk_div < CLK_DIV_MIN || clk_div > CLK_DIV_MAX)
-				clk_div = 0x240;
-
-			iowrite32((tmp & (~(0xffff << 0))) | ((clk_div & 0xffff) << 0), sc_lsp1_crm_ctrl_base + 0x178);
+			if(dev->phy_base == 0x2000D000) {
+				pr_info("%s set tdm0 sclk\n", __func__);
+				tmp = ioread32(sc_lsp0_crm_ctrl_base + 0x0c);
+				iowrite32((tmp & (~(0xffff << 0))) | ((clk_div & 0xffff) << 0),
+					sc_lsp0_crm_ctrl_base + 0x0c);
+			} else if (dev->phy_base == 0x2000E000) {
+				pr_info("%s set tdm1 sclk\n", __func__);
+				tmp = ioread32(sc_lsp0_crm_ctrl_base + 0x178);
+				iowrite32((tmp & (~(0xffff << 0))) | ((clk_div & 0xffff) << 0),
+					sc_lsp0_crm_ctrl_base + 0x178);
+			} else {
+				/* do nothing */
+			}
+		} else if (lsp_crm == 1) {
+			if(dev->phy_base == 0x2002D000) {
+				pr_info("%s set tdm2 sclk\n", __func__);
+				tmp = ioread32(sc_lsp1_crm_ctrl_base + 0x0c);
+				iowrite32((tmp & (~(0xffff << 0))) | ((clk_div & 0xffff) << 0),
+					sc_lsp1_crm_ctrl_base + 0x0c);
+			} else if (dev->phy_base == 0x2002E000) {
+				pr_info("%s set tdm3 sclk\n", __func__);
+				tmp = ioread32(sc_lsp1_crm_ctrl_base + 0x178);
+				iowrite32((tmp & (~(0xffff << 0))) | ((clk_div & 0xffff) << 0),
+					sc_lsp1_crm_ctrl_base + 0x178);
+			} else {
+				/* do nothing */
+			}
 		}
 		pr_info(" %s, freq:%d , tmp: %d, clk_div: %d\n", __func__, freq, tmp, clk_div);
 	}
@@ -364,18 +407,27 @@ static int dw_tdm_hw_params(struct snd_pcm_substream *substream,
 
 	switch (params_format(params)) {
 	case SNDRV_PCM_FORMAT_S16_LE:
+		/* from synopsys i2s data book */
+		/* Slot length in a TDM frame is always fixed to 32 clocks,
+		that is, 32 serial clocks correspond to one slot. */
 		config->data_width = 32;
 		dev->ccr = 0x10;
 		dev->xfer_resolution = 0x02;
 		break;
 
 	case SNDRV_PCM_FORMAT_S24_LE:
+		/* from synopsys i2s data book */
+		/* Slot length in a TDM frame is always fixed to 32 clocks,
+		that is, 32 serial clocks correspond to one slot. */
 		config->data_width = 32;
 		dev->ccr = 0x10;
 		dev->xfer_resolution = 0x04;
 		break;
 
 	case SNDRV_PCM_FORMAT_S32_LE:
+		/* from synopsys i2s data book */
+		/* Slot length in a TDM frame is always fixed to 32 clocks,
+		that is, 32 serial clocks correspond to one slot. */
 		config->data_width = 32;
 		dev->ccr = 0x10;
 		dev->xfer_resolution = 0x05;
@@ -418,13 +470,13 @@ static int dw_tdm_hw_params(struct snd_pcm_substream *substream,
 			}
 		} else {
 			u32 bitclk = config->sample_rate *
-			    config->data_width * TDM_SLOT_NUM_8;      //pcm3168a 8 slot
+			    config->data_width * dev->slot_cnt;      //pcm3168a 8 slot
 
 			/*reduce clock frequence in DMA mode*/
 			if (dev->lsp_crm == 0) {
-				ret = bst_set_tdm_clk(bitclk, 0);
+				ret = bst_set_tdm_clk(dev, bitclk, 0);
 			} else if (dev->lsp_crm == 1) {
-				ret = bst_set_tdm_clk(bitclk, 1);
+				ret = bst_set_tdm_clk(dev, bitclk, 1);
 			} else {
 				return -EINVAL;
 			}
@@ -538,7 +590,6 @@ static const struct snd_soc_dai_ops dw_tdm_dai_ops = {
 static int dw_tdm_runtime_suspend(struct device *dev)
 {
 	struct dw_tdm_dev *dw_dev = dev_get_drvdata(dev);
-
 	if (dw_dev->capability & DW_TDM_MASTER)
 		clk_disable(dw_dev->clk);
 	return 0;
@@ -547,7 +598,6 @@ static int dw_tdm_runtime_suspend(struct device *dev)
 static int dw_tdm_runtime_resume(struct device *dev)
 {
 	struct dw_tdm_dev *dw_dev = dev_get_drvdata(dev);
-
 	if (dw_dev->capability & DW_TDM_MASTER)
 		clk_enable(dw_dev->clk);
 	return 0;
@@ -556,7 +606,7 @@ static int dw_tdm_runtime_resume(struct device *dev)
 static int dw_tdm_suspend(struct snd_soc_component *component)
 {
 	struct dw_tdm_dev *dev = snd_soc_component_get_drvdata(component);
-
+	dev->pin->state = NULL;
 	if (dev->capability & DW_TDM_MASTER)
 		clk_disable(dev->clk);
 	return 0;
@@ -568,8 +618,12 @@ static int dw_tdm_resume(struct snd_soc_component *component)
 	struct snd_soc_dai *dai;
 	int stream;
 
+	bst_tdm_tdm_sel_init(dev->lsp_crm);
+
 	if (dev->capability & DW_TDM_MASTER)
 		clk_enable(dev->clk);
+
+	pinctrl_pm_select_default_state(dev->dev);
 
 	for_each_component_dais(component, dai) {
 		for_each_pcm_streams(stream)
@@ -755,8 +809,10 @@ static int dw_configure_dai_by_dt(struct dw_tdm_dev *dev,
 		dev->play_dma_data.dt.addr = res->start + TDM_TXDMA;
 		dev->play_dma_data.dt.addr_width = bus_widths[idx];
 		dev->play_dma_data.dt.fifo_size = fifo_depth *
-		    (fifo_width[idx2]) >> 8;
+			(fifo_width[idx2]) >> 8;
 		dev->play_dma_data.dt.maxburst = 16;
+		dev->play_dma_data.dt.peripheral_config = &tdm_dma_peripheral_cfg;
+		dev->play_dma_data.dt.peripheral_size = sizeof(tdm_dma_peripheral_cfg);
 	}
 	if (COMP1_RX_ENABLED(comp1)) {
 		idx2 = COMP2_RX_WORDSIZE_0(comp2);
@@ -766,8 +822,10 @@ static int dw_configure_dai_by_dt(struct dw_tdm_dev *dev,
 		dev->capture_dma_data.dt.addr = res->start + TDM_RXDMA;
 		dev->capture_dma_data.dt.addr_width = bus_widths[idx];
 		dev->capture_dma_data.dt.fifo_size = fifo_depth *
-		    (fifo_width[idx2]) >> 8;
+			(fifo_width[idx2]) >> 8;
 		dev->capture_dma_data.dt.maxburst = 16;
+		dev->capture_dma_data.dt.peripheral_config = &tdm_dma_peripheral_cfg;
+		dev->capture_dma_data.dt.peripheral_size = sizeof(tdm_dma_peripheral_cfg);
 	}
 
 	return 0;
@@ -843,30 +901,6 @@ static void dw_tdm_debugfs_remove(void)
 	debugfs_remove_recursive(tdm_debugfs);
 }
 
-
-static void bst_tdm_tdm_sel_init(int lsp_crm)
-{
-	u32 reg_val;
-	if (lsp_crm == 0) {
-		writel(0xabcd1234, sc_lsp0_crm_ctrl_base + 0x84);
-		//pr_info(" %s sc_lsp0_crm_ctrl_base: +0X84:%x \n", __func__, readl(sc_lsp0_crm_ctrl_base+0x84));
-		//pr_info(" %s sc_lsp0_crm_ctrl_base: +0X1c:%x \n", __func__, readl(sc_lsp0_crm_ctrl_base+0x1c));
-		reg_val = readl(sc_lsp0_crm_ctrl_base + 0x1c);
-		reg_val = reg_val & (~(1<<15));
-		writel(reg_val, sc_lsp0_crm_ctrl_base + 0x1c);
-		pr_info(" %s sc_lsp0_crm_ctrl_base: +0X1c:%x \n", __func__, readl(sc_lsp0_crm_ctrl_base+0x1c));
-	}
-	if (lsp_crm == 1) {
-		writel(0xabcd1234, sc_lsp1_crm_ctrl_base + 0x84);
-		//pr_info(" %s sc_lsp1_crm_ctrl_base: +0X84:%x \n", __func__, readl(sc_lsp1_crm_ctrl_base+0x84));
-		//pr_info(" %s sc_lsp1_crm_ctrl_base: +0X1c:%x \n", __func__, readl(sc_lsp1_crm_ctrl_base+0x1c));
-		reg_val = readl(sc_lsp1_crm_ctrl_base + 0x1c);
-		reg_val = reg_val & (~(1<<15));
-		writel(reg_val, sc_lsp1_crm_ctrl_base + 0x1c);
-		pr_info(" %s sc_lsp1_crm_ctrl_base: +0X1c:%x \n", __func__, readl(sc_lsp1_crm_ctrl_base+0x1c));
-	}
-}
-
 static int bst_tdm_dai_probe(struct snd_soc_dai *cpu_dai)
 {
 	struct dw_tdm_dev *dev = snd_soc_dai_get_drvdata(cpu_dai);
@@ -885,7 +919,6 @@ static int dw_tdm_probe(struct platform_device *pdev)
 	int ret, irq = -1;
 	struct snd_soc_dai_driver *dw_tdm_dai;
 	u32 tmp_data;
-	//u32 irq_remap[2];
 
 	dev = devm_kzalloc(&pdev->dev, sizeof(*dev), GFP_KERNEL);
 	if (!dev)
@@ -923,27 +956,25 @@ static int dw_tdm_probe(struct platform_device *pdev)
 	if (dev->phy_base == 0x2000D000) {
 		tmp_data = ioread32(sc_lsp0_crm_ctrl_base + 0x0c);
 		iowrite32((tmp_data & (~(0xffff << 0))) | (0x240 << 0), sc_lsp0_crm_ctrl_base + 0x0c);
-		dev_info(&pdev->dev, "set tdm0 sclk\n");
+		//dev_info(&pdev->dev, "set tdm0 sclk\n");
 	} else if (dev->phy_base == 0x2000E000) {
 		tmp_data = ioread32(sc_lsp0_crm_ctrl_base + 0x178);
 		iowrite32((tmp_data & (~(0xffff << 0))) | (0x240 << 0), sc_lsp0_crm_ctrl_base + 0x178);
-		dev_info(&pdev->dev, "set tdm1 sclk\n");
+		//dev_info(&pdev->dev, "set tdm1 sclk\n");
 	} else if (dev->phy_base == 0x2002D000) {
 		tmp_data = ioread32(sc_lsp1_crm_ctrl_base + 0x0c);
 		iowrite32((tmp_data & (~(0xffff << 0))) | (0x240 << 0), sc_lsp1_crm_ctrl_base + 0x0c);
-		dev_info(&pdev->dev, "set tdm2 sclk\n");
+		//dev_info(&pdev->dev, "set tdm2 sclk\n");
 	} else if (dev->phy_base == 0x2002E000) {
 		tmp_data = ioread32(sc_lsp1_crm_ctrl_base + 0x178);
 		iowrite32((tmp_data & (~(0xffff << 0))) | (0x240 << 0), sc_lsp1_crm_ctrl_base + 0x178);
-		dev_info(&pdev->dev, "set tdm3 sclk\n");
+		//dev_info(&pdev->dev, "set tdm3 sclk\n");
 	} else {
 		return -ENXIO;
 	}
 
 	if (device_property_read_bool(dev->dev, "use-dma"))
 		dev->use_dma = true;
-
-	pr_info(" %s, use_dma: %d\n", __func__, dev->use_dma);
 
 	if (dev->use_dma) 
 		dw_tdm_dai->probe = bst_tdm_dai_probe;
@@ -954,7 +985,7 @@ static int dw_tdm_probe(struct platform_device *pdev)
 		if (irq >= 0) {
 			ret = devm_request_irq(&pdev->dev, irq, tdm_irq_handler, 0,
 						pdev->name, dev);
-			pr_info(" %s request irq, ret:%d \n", __func__, ret);
+			//pr_info(" %s request irq, ret:%d \n", __func__, ret);
 			if (ret < 0) {
 				dev_err(&pdev->dev, "failed to request irq\n");
 				return ret;
@@ -978,6 +1009,12 @@ static int dw_tdm_probe(struct platform_device *pdev)
 	if (ret < 0)
 		return ret;
 
+	if (device_property_read_u32(dev->dev, "slot_cnt", &dev->slot_cnt) == 0) {
+		dev_info(&pdev->dev, "slot count value: %u\n", dev->slot_cnt);
+	} else {
+		dev_info(&pdev->dev, "no slot count property config, default value\n");
+		dev->slot_cnt = TDM_SLOT_NUM_8;
+	}
 
 	if (dev->capability & DW_TDM_MASTER) {
 		if (pdata) {
@@ -1035,6 +1072,12 @@ static int dw_tdm_probe(struct platform_device *pdev)
 			dev_err(&pdev->dev, "could not register pcm: %d\n", ret);
 			goto err_clk_disable;
 		}
+	}
+
+	dev->pin = devm_pinctrl_get(&pdev->dev);
+	if (IS_ERR(dev->pin)) {
+		dev_err(&pdev->dev, "error get tdm pinmux\n");
+		return 0;
 	}
 
 	dw_tdm_debugfs_init();

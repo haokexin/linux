@@ -34,9 +34,14 @@ static struct reserve_mem_info res_mem;
 
 static int reserve_mem_init(int block_size)
 {
+/* WARNNING: 16M DDR has reserved for USB data buffer;
+	* dts: usb_virt@80e000000 {reg = <0x8 0x0e000000 0x0 0x1000000>;}
+	* first 8M for bulk out(set by R5), last 8M for bulk in(set by A78)
+	*/
+#define VIRT_USB_BULK_IN_OFFSET 0x800000
 	struct device_node *np;
 	struct resource res;
-	unsigned long memmap_offset = 0;
+	unsigned long memmap_offset = VIRT_USB_BULK_IN_OFFSET;
 
 	res_mem.block_size = block_size;
 	res_mem.usb_virt_size = 0;
@@ -141,7 +146,9 @@ static void usb_free_buf(void *buf)
 int urb_pool_init(struct urbs_pool *pool, u32 urb_max_num, u32 urb_buf_size)
 {
 	int i;
+	struct buf_priv_entry *mem = NULL;
 
+	urb_max_num = urb_max_num-1;//for pool->mem_buf
 	pool->urbs = kmalloc_array(urb_max_num, sizeof(struct urb_priv_entry), GFP_KERNEL);
 	pool->urb_max_num = urb_max_num;
 	pool->urb_buf_size = urb_buf_size;
@@ -155,6 +162,26 @@ int urb_pool_init(struct urbs_pool *pool, u32 urb_max_num, u32 urb_buf_size)
 		if (entry->buf)
 			atomic_set(&entry->status, URB_FREE);
 	}
+	mem = &pool->mem_buf;
+	mem->buf = usb_alloc_buf(urb_buf_size, &mem->transfer_dma);
+	mem->seqnum = 0;
+	mem->actual_length = 0;
+	if (mem->buf)
+		atomic_set(&mem->status, URB_FREE);
+
+	return 0;
+}
+
+static int bluk_in_buf_to_pdu(struct buf_priv_entry *entry,
+			      usb_bst_virsual_msg_t *pdu)
+{
+	phys_addr_t phys_addr = entry->transfer_dma;
+
+	phys_addr = phys_to_bus(phys_addr);
+	pdu->high_addr = phys_addr >> 32;
+	pdu->low_addr = (u32) (phys_addr & 0xffffffff);
+	pdu->len = entry->actual_length;
+	pdu->seqnum = entry->seqnum;
 	return 0;
 }
 
@@ -172,6 +199,32 @@ static int bluk_in_urb_to_pdu(struct urb_priv_entry *entry,
 	pdu->low_addr = (u32) (phys_addr & 0xffffffff);
 	pdu->len = urb->actual_length;
 	pdu->seqnum = entry->seqnum;
+	return 0;
+}
+
+int send_bluk_in_buf(struct usb_virtual_device *vdev, char *buf, u32 len, usb_bst_virsual_msg_t *pdu)
+{
+	struct buf_priv_entry *entry = &vdev->pool.mem_buf;
+
+	if (atomic_read(&entry->status) != URB_FREE)
+		return -1;
+
+	atomic_set(&entry->status, URB_SUBMITTED);
+	entry->seqnum = atomic_inc_return(&vdev->seqnum);
+	entry->actual_length = len;
+	memcpy(entry->buf, buf, len);
+
+	bluk_in_buf_to_pdu(entry, pdu);
+
+	//make sure access buf ok
+	smp_wmb();
+	__aarch64_clean_dcache_range(entry->buf,
+						entry->buf +
+						entry->actual_length);
+	push_pdu_to_msglist_bulk_in(pdu);
+	atomic_set(&entry->status, URB_WAITING_ACK);
+	wake_up_interruptible(&vdev->tx_waitqueue);
+	entry->wait_ack_jiffies = jiffies;
 	return 0;
 }
 
@@ -212,8 +265,8 @@ void virtual_usb_read_bulk_callback(struct urb *urb)
 						     entry->buf +
 						     urb->actual_length);
 			push_pdu_to_msglist_bulk_in(&pdu);
-			wake_up_interruptible(&vdev->tx_waitqueue);
 			atomic_set(&entry->status, URB_WAITING_ACK);
+			wake_up_interruptible(&vdev->tx_waitqueue);
 			entry->wait_ack_jiffies = jiffies;
 		} else {
 			dev_err(&vdev->interface->dev,
@@ -290,6 +343,18 @@ void usb_recv_ep_ack(struct usb_virtual_device *vdev, usb_bst_virsual_msg_t *pdu
 	}
 
 }
+void usb_recv_device_ack(struct usb_virtual_device *vdev, usb_bst_virsual_msg_t *pdu)
+{
+	struct urbs_pool *pool = &vdev->pool;
+	struct buf_priv_entry *entry = &pool->mem_buf;
+
+	if (entry->seqnum == pdu->seqnum
+		&& atomic_read(&entry->status) == URB_WAITING_ACK) {
+		atomic_set(&entry->status, URB_FREE);
+	}
+
+}
+
 
 void urb_pool_unlink(struct urbs_pool *pool)
 {
@@ -318,6 +383,10 @@ void urb_pool_free(struct urbs_pool *pool)
 			entry->buf = NULL;
 		}
 	}
+	if (pool->mem_buf.buf) {
+		usb_free_buf(pool->mem_buf.buf);
+		pool->mem_buf.buf = NULL;
+	}
 	reserve_mem_exit();
 	pool->urb_max_num = 0;
 	kfree(pool->urbs);
@@ -334,16 +403,22 @@ void tx_timer_callback(struct timer_list *t)
 		struct urb_priv_entry *entry = &pool->urbs[i];
 
 		if (atomic_read(&entry->status) == URB_WAITING_ACK) {
-			pr_debug("timeout urb %p urb->dma_addr %llx,urb->actual_length %x seqnum %lx  timeout %ld jiffies %ld\n",
-				&entry->urb, (u64) entry->urb.transfer_dma,
-				entry->urb.actual_length, entry->seqnum,
-				entry->wait_ack_jiffies +
-				 URB_BULK_IN_ACK_TIMEOUT * HZ, jiffies);
 			if (time_is_before_jiffies(entry->wait_ack_jiffies +
 				URB_BULK_IN_ACK_TIMEOUT * HZ)) {
+				pr_debug("timeout urb %p urb->dma_addr %llx,urb->actual_length %x seqnum %lx  timeout %ld jiffies %ld\n",
+					&entry->urb, (u64) entry->urb.transfer_dma,
+					entry->urb.actual_length, entry->seqnum,
+					entry->wait_ack_jiffies + URB_BULK_IN_ACK_TIMEOUT * HZ, jiffies);
 				atomic_set(&entry->status, URB_FREE);
 				bulk_in_trb_submit(vdev, entry);
 			}
+		}
+	}
+	if (atomic_read(&pool->mem_buf.status) == URB_WAITING_ACK) {
+		if (time_is_before_jiffies(pool->mem_buf.wait_ack_jiffies +
+			URB_BULK_IN_ACK_TIMEOUT * HZ)) {
+			atomic_set(&pool->mem_buf.status, URB_FREE);
+			pool->mem_buf.actual_length = 0;
 		}
 	}
 	mod_timer(&vdev->tx_timer, jiffies + HZ);
@@ -363,3 +438,17 @@ void usb_send_device_msg(struct usb_virtual_device *vdev, uint16_t cmd)
 	usb_send_pid_device_msg(vdev, cmd, 0);
 }
 
+void usb_send_buf_pid_device_msg(struct usb_virtual_device *vdev, uint16_t cmd, uint32_t pid, char *buf, u32 len)
+{
+	usb_bst_virsual_msg_t pdu = { 0 };
+
+	pdu.core_id = pid;
+	pdu.command = cmd << 16 | USB_VIRT_DEVICE_SUBMIT | USB_VIRT_CMD_DIR_IN;
+	if (send_bluk_in_buf(vdev, buf, len, &pdu))
+		dev_err(&vdev->interface->dev, "send device msg err\n");
+}
+
+void usb_send_buf_device_msg(struct usb_virtual_device *vdev, uint16_t cmd, char *buf, u32 len)
+{
+	usb_send_buf_pid_device_msg(vdev, cmd, 0, buf, len);
+}

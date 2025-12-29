@@ -1,0 +1,21 @@
+Black Sesame Technologies Msgbox
+================================
+
+THe Black Sesame Technologies Msgbox provides msgbox for the communication between cores.
+
+Required Properties:
+
+- compatible: Should be:
+	- "bst,c1200-csi2-rx"
+- id: 0 1 or 2
+- data-lanes : 1-4
+- lane-speed : 800-4500 for DPHY, 800-3500 for CPHY
+
+Example:
+bst-msgbox: msgbox@0x32a00000 {
+	compatible = "bst,c1200-csi2-rx";
+	reg = <0x0 0x53000000 0x0 0x00015500>,
+			<0x0 0x53015500 0x0 0x00000100>;
+	data-lanes = <1 2 3 4>;
+	lane-speed = <2500>;
+};

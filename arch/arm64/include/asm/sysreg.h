@@ -220,6 +220,7 @@
 #define SYS_SPSR_EL1			sys_reg(3, 0, 4, 0, 0)
 #define SYS_ELR_EL1			sys_reg(3, 0, 4, 0, 1)
 
+#define SYS_CURRENTEL			sys_reg(3, 0, 4, 2, 2)
 #define SYS_ICC_PMR_EL1			sys_reg(3, 0, 4, 6, 0)
 
 #define SYS_AFSR0_EL1			sys_reg(3, 0, 5, 1, 0)
@@ -651,7 +652,7 @@
 
 #define INIT_SCTLR_EL1_MMU_OFF \
 	(ENDIAN_SET_EL1 | SCTLR_EL1_LSMAOE | SCTLR_EL1_nTLSMD | \
-	 SCTLR_EL1_EIS  | SCTLR_EL1_TSCXT  | SCTLR_EL1_EOS)
+	 SCTLR_EL1_EIS  | SCTLR_EL1_TSCXT  | SCTLR_EL1_EOS | SCTLR_ELx_I)
 
 #define INIT_SCTLR_EL1_MMU_ON \
 	(SCTLR_ELx_M      | SCTLR_ELx_C      | SCTLR_ELx_SA    | \

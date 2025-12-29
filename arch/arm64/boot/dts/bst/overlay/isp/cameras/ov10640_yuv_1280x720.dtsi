@@ -1,7 +1,0 @@
-compatible = "bst,ov10640-yuv";
-data-type = <0x1e>;
-fv-polarity-low = <1>;
-fpd3-mode = "raw10";
-serializer = "ti933";
-
-trigger-tx-pin = <0>;

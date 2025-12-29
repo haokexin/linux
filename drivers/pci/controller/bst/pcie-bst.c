@@ -848,6 +848,7 @@ void dw_pcie_setup(struct dw_pcie *pci)
 {
 	struct device_node *np = pci->dev->of_node;
 	u32 val;
+	int ret;
 
 	if (pci->link_gen > 0)
 		dw_pcie_link_set_max_speed(pci, pci->link_gen);
@@ -881,7 +882,12 @@ void dw_pcie_setup(struct dw_pcie *pci)
 	val |= PORT_LINK_DLL_LINK_EN;
 	dw_pcie_writel_dbi(pci, PCIE_PORT_LINK_CONTROL, val);
 
-	of_property_read_u32(np, "num-lanes", &pci->num_lanes);
+	ret = of_property_read_u32(np, "num-lanes", &pci->num_lanes);
+	if(!ret) // ret == 0 on success
+	{
+		dev_dbg(pci->dev, "num-lanes:%d\n", pci->num_lanes);
+	}
+
 	if (!pci->num_lanes) {
 		dev_dbg(pci->dev, "Using h/w default number of lanes\n");
 		return;

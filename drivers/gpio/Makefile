@@ -2,6 +2,7 @@
 # generic gpio support: platform drivers, dedicated expander chips, etc
 
 ccflags-$(CONFIG_DEBUG_GPIO)	+= -DDEBUG
+ccflags-y += -I${srctree}/drivers/soc/bst/c1200/
 
 obj-$(CONFIG_GPIOLIB)		+= gpiolib.o
 obj-$(CONFIG_GPIOLIB)		+= gpiolib-devres.o
@@ -56,6 +57,7 @@ obj-$(CONFIG_GPIO_DWAPB)        += bst/gpio-dwapb.o
 else
 obj-$(CONFIG_GPIO_DWAPB)        += gpio-dwapb.o
 endif
+obj-$(CONFIG_GPIO_PI4IOE5V6416)   += bst/gpio-pi4ioe5v6416.o
 obj-$(CONFIG_GPIO_EIC_SPRD)		+= gpio-eic-sprd.o
 obj-$(CONFIG_GPIO_EM)			+= gpio-em.o
 obj-$(CONFIG_GPIO_EN7523)		+= gpio-en7523.o

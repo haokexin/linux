@@ -2,7 +2,7 @@
 #
 # Makefile for the Linux Kernel bst flexcan specific device drivers.
 #
-
-obj-y                           += bst_vcan.o
-obj-y                           += switch0_can_gateway_client.o
-obj-y                           += adas5_can_gateway_client.o
+ccflags-$(CONFIG_VCAN_DEBUG) += -DVCAN_DEBUG
+obj-$(CONFIG_BST_VCAN)               += bst_vcan.o
+obj-$(CONFIG_BST_VCAN)               += switch0_can_gateway_client.o
+obj-$(CONFIG_BST_VCAN)               += adas5_can_gateway_client.o

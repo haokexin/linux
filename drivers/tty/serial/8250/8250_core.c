@@ -14,6 +14,8 @@
  *	      serial8250_register_8250_port() ports
  */
 
+
+
 #include <linux/acpi.h>
 #include <linux/module.h>
 #include <linux/moduleparam.h>
@@ -575,13 +577,193 @@ serial8250_register_ports(struct uart_driver *drv, struct device *dev)
 
 #ifdef CONFIG_SERIAL_8250_CONSOLE
 
-static void univ8250_console_write(struct console *co, const char *s,
+
+static void wait_for_lsr(struct uart_8250_port *up, int bits)
+{
+	unsigned int status, tmout = 1000000;
+
+	/* Wait up to 10ms for the character(s) to be sent. */
+	for (;;) {
+		status = serial_lsr_in(up);
+
+		if ((status & bits) == bits)
+			break;
+		if (--tmout == 0)
+			break;
+		udelay(1);
+		touch_nmi_watchdog();
+	}
+}
+
+/*
+ *	Wait for transmitter & holding register to empty
+ */
+static void wait_for_xmitr(struct uart_8250_port *up, int bits)
+{
+	unsigned int tmout;
+
+	wait_for_lsr(up, bits);
+
+	/* Wait up to 1s for flow control if necessary */
+	if (up->port.flags & UPF_CONS_FLOW) {
+		for (tmout = 10000000; tmout; tmout--) {
+			unsigned int msr = serial_in(up, UART_MSR);
+			up->msr_saved_flags |= msr & MSR_SAVE_FLAGS;
+			if (msr & UART_MSR_CTS)
+				break;
+			udelay(1);
+			touch_nmi_watchdog();
+		}
+	}
+}
+
+
+#define UART_TFL_REG 32 
+static int32_t univ8250_console_write(struct console *co, const char *s,unsigned int count,bool dma)
+{
+
+
+struct uart_8250_port *up = &serial8250_ports[co->index];
+	struct uart_port *port = &up->port;
+	char send[256];
+	int  send_offset = 0;
+	unsigned long flags;
+	int locked = 1,tfl;
+	unsigned int fifosize = up->tx_loadsz;
+
+	locked = spin_trylock_irqsave(&port->lock, flags);
+	if ((!oops_in_progress) && (locked == 0))
+	{
+		return -1;
+	}	
+	
+
+	do{
+		tfl = fifosize - serial_in(up, UART_TFL_REG);
+		if(count - send_offset  <= tfl){
+			memcpy(send, &s[send_offset], count - send_offset);
+			
+			serial8250_console_write(up, send, count - send_offset);
+			if(oops_in_progress || dma)
+				wait_for_xmitr(up, UART_LSR_BOTH_EMPTY);
+			break;
+		}
+		else{
+			memcpy(send,&s[send_offset], tfl);
+			serial8250_console_write(up, send, tfl);
+			if(oops_in_progress || dma)
+				wait_for_xmitr(up, UART_LSR_BOTH_EMPTY);
+		}
+		
+		send_offset += tfl;
+	}while(true);
+
+	if (locked)
+		spin_unlock_irqrestore(&port->lock, flags);
+
+	return 0;
+}
+
+
+
+static void univ8250_console_write_lock(struct console *co, const char *s,
 				   unsigned int count)
 {
-	struct uart_8250_port *up = &serial8250_ports[co->index];
 
-	serial8250_console_write(up, s, count);
+	int32_t ret = 0,tfl;
+	unsigned long flags;
+	struct uart_8250_port *up = &serial8250_ports[co->index];
+	unsigned int fifosize = up->tx_loadsz;
+	unsigned int fifo_space,i,uart_fifo_len;
+
+
+	
+
+
+	if (!oops_in_progress && up->dma && (up->dma->tx_fifo_dma_flag == 1) && up->dma->tx_dma &&  tty_port_initialized(&up->port.state->port)) {
+
+		//in interrupt or spin_lock_irqsave invoke function, xmit fifo can not change,because dma interrupt masked
+		while(true)
+		{
+			fifo_space = serial8250_fifo_space(up); 
+			if(fifo_space > PAGE_SIZE) 
+			{ 
+				break; // space bigger than 4096 (normal)
+			}
+			uart_fifo_len =  serial_in(up, UART_TFL_REG);
+			if(fifo_space < count || uart_fifo_len == 0) //error !!!!,not happed,goto uart fifo print
+			{
+				goto FIFO_ENTRY;
+			} 
+			else 
+			{
+				if(fifo_space <= PAGE_SIZE)  //space under waterlevel.then delay 200us one letter
+				{
+					for(i=0;i < count;i++) 
+					{
+						udelay(200);
+					}
+				}
+				break;
+			}
+
+		}
+
+		spin_lock_irqsave(&up->port.lock, flags);
+
+
+		serial8250_fifo_insert_chars(up,s,count);
+
+		if(!uart_circ_empty(&up->dma->xmit)) {
+
+			up->dma->tx_dma(up);
+		
+			if (!up->dma->tx_running)
+				serial8250_set_THRI(up);
+		}
+		
+		spin_unlock_irqrestore(&up->port.lock, flags);
+
+		return;
+	}
+
+
+FIFO_ENTRY:
+	
+	while (1) {
+
+		if(!oops_in_progress)
+		{
+			while(1)
+			{
+				tfl = fifosize - serial_in(up, UART_TFL_REG); //tx fifo left space (byte)
+				if(tfl == fifosize) {
+					break;
+				}
+				else if(tfl > count) {
+					break;
+				}else{
+					udelay(1);
+				}
+			}
+		}
+
+		if(up->dma && (up->dma->tx_fifo_dma_flag == 1)) {
+			ret = univ8250_console_write(co,s,count,true);
+		} else {
+			ret = univ8250_console_write(co,s,count,false);
+		}
+		if (ret == -1) {
+			continue;
+		} else {
+			break;
+		}
+	}
+
 }
+
+
+
 
 static int univ8250_console_setup(struct console *co, char *options)
 {
@@ -668,7 +850,7 @@ static int univ8250_console_match(struct console *co, char *name, int idx,
 
 static struct console univ8250_console = {
 	.name		= "ttyS",
-	.write		= univ8250_console_write,
+	.write		= univ8250_console_write_lock,
 	.device		= uart_console_device,
 	.setup		= univ8250_console_setup,
 	.exit		= univ8250_console_exit,

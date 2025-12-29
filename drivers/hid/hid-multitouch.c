@@ -1533,6 +1533,7 @@ static bool mt_need_to_apply_feature(struct hid_device *hdev,
 static void mt_set_modes(struct hid_device *hdev, enum latency_mode latency,
 			 bool surface_switch, bool button_switch)
 {
+	struct hid_driver *drv = hdev->driver;
 	struct hid_report_enum *rep_enum;
 	struct hid_report *rep;
 	struct hid_usage *usage;
@@ -1551,7 +1552,10 @@ static void mt_set_modes(struct hid_device *hdev, enum latency_mode latency,
 
 			for (j = 0; j < rep->field[i]->maxusage; j++) {
 				usage = &rep->field[i]->usage[j];
-
+				if (latency == HID_LATENCY_NORMAL) {
+					if (drv && drv->feature_mapping)
+						drv->feature_mapping(hdev, rep->field[i], usage);
+				}
 				if (mt_need_to_apply_feature(hdev,
 							     rep->field[i],
 							     usage,

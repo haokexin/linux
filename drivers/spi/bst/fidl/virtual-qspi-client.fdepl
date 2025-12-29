@@ -1,0 +1,13 @@
+//realtime0-client.fdepl
+import "virtual-qspi-inf.fdepl"
+
+define com.bst.ipc.deployment for provider as SocClient {
+    ProviderType = Client
+    RTE = LinuxKernel
+    SrcEndID = CPU_4
+    FID = F1
+    SID = 1
+    instance com.bst.ipc.safety.st_public {
+        DstEndID = SAFETY_0
+    }
+}

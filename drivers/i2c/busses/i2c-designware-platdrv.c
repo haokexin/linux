@@ -217,6 +217,11 @@ static const struct i2c_dw_semaphore_callbacks i2c_dw_semaphore_cb_table[] = {
 		.remove = i2c_dw_amdpsp_remove_lock_support,
 	},
 #endif
+#ifdef CONFIG_I2C_DESIGNWARE_BST_HWLOCK
+	{
+		.probe = i2c_dw_bst_probe_lock_support,
+	},
+#endif
 	{}
 };
 
@@ -262,12 +267,79 @@ static void i2c_dw_remove_lock_support(struct dw_i2c_dev *dev)
 		i2c_dw_semaphore_cb_table[dev->semaphore_idx].remove(dev);
 }
 
+
+static void i2c_dw_open_interrupt_remap(struct dw_i2c_dev *dev)
+{
+    void __iomem    *interrupt_post;
+    u32 reg_val;
+
+	interrupt_post = ioremap(REALTIME_INTERRUPT_POST, 4);
+	switch (dev->phy_base){
+		case REALTIME_I2C_BASE_1:
+			reg_val = readl(interrupt_post);
+			reg_val &= 0x00ffffff;
+			reg_val |= 0x65000000;
+			writel(reg_val, interrupt_post);		
+		break;
+		case REALTIME_I2C_BASE_2:
+			reg_val = readl(interrupt_post);
+			reg_val &= 0xff00ffff;
+			reg_val |= 0x00640000;
+			writel(reg_val, interrupt_post);		
+		break;
+		case REALTIME_I2C_BASE_3:
+			reg_val = readl(interrupt_post);
+			reg_val &= 0xffff00ff;
+			reg_val |= 0x00004800;
+			writel(reg_val, interrupt_post);
+		break;
+		case REALTIME_I2C_BASE_4:
+			reg_val = readl(interrupt_post);
+			reg_val &= 0xffffff00;
+			reg_val |= 0x00000047;
+			writel(reg_val, interrupt_post);
+		break;
+	};
+}
+
+static void i2c_dw_close_interrupt_remap(struct dw_i2c_dev *dev)
+{
+    void __iomem    *interrupt_post;
+    u32 reg_val;
+
+	interrupt_post = ioremap(REALTIME_INTERRUPT_POST, 4);
+	switch (dev->phy_base){
+		case REALTIME_I2C_BASE_1:
+			reg_val = readl(interrupt_post);
+			reg_val &= 0x00ffffff;
+			writel(reg_val, interrupt_post);		
+		break;
+		case REALTIME_I2C_BASE_2:
+			reg_val = readl(interrupt_post);
+			reg_val &= 0xff00ffff;
+			writel(reg_val, interrupt_post);		
+		break;
+		case REALTIME_I2C_BASE_3:
+			reg_val = readl(interrupt_post);
+			reg_val &= 0xffff00ff;
+			writel(reg_val, interrupt_post);		
+		break;
+		case REALTIME_I2C_BASE_4:
+			reg_val = readl(interrupt_post);
+			reg_val &= 0xffffff00;
+			writel(reg_val, interrupt_post);
+		break;
+	};
+}
+
 static int dw_i2c_plat_probe(struct platform_device *pdev)
 {
 	struct i2c_adapter *adap;
 	struct dw_i2c_dev *dev;
 	struct i2c_timings *t;
 	int irq, ret;
+	struct resource *res;
+
 
 	irq = platform_get_irq(pdev, 0);
 	if (irq < 0)
@@ -276,6 +348,10 @@ static int dw_i2c_plat_probe(struct platform_device *pdev)
 	dev = devm_kzalloc(&pdev->dev, sizeof(struct dw_i2c_dev), GFP_KERNEL);
 	if (!dev)
 		return -ENOMEM;
+
+    res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
+    dev->phy_base = res->start;
+	i2c_dw_open_interrupt_remap(dev);
 
 	dev->flags = (uintptr_t)device_get_match_data(&pdev->dev);
 	dev->dev = &pdev->dev;
@@ -313,6 +389,11 @@ static int dw_i2c_plat_probe(struct platform_device *pdev)
 
 	i2c_dw_configure(dev);
 
+
+	if (device_property_read_bool(&pdev->dev, "broken-runtime"))
+		dev->broken_runtime = true;
+
+
 	/* Optional interface clock */
 	dev->pclk = devm_clk_get_optional(&pdev->dev, "pclk");
 	if (IS_ERR(dev->pclk)) {
@@ -320,7 +401,7 @@ static int dw_i2c_plat_probe(struct platform_device *pdev)
 		goto exit_reset;
 	}
 
-	dev->clk = devm_clk_get_optional(&pdev->dev, NULL);
+	dev->clk = devm_clk_get_optional(&pdev->dev, "wclk");
 	if (IS_ERR(dev->clk)) {
 		ret = PTR_ERR(dev->clk);
 		goto exit_reset;
@@ -358,6 +439,8 @@ static int dw_i2c_plat_probe(struct platform_device *pdev)
 					DPM_FLAG_SMART_SUSPEND);
 	}
 
+
+
 	device_enable_async_suspend(&pdev->dev);
 
 	/* The code below assumes runtime PM to be disabled. */
@@ -391,6 +474,8 @@ static int dw_i2c_plat_remove(struct platform_device *pdev)
 
 	pm_runtime_get_sync(&pdev->dev);
 
+	i2c_dw_close_interrupt_remap(dev);
+
 	i2c_del_adapter(&dev->adapter);
 
 	dev->disable(dev);
@@ -406,7 +491,7 @@ static int dw_i2c_plat_remove(struct platform_device *pdev)
 	return 0;
 }
 
-#if 1 
+#ifdef CONFIG_PM_SLEEP
 static int dw_i2c_plat_prepare(struct device *dev)
 {
 	/*
@@ -421,11 +506,13 @@ static int dw_i2c_plat_prepare(struct device *dev)
 #define dw_i2c_plat_prepare	NULL
 #endif
 
-#if 1
+#ifdef CONFIG_PM
 static int dw_i2c_plat_runtime_suspend(struct device *dev)
 {
 	struct dw_i2c_dev *i_dev = dev_get_drvdata(dev);
 
+	if(i_dev->broken_runtime == true) 
+		return 0;
 
 	if (i_dev->shared_with_punit)
 		return 0;
@@ -448,6 +535,10 @@ static int __maybe_unused dw_i2c_plat_suspend(struct device *dev)
 static int dw_i2c_plat_runtime_resume(struct device *dev)
 {
 	struct dw_i2c_dev *i_dev = dev_get_drvdata(dev);
+
+	if(i_dev->broken_runtime == true)
+		return 0;
+
 
 	if (!i_dev->shared_with_punit)
 		i2c_dw_prepare_clk(i_dev, true);

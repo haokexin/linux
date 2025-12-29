@@ -166,12 +166,16 @@ static int __maybe_unused bst_rt_pm_suspend(struct device *dev)
 {
 	struct bst_virt_drm_drv *drv = dev_get_drvdata(dev);
 
+	bst_virt_connector_suspend(drv->super_dev);
+
 	return bst_virt_dev_suspend(drv->super_dev);
 }
 
 static int __maybe_unused bst_rt_pm_resume(struct device *dev)
 {
 	struct bst_virt_drm_drv *drv = dev_get_drvdata(dev);
+
+	bst_virt_connector_resume(drv->super_dev);
 
 	return bst_virt_dev_resume(drv->super_dev);
 }
@@ -183,6 +187,8 @@ static int __maybe_unused bst_pm_suspend(struct device *dev)
 
 	res = drm_mode_config_helper_suspend(&drv->kms->base);
 
+	bst_virt_connector_suspend(drv->super_dev);
+
 	if (!pm_runtime_status_suspended(dev))
 		bst_virt_dev_suspend(drv->super_dev);
 
@@ -192,6 +198,8 @@ static int __maybe_unused bst_pm_suspend(struct device *dev)
 static int __maybe_unused bst_pm_resume(struct device *dev)
 {
 	struct bst_virt_drm_drv *drv = dev_get_drvdata(dev);
+
+	bst_virt_connector_resume(drv->super_dev);
 
 	if (!pm_runtime_status_suspended(dev))
 		bst_virt_dev_resume(drv->super_dev);
@@ -204,9 +212,16 @@ static const struct dev_pm_ops bst_pm_ops = {
 		SET_RUNTIME_PM_OPS(bst_rt_pm_suspend, bst_rt_pm_resume, NULL)
 };
 
+static void bst_platform_shutdown(struct platform_device *pdev)
+{
+	bst_pm_suspend(&pdev->dev);
+	return;
+}
+
 static struct platform_driver bst_virtual_drm_platform_driver = {
 	.probe	= bst_platform_probe,
 	.remove	= bst_platform_remove,
+	.shutdown = bst_platform_shutdown,
 	.driver	= {
 		.name = "bst-vdrm",
 		.of_match_table	= bst_of_match,

@@ -21,6 +21,8 @@
 #include <linux/interrupt.h>
 #include <linux/irq.h>
 #include <linux/of_irq.h>
+#include "../watchdog_core.h"
+#include <uapi/linux/sched/types.h>
 
 #ifdef CONFIG_BST_AUTOFEED_A78_WATCHDOG
 #include <linux/kthread.h>
@@ -31,9 +33,26 @@
 #include <linux/completion.h>
 #endif
 
+
+#include "watchdogClient.h"
 // #define CLK_TREE_READY
 //#define IS_SLT 1
 static int smp_irq_flag = 0;
+
+static watchdogClient_t *m_client = NULL;
+static watchdogClient_data_t m_data={0};
+
+
+
+DEFINE_PER_CPU(bool, bst_wtdog_initialized) = false;
+DEFINE_PER_CPU(bool, bst_timer_initialized) = false;
+#define TIMER_FEED 10
+
+DEFINE_PER_CPU(int, bst_timer_debug) = 0;
+
+
+int bst_wdt_set_timeout(struct watchdog_device *wdd, unsigned int top_ms);
+int bst_wdt_ping(struct watchdog_device *wdd);
 
 static int debug = 0x3;         // init print err & info log
 module_param(debug, int, 0644);
@@ -64,33 +83,7 @@ MODULE_PARM_DESC(debug, "timer test debug level 0-4:\n"
                 }       \
         } while (0)
 
-#if defined(CONFIG_BST_C1200_ADAS)
-#ifdef IS_SLT
-#define BST_WDT_BASE0         (0x32068000)
-#define BST_WDT_BASE1         (0x32069000)
-#define BST_WDT_BASE2         (0x3206a000)
-#define BST_WDT_BASE3         (0x3206b000)
-#define BST_WDT_BASE4         (0x3206c000)
-#define BST_WDT_BASE5         (0x3206d000)
-#define BST_WDT_BASE6         (0x3206e000)
-#define BST_WDT_BASE7         (0x3206f000)
-#else
-#define BST_WDT_BASE0         (0x3206c000)
-#define BST_WDT_BASE1         (0x3206d000)
-#define BST_WDT_BASE2         (0x3206e000)
-#define BST_WDT_BASE3         (0x3206f000)
-#endif
-#elif defined(CONFIG_BST_C1200_IVI)
-#define BST_WDT_BASE0         (0x32068000)
-#define BST_WDT_BASE1         (0x32069000)
-#define BST_WDT_BASE2         (0x3206a000)
-#define BST_WDT_BASE3         (0x3206b000)
-#else
-#define BST_WDT_BASE0         (0x33002000)
-#define BST_WDT_BASE1         (0x33003000)
-#define BST_WDT_BASE2         (0x33004000)
-#define BST_WDT_BASE3         (0x33005000)
-#endif
+
 
 
 #define WDOG_CONTROL_REG_OFFSET             0x00
@@ -113,27 +106,11 @@ MODULE_PARM_DESC(debug, "timer test debug level 0-4:\n"
 #define BST_WDT2_RST_SHIFT                                        0x2
 #define BST_WDT3_RST_SHIFT                                        0x3
 
-#define BST_WDT0_NAME_STR                                        "lsp_wdt0"
-#define BST_WDT1_NAME_STR                                        "lsp_wdt1"
-#define BST_WDT2_NAME_STR                                        "lsp_wdt2"
-#define BST_WDT3_NAME_STR                                        "lsp_wdt3"
+#define BST_WDT_LSP_NAME_STR                                        "lsp_wdt"
+#define BST_WDT_MP4_NAME_STR                                        "soc_a78_wdt"
+#define BST_WDT_MP2_NAME_STR                                        "db_a78_wdt"
 
-#define BST_WDT4_NAME_STR                                        "soc_a78_wdt0"
-#define BST_WDT5_NAME_STR                                        "soc_a78_wdt1"
-#define BST_WDT6_NAME_STR                                        "soc_a78_wdt2"
-#define BST_WDT7_NAME_STR                                        "soc_a78_wdt3"
 
-#ifdef IS_SLT
-#define BST_WDT8_NAME_STR                                        "db_a78_wdt4"
-#define BST_WDT9_NAME_STR                                        "db_a78_wdt5"
-#define BST_WDT10_NAME_STR                                        "db_a78_wdt6"
-#define BST_WDT11_NAME_STR                                        "db_a78_wdt7"
-#else
-#define BST_WDT8_NAME_STR                                        "db_a78_wdt0"
-#define BST_WDT9_NAME_STR                                        "db_a78_wdt1"
-#define BST_WDT10_NAME_STR                                        "db_a78_wdt2"
-#define BST_WDT11_NAME_STR                                        "db_a78_wdt3"
-#endif
 enum reset_pluse_length {
         PCLK_CYCLES_2,
         PCLK_CYCLES_4,
@@ -146,7 +123,15 @@ enum reset_pluse_length {
 };
 
 /* The maximum TOP (timeout period) value that can be set in the watchdog. */
-#define BST_WDT_MAX_TOP                15
+#define BST_WDT_MAX_TOP                9 //modify for fusa requirement, timeout <=100ms
+#define BST_WDT_MAX_IVI_TOP                11 //modify for fusa requirement, timeout <=100ms
+#define BST_WDT_MAX_TOP_MS             100 
+#define BST_WDT_SHUTDOWN_TOP           15
+#define BST_WDT_SHUTDOWN_TOP_MS        6 * 1000
+
+#define BST_WDT_SHUTDOWN_TOP_MS_SUSPEND        1000
+#define BST_WDT_TIMEOUT_IVI_MS          200 //217ms
+// bool isShuttingdown = false;
 
 #define BST_WDT_DEFAULT_SECONDS        60
 
@@ -154,16 +139,6 @@ enum reset_pluse_length {
 
 static bool nowayout = WATCHDOG_NOWAYOUT;
 
-static void __iomem *A78_WDT_BASE0;
-static void __iomem *A78_WDT_BASE1;
-static void __iomem *A78_WDT_BASE2;
-static void __iomem *A78_WDT_BASE3;
-#ifdef IS_SLT
-static void __iomem *A78_WDT_BASE4;
-static void __iomem *A78_WDT_BASE5;
-static void __iomem *A78_WDT_BASE6;
-static void __iomem *A78_WDT_BASE7;
-#endif
 static int register_irq;
 
 module_param(nowayout, bool, 0);
@@ -198,7 +173,7 @@ struct bst_wdt {
 
 static unsigned int bst_wdt_get_timeleft(struct watchdog_device *wdd);
 
-static void get_wdt_base(int wdt_id, void __iomem **wdt_base);
+//static void get_wdt_base(int wdt_id, void __iomem **wdt_base);
 
 //static void bst_wdt_reset_report_enable(int reg_bit);
 static void bst_wdt_open_rstreport(struct bst_wdt *bst_wdt);
@@ -220,46 +195,36 @@ static inline int bst_wdt_top_in_seconds(struct bst_wdt *bst_wdt, unsigned int t
         return (1U << (16 + top)) / bst_wdt->rate;
 }
 
+
+static inline int bst_wdt_top_in_millisecond(struct bst_wdt *bst_wdt, unsigned int top)
+{
+        /*
+         * There are 16 possible timeout values in 0..15 where the number of
+         * cycles is 2 ^ (16 + i) and the watchdog counts down.
+         */
+        return (1U << (16 + top))  / (bst_wdt->rate / 1000);
+}
+
+
 static int bst_wdt_get_top(struct bst_wdt *bst_wdt)
 {
         int top = readl(bst_wdt->regs + WDOG_TIMEOUT_RANGE_REG_OFFSET) & 0xF;
 
         //wdt_err("%s  %d \n", __FUNCTION__, __LINE__);
-        return bst_wdt_top_in_seconds(bst_wdt, top);
+        return bst_wdt_top_in_millisecond(bst_wdt, top);
 }
 
-#ifdef CONFIG_BST_AUTOFEED_A78_WATCHDOG
 static enum hrtimer_restart bst_a78wdt_hrtimer_func(struct hrtimer *t)
 {
         struct bst_wdt *bst_fwdt = container_of(t, struct bst_wdt, feed_timer);
+
+
         ktime_t now, m_kt;
-        void __iomem    *wdt_base;
 
-        /* Feed wdt */
-        if (bst_fwdt->wdt_type == SOC_A78_WDT) {
-                wdt_debug("bst_wdt->wdt_type == SOC_A78_WDT \n");
-                writel(WDOG_COUNTER_RESTART_KICK_VALUE, bst_fwdt->regs +
-                        WDOG_COUNTER_RESTART_REG_OFFSET);
-        } else if (bst_fwdt->wdt_type == DB_A78_WDT) {
-                wdt_debug("bst_wdt->wdt_type == DB_A78_WDT \n");
-                if (bst_fwdt->a78wdt_num == 0) {
-                        get_wdt_base(0, &wdt_base);
-                        writel(WDOG_COUNTER_RESTART_KICK_VALUE, wdt_base +
-                                WDOG_COUNTER_RESTART_REG_OFFSET);
-                        get_wdt_base(1, &wdt_base);
-                        writel(WDOG_COUNTER_RESTART_KICK_VALUE, wdt_base +
-                                WDOG_COUNTER_RESTART_REG_OFFSET);
-                } else if (bst_fwdt->a78wdt_num == 1) {
-                        get_wdt_base(2, &wdt_base);
-                        writel(WDOG_COUNTER_RESTART_KICK_VALUE, wdt_base +
-                                WDOG_COUNTER_RESTART_REG_OFFSET);
-                        get_wdt_base(3, &wdt_base);
-                        writel(WDOG_COUNTER_RESTART_KICK_VALUE, wdt_base +
-                                WDOG_COUNTER_RESTART_REG_OFFSET);
-                }
-        }
-
-        m_kt = ktime_set(2, 0);
+        writel(WDOG_COUNTER_RESTART_KICK_VALUE, bst_fwdt->regs +
+                WDOG_COUNTER_RESTART_REG_OFFSET);
+        
+        m_kt = ktime_set(0, TIMER_FEED * NSEC_PER_MSEC); //10ms
         now = hrtimer_cb_get_time(t);
         hrtimer_forward(t, now, m_kt);
 
@@ -267,120 +232,133 @@ static enum hrtimer_restart bst_a78wdt_hrtimer_func(struct hrtimer *t)
         return HRTIMER_RESTART;
 }
 
-static int feed_a78wdt_kthread(void *data)
+int set_bst_wdt_cpu_number(struct bst_wdt *bst_wdt){
+	unsigned long num;
+	int  ret;
+
+	if (bst_wdt->wdt_type == SOC_A78_WDT) {
+			/* over active_cpus_num watchdog shouldn't enable */
+			ret = kstrtoul((const char *)(bst_wdt->name + strlen(BST_WDT_MP4_NAME_STR)), 10, &num);
+			if (ret == 0)
+				bst_wdt->a78wdt_num = num;
+			else
+				return ret;
+			
+			if (bst_wdt->a78wdt_num >= num_active_cpus()) {
+                                wdt_debug("when active cpus number %d, the a78_wdt number should less than %d, So don't start %s\n", num_active_cpus(), num_active_cpus(), bst_wdt->name);
+                                return -EINVAL;
+			}
+	} else if (bst_wdt->wdt_type == DB_A78_WDT) {
+                ret = kstrtoul((const char *)(bst_wdt->name + strlen(BST_WDT_MP2_NAME_STR)), 10, &num);
+                if ((ret == 0) && (num == 0 || num == 1)) {
+                                bst_wdt->a78wdt_num = 0;
+                } else if ((ret == 0) && (num == 2 || num == 3)) {
+                                bst_wdt->a78wdt_num = 1;
+                } else
+                        return ret;
+	}
+	
+	return  0;
+}
+
+static int start_feed_wdt_timer(struct bst_wdt *bst_wdt)
 {
         ktime_t m_kt;
-        struct bst_wdt *bst_wdt = (struct bst_wdt *)data;
+	struct cpumask mask,origin_mask;
+        int rv;
+	
+		
+		
+        if(per_cpu(bst_timer_initialized, bst_wdt->a78wdt_num) == true) {
+                
+                return -1;
+        }
+	
+        sched_getaffinity(current->pid,&origin_mask);
 
+        /*bind hrtimer to cpu*/
+        cpumask_clear(&mask);
+        cpumask_set_cpu(bst_wdt->a78wdt_num, &mask);
+        rv = set_cpus_allowed_ptr(current, &mask);
+        if (rv)
+           pr_err("Failed set set_cpus_allowed_ptr timer to CPU %u, rv: %d\n",bst_wdt->a78wdt_num, rv);
+		
         hrtimer_init(&bst_wdt->feed_timer, CLOCK_MONOTONIC, HRTIMER_MODE_REL_PINNED);
         bst_wdt->feed_timer.function = bst_a78wdt_hrtimer_func;
 
         /* two sec, zero nsec */
-        m_kt = ktime_set(2, 0);
+        m_kt = ktime_set(0, TIMER_FEED * NSEC_PER_MSEC); // 10ms 
+
+        //pr_err("%s %d %d\n",__func__,__LINE__,bst_wdt->a78wdt_num);
         hrtimer_start(&bst_wdt->feed_timer, m_kt, HRTIMER_MODE_REL_PINNED);
 
-        complete(&bst_wdt->wait_done);
+	per_cpu(bst_timer_initialized, bst_wdt->a78wdt_num) = true;
 
+        set_cpus_allowed_ptr(current, &origin_mask);
+        
         return 0;
 }
 
-DEFINE_PER_CPU(bool, bst_wdt_initialized) = false;
+static int stop_feed_wdt_timer(struct bst_wdt *bst_wdt){
+	
+	if (true == per_cpu(bst_timer_initialized, bst_wdt->a78wdt_num)){
+		hrtimer_cancel(&bst_wdt->feed_timer);
+		per_cpu(bst_timer_initialized, bst_wdt->a78wdt_num) = false;
+		
+		//pr_err("%s %d %d\n",__func__,__LINE__,bst_wdt->a78wdt_num);
+	}
+	
+	return 0;
+}
 
-static int kthread_feed_wdt(struct bst_wdt *bst_wdt)
+
+
+
+int bst_wdt_ping(struct watchdog_device *wdd)
 {
-        struct task_struct *thread = NULL;
-
-        /* already ping wdt, return */
-        if (true == per_cpu(bst_wdt_initialized, bst_wdt->a78wdt_num)) {
-                wdt_debug("already ping wdt, return");
-                return -EBUSY;
-        }
-        if (!cpu_active(bst_wdt->a78wdt_num)) {
-                wdt_err("Active cpus number %d, but cpu %d Inactive, don't create wdt kthread\n", num_active_cpus(), bst_wdt->a78wdt_num);
-                return -EPERM;
-        }
-        init_completion(&bst_wdt->wait_done);
-
-        thread = kthread_create_on_cpu(feed_a78wdt_kthread, (void *)bst_wdt, bst_wdt->a78wdt_num, bst_wdt->name);
-        if (IS_ERR(thread)) {
-                wdt_err("Failed to create kthread on CPU %d\n", bst_wdt->a78wdt_num);
-                return PTR_ERR(thread);
-        }
-        wake_up_process(thread);
-
-        /* Wait until kthreadd is all set-up. */
-        wait_for_completion(&bst_wdt->wait_done);
-        per_cpu(bst_wdt_initialized, bst_wdt->a78wdt_num) = true;
-
-        return 0;
+	struct bst_wdt *bst_wdt = to_bst_wdt(wdd);
+	
+	writel(WDOG_COUNTER_RESTART_KICK_VALUE, bst_wdt->regs +WDOG_COUNTER_RESTART_REG_OFFSET);
+    return 0;
 }
-#endif
 
-static int bst_wdt_ping(struct watchdog_device *wdd)
+
+
+
+
+int bst_wdt_set_timeout(struct watchdog_device *wdd, unsigned int top_ms)
 {
         struct bst_wdt *bst_wdt = to_bst_wdt(wdd);
-        //wdt_err("%s  %d \n", __FUNCTION__, __LINE__);
-#ifdef CONFIG_BST_AUTOFEED_A78_WATCHDOG
-        unsigned long num;
-        int ret;
+        int i, top_val = BST_WDT_SHUTDOWN_TOP;
 
-        if (bst_wdt->wdt_type == SOC_A78_WDT) {
-                /* get BST_WDT_NAME_STR last character as cpu num */
-                ret = kstrtoul((const char *)(bst_wdt->name + strlen(BST_WDT4_NAME_STR) - 1), 10, &num);
-                if (ret == 0)
-                        bst_wdt->a78wdt_num = num;
-                else
-                        return ret;
-                kthread_feed_wdt(bst_wdt);
-                return 0;
-        } else if (bst_wdt->wdt_type == DB_A78_WDT) {
-                ret = kstrtoul((const char *)(bst_wdt->name + strlen(BST_WDT8_NAME_STR) - 1), 10, &num);
-                if ((ret == 0) && (num == 0 || num == 1)) {
-                        bst_wdt->a78wdt_num = 0;
-                } else if ((ret == 0) && (num == 2 || num == 3)) {
-                        bst_wdt->a78wdt_num = 1;
-                } else
-                        return ret;
-
-                wdt_debug("bst_wdt->a78wdt_num = %d \n", bst_wdt->a78wdt_num);
-                if (num_online_cpus() <= bst_wdt->a78wdt_num) {
-                        wdt_err("Active cpus number %d, but cpu %d Inactive, don't create wdt kthread\n", num_active_cpus(), bst_wdt->a78wdt_num);
-                        return -EPERM;
-                }
-                kthread_feed_wdt(bst_wdt);
-        }
-#endif
-        writel(WDOG_COUNTER_RESTART_KICK_VALUE, bst_wdt->regs +
-               WDOG_COUNTER_RESTART_REG_OFFSET);
-        return 0;
-}
-
-static int bst_wdt_set_timeout(struct watchdog_device *wdd, unsigned int top_s)
-{
-        struct bst_wdt *bst_wdt = to_bst_wdt(wdd);
-        int i, top_val = BST_WDT_MAX_TOP;
-
-        //wdt_err("%s  %d \n", __FUNCTION__, __LINE__);
-        /*
-         * Iterate over the timeout values until we find the closest match. We
-         * always look for >=.
-         */
-        for (i = 0; i <= BST_WDT_MAX_TOP; ++i)
-                if (bst_wdt_top_in_seconds(bst_wdt, i) >= top_s) {
+        for (i = 0; i <= BST_WDT_SHUTDOWN_TOP; ++i){
+                if (bst_wdt_top_in_millisecond(bst_wdt, i) >= top_ms) {
                         top_val = i;
                         break;
                 }
+        }
 
+
+        #if defined (CONFIG_BST_C1200_IVI)
+        if(top_ms != BST_WDT_SHUTDOWN_TOP_MS)
+            top_val= top_val>=BST_WDT_MAX_IVI_TOP?BST_WDT_MAX_IVI_TOP:top_val;
+        #else
+        if(top_ms != BST_WDT_SHUTDOWN_TOP_MS)
+            top_val= top_val>=BST_WDT_MAX_TOP?BST_WDT_MAX_TOP:top_val;
+        #endif
         /*
          * Set the new value in the watchdog.  Some versions of bst_wdt
          * have TOPINIT in the TIMEOUT_RANGE register (as per
          * CP_WDT_DUAL_TOP in WDT_COMP_PARAMS_1).  On those we
          * effectively get a pat of the watchdog right here.
          */
+        //wdt_err("%s  %d top_val=%d top_ms=%d \n", __FUNCTION__, __LINE__,top_val,top_ms);
         writel(top_val | top_val << WDOG_TIMEOUT_RANGE_TOPINIT_SHIFT, bst_wdt->regs + WDOG_TIMEOUT_RANGE_REG_OFFSET);
         writel(top_val, bst_wdt->regs + WDOG_TIMEOUT_RANGE_REG_OFFSET);
-
-        wdd->timeout = bst_wdt_top_in_seconds(bst_wdt, top_val);
+        writel(WDOG_COUNTER_RESTART_KICK_VALUE, bst_wdt->regs +WDOG_COUNTER_RESTART_REG_OFFSET);
+	
+	wdd->timeout = bst_wdt_top_in_millisecond(bst_wdt, top_val);
+		
         return 0;
 }
 
@@ -401,7 +379,6 @@ static void bst_wdt_arm_system_reset(struct bst_wdt *bst_wdt)
 {
         u32 val = readl(bst_wdt->regs + WDOG_CONTROL_REG_OFFSET);
 
-        //wdt_err("%s  %d \n", __FUNCTION__, __LINE__);
         /* Enable watchdog. */
         val |= WDOG_CONTROL_REG_WDT_EN_MASK;
         writel(val, bst_wdt->regs + WDOG_CONTROL_REG_OFFSET);
@@ -410,56 +387,71 @@ static void bst_wdt_arm_system_reset(struct bst_wdt *bst_wdt)
 }
 
 
-static int bst_wdt_start(struct watchdog_device *wdd)
+
+
+static int bst_wdt_init(struct watchdog_device *wdd)
 {
         struct bst_wdt *bst_wdt = to_bst_wdt(wdd);
-        //wdt_err("%s  %d \n", __FUNCTION__, __LINE__);
-#ifdef CONFIG_BST_AUTOFEED_A78_WATCHDOG
-        unsigned long num;
-        int  ret;
 
-        if (bst_wdt->wdt_type == SOC_A78_WDT) {
-                /* over active_cpus_num watchdog shouldn't enable */
-                ret = kstrtoul((const char *)(bst_wdt->name + strlen(BST_WDT4_NAME_STR) - 1), 10, &num);
-                if (ret == 0)
-                        bst_wdt->a78wdt_num = num;
-                else
-                        return ret;
-                
-                if (bst_wdt->a78wdt_num >= num_active_cpus()) {
-                        wdt_debug("when active cpus number %d, the a78_wdt number should less than %d, So don't start %s\n", num_active_cpus(), num_active_cpus(), bst_wdt->name);
-                        return -EINVAL;
-                }
-        } else if (bst_wdt->wdt_type == DB_A78_WDT) {
-                ret = kstrtoul((const char *)(bst_wdt->name + strlen(BST_WDT8_NAME_STR) - 1), 10, &num);
-                if ((ret == 0) && (num == 0 || num == 1)) {
-                        bst_wdt->a78wdt_num = 0;
-                } else if ((ret == 0) && (num == 2 || num == 3)) {
-                        bst_wdt->a78wdt_num = 1;
-                } else
-                        return ret;
-        }
-#endif
+		if(per_cpu(bst_wtdog_initialized, bst_wdt->a78wdt_num) == true){
+			return 0;
+		}
+		
+
+		//wdt_err("%s  %d  %d\n", __FUNCTION__, __LINE__,bst_wdt->a78wdt_num);
+		 
         bst_wdt_set_pulse(wdd, PCLK_CYCLES_32);
         bst_wdt_set_timeout(wdd, wdd->timeout);
+        bst_wdt->timeout = bst_wdt_get_top(bst_wdt);
         bst_wdt_arm_system_reset(bst_wdt);
-        bst_wdt_ping(wdd);
+		
+		per_cpu(bst_wtdog_initialized, bst_wdt->a78wdt_num) = true;
+		
         return 0;
 }
+
+
+static int bst_wdt_start(struct watchdog_device *wdd){
+	
+	
+	struct bst_wdt *bst_wdt = to_bst_wdt(wdd);
+	
+        if(bst_wdt->wdt_type == SOC_LSP_WDT) {
+                        
+                bst_wdt_init(wdd);
+                start_feed_wdt_timer(bst_wdt);
+	}
+	
+	return 0;
+}
+
+static int bst_kernel_wdt_start(struct watchdog_device *wdd)
+{
+
+	struct bst_wdt *bst_wdt = to_bst_wdt(wdd);
+        bst_wdt_init(wdd);
+        start_feed_wdt_timer(bst_wdt);
+	
+        return 0;
+}
+
 
 /* Once wdt has been enabled, it can be cleared only by a system reset */
 static int bst_wdt_stop(struct watchdog_device *wdd)
 {
-        //wdt_err("%s  %d \n", __FUNCTION__, __LINE__);
+       
 #ifdef CONFIG_BST_AUTOFEED_A78_WATCHDOG
+        struct watchdog_core_data *wd_data = wdd->wd_data;
         struct bst_wdt *bst_wdt = to_bst_wdt(wdd);
+        // isShuttingdown = true;
+        
+        if (test_bit(_WDOG_HAND_STOP, &wd_data->status) == 0) {
 
-        if (bst_wdt->wdt_type == SOC_A78_WDT || bst_wdt->wdt_type == DB_A78_WDT) {
-                if (true == per_cpu(bst_wdt_initialized, bst_wdt->a78wdt_num))
-                        hrtimer_cancel(&bst_wdt->feed_timer);
-
-                return 0;
+                pr_err("%s %d\n",__func__,__LINE__);
+                bst_wdt_set_timeout(wdd,BST_WDT_SHUTDOWN_TOP_MS);
         }
+
+		stop_feed_wdt_timer(bst_wdt);
 #endif
         return 0;
 }
@@ -468,8 +460,12 @@ static int bst_wdt_restart(struct watchdog_device *wdd,
                            unsigned long action, void *data)
 {
         struct bst_wdt *bst_wdt = to_bst_wdt(wdd);
-        //wdt_err("%s  %d \n", __FUNCTION__, __LINE__);
-        writel(0, bst_wdt->regs + WDOG_TIMEOUT_RANGE_REG_OFFSET);
+        // isShuttingdown = true;
+        wdt_err("%s  %d \n", __FUNCTION__, __LINE__);
+        //writel(0, bst_wdt->regs + WDOG_TIMEOUT_RANGE_REG_OFFSET);
+
+        bst_wdt_set_timeout(wdd,BST_WDT_SHUTDOWN_TOP_MS);
+		
         if (bst_wdt_is_enabled(bst_wdt))
                 writel(WDOG_COUNTER_RESTART_KICK_VALUE, bst_wdt->regs + WDOG_COUNTER_RESTART_REG_OFFSET);
         else
@@ -483,10 +479,9 @@ static int bst_wdt_restart(struct watchdog_device *wdd,
 static unsigned int bst_wdt_get_timeleft(struct watchdog_device *wdd)
 {
         struct bst_wdt *bst_wdt = to_bst_wdt(wdd);
-
-        //wdt_err("%s  %d \n", __FUNCTION__, __LINE__);
-        return readl(bst_wdt->regs + WDOG_CURRENT_COUNT_REG_OFFSET) /
-            bst_wdt->rate;
+        // wdt_err("%s  %d WDOG_CURRENT_COUNT_REG_OFFSET:%x bst_wdt->rate=%ld \n",
+        // __FUNCTION__, __LINE__,readl(bst_wdt->regs + WDOG_CURRENT_COUNT_REG_OFFSET),bst_wdt->rate);
+        return readl(bst_wdt->regs + WDOG_CURRENT_COUNT_REG_OFFSET) /(bst_wdt->rate / 1000);
 }
 
 static void bst_wdt_irq_clear(void *dev_id)
@@ -511,25 +506,55 @@ static const struct watchdog_ops bst_wdt_ops = {
         .restart = bst_wdt_restart,
 };
 
+
 static int bst_wdt_suspend(struct device *dev)
 {
         struct bst_wdt *bst_wdt = dev_get_drvdata(dev);
-        //pr_err("%s %d+++", __FUNCTION__, __LINE__);
+        struct watchdog_device *wdd = &bst_wdt->wdd;
+        
         if(bst_wdt->wdt_type == SOC_LSP_WDT){
-        	bst_wdt->control = readl(bst_wdt->regs + WDOG_CONTROL_REG_OFFSET);
-        	bst_wdt->timeout = readl(bst_wdt->regs + WDOG_TIMEOUT_RANGE_REG_OFFSET);
+
                 clk_disable_unprepare(bst_wdt->pclk);
                 clk_disable_unprepare(bst_wdt->wclk);
         }
-        //pr_err("%s %d---", __FUNCTION__, __LINE__);
+		
+		
+		
+        bst_wdt->control = readl(bst_wdt->regs + WDOG_CONTROL_REG_OFFSET);
+        bst_wdt->timeout = bst_wdt_get_top(bst_wdt);
+
+        bst_wdt_set_timeout(wdd,BST_WDT_SHUTDOWN_TOP_MS);
+		
+        stop_feed_wdt_timer(bst_wdt);
+        
+        per_cpu(bst_wtdog_initialized, bst_wdt->a78wdt_num) = false;
+
         return 0;
 }
+
+
+ int bst_wdt_reinit(struct bst_wdt *bst_wdt)
+{
+    
+	struct watchdog_device *wdd = &bst_wdt->wdd;
+
+	bst_wdt_set_pulse(wdd, PCLK_CYCLES_32);
+	bst_wdt_set_timeout(wdd, bst_wdt->timeout);
+	writel(bst_wdt->control, bst_wdt->regs + WDOG_CONTROL_REG_OFFSET);
+	
+	///wdt_err("%s  %d \n", __FUNCTION__, __LINE__);
+	per_cpu(bst_wtdog_initialized, bst_wdt->a78wdt_num) = true;
+	
+    return 0;
+}
+
+
 
 static int bst_wdt_resume(struct device *dev)
 {
         struct bst_wdt *bst_wdt = dev_get_drvdata(dev);
         int err;
-        // pr_err("%s %d+++", __FUNCTION__, __LINE__);
+
         if(bst_wdt->wdt_type == SOC_LSP_WDT){
                 err = clk_prepare_enable(bst_wdt->wclk);
 
@@ -541,50 +566,16 @@ static int bst_wdt_resume(struct device *dev)
                         clk_disable_unprepare(bst_wdt->wclk);
                         return err;
                 }
-
-        	writel(bst_wdt->timeout, bst_wdt->regs + WDOG_TIMEOUT_RANGE_REG_OFFSET);
-        	writel(bst_wdt->control, bst_wdt->regs + WDOG_CONTROL_REG_OFFSET);
-
-        	bst_wdt_ping(&bst_wdt->wdd);
         }
-        //pr_err("%s %d---", __FUNCTION__, __LINE__);
+
+        bst_wdt_reinit(bst_wdt);
+		start_feed_wdt_timer(bst_wdt);
+		
         return 0;
 }
 
 static DEFINE_SIMPLE_DEV_PM_OPS(bst_wdt_pm_ops, bst_wdt_suspend, bst_wdt_resume);
 
-static void get_wdt_base(int wdt_id, void __iomem **wdt_base)
-{
-        switch (wdt_id)
-        {
-                case 0:
-                        *wdt_base = A78_WDT_BASE0;
-                        break;
-                case 1:
-                        *wdt_base = A78_WDT_BASE1;
-                        break;
-                case 2:
-                        *wdt_base = A78_WDT_BASE2;
-                        break;
-                case 3:
-                        *wdt_base = A78_WDT_BASE3;
-                        break;
-#ifdef IS_SLT
-                case 4:
-                        *wdt_base = A78_WDT_BASE4;
-                        break;
-                case 5:
-                        *wdt_base = A78_WDT_BASE5;
-                        break;
-                case 6:
-                        *wdt_base = A78_WDT_BASE6;
-                        break;
-                case 7:
-                        *wdt_base = A78_WDT_BASE7;
-                        break;
-#endif
-        }
-}
 
 // #define SYS_CTRL_WRITE_PROTECT  0x640314a4
 #define SAFETY_WDT_RESET_INT_MASK    0x640314a4
@@ -592,24 +583,32 @@ static void get_wdt_base(int wdt_id, void __iomem **wdt_base)
 
 static void bst_wdt_reset_report_disable(int reg_bit)
 {
+
+#ifdef CONFIG_BST_WATCHDOG_FIRMWARE_OFF
+
         void __iomem    *safety_intmsk;
         u32 reg_val;
 
-//pr_err("wdt %s, %d reg_bit %d\n", __func__, __LINE__, reg_bit);
+        //pr_err("wdt %s, %d reg_bit %d\n", __func__, __LINE__, reg_bit);
         safety_intmsk = ioremap(SAFETY_WDT_RESET_INT_MASK, 4);
         reg_val = readl(safety_intmsk);
         reg_val |= BIT(reg_bit);
 
         writel(reg_val, safety_intmsk);
+#endif 
+
 }
 
 static void bst_wdt_reset_report_enable(int reg_bit)
 {
+
+#ifdef CONFIG_BST_WATCHDOG_FIREWALL_OFF
+
         void __iomem    *safety_intmsk;
         void __iomem    *safety_intclr;
         u32 reg_val;
 
-//pr_err("wdt %s, %d reg_bit %d\n", __func__, __LINE__, reg_bit);
+        //pr_err("wdt %s, %d reg_bit %d\n", __func__, __LINE__, reg_bit);
         safety_intmsk = ioremap(SAFETY_WDT_RESET_INT_MASK, 4);
         safety_intclr = ioremap(SAFETY_WDT_RESET_INT_CLR, 4);
 
@@ -620,11 +619,18 @@ static void bst_wdt_reset_report_enable(int reg_bit)
         reg_val = readl(safety_intmsk);
         reg_val &= (~BIT(reg_bit));
         writel(reg_val, safety_intmsk);
+#endif
+
 }
 
 static void bst_wdt_open_rstreport(struct bst_wdt *bst_wdt)
 {
+        struct watchdog_device *wdd;
+        wdd = &bst_wdt->wdd;
         //wdt_err("wdt %s, %d phy_base %llx\n", __func__, __LINE__, bst_wdt->phy_base);
+        // isShuttingdown = false;
+        bst_wdt_set_timeout(wdd,BST_WDT_MAX_TOP_MS);
+
         switch(bst_wdt->phy_base){
         case 0x32068000:
                 bst_wdt_reset_report_enable(4);//4
@@ -668,8 +674,16 @@ static void bst_wdt_open_rstreport(struct bst_wdt *bst_wdt)
 static void bst_wdt_shutdown(struct platform_device *pdev)
 {
         struct bst_wdt *bst_wdt = platform_get_drvdata(pdev);
+        struct watchdog_device *wdd;
+        wdd = &bst_wdt->wdd;
+		
+       //pr_err("%s,wdt phy_base %llx\n", __func__, bst_wdt->phy_base);
+        // isShuttingdown = true;
+        bst_wdt_set_timeout(wdd,BST_WDT_SHUTDOWN_TOP_MS);
+        stop_feed_wdt_timer(bst_wdt);
+        
+       // pr_err("%s %d+++", __FUNCTION__, __LINE__);
 
-        //wdt_err("wdt %s, %d phy_base %llx\n", __func__, __LINE__, bst_wdt->phy_base);
         switch(bst_wdt->phy_base){
         case 0x32068000:
                 bst_wdt_reset_report_disable(4);//4
@@ -732,15 +746,19 @@ static void wdt_percpu_irq_register(void *para)
 /* SOC_A78 wdt irq handle */
 static irqreturn_t bst_wdt_ppi_irq_handle_soc(int irq, void *dev_id)
 {
-        int cpu_id;
-        void __iomem    *wdt_base;
+        //int cpu_id;
+        //void __iomem    *wdt_base;
+        
 
-        cpu_id = smp_processor_id();
+       // cpu_id = smp_processor_id();
 
-        get_wdt_base(cpu_id, &wdt_base);
-        // readl(wdt_base + WDOG_EOI_REG_OFFSET);
+        //(cpu_id, &wdt_base);
 
-        //wdt_err("cpu[%d] soc_a78 irq = %d trigger and clear \n", cpu_id, irq);
+#if defined(CONFIG_C1200_SLT)
+        struct bst_wdt *bst_wdt  = (struct bst_wdt * )dev_id;
+        readl(bst_wdt->regs + WDOG_EOI_REG_OFFSET);
+#endif
+        //wdt_err("wdt %s, %d cpu[%d] soc_a78 irq = %d trigger and clear \n", __func__, __LINE__, cpu_id, irq);
 
         return IRQ_HANDLED;
 }
@@ -749,29 +767,59 @@ static irqreturn_t bst_wdt_ppi_irq_handle_soc(int irq, void *dev_id)
 static irqreturn_t bst_wdt_ppi_irq_handle_db(int irq, void *dev_id)
 {
         int cpu_id;
-        void __iomem    *wdt_base;
-        // struct bst_wdt *bst_wdt = g_bst_wdt;
 
+        struct bst_wdt *bst_wdt  = (struct bst_wdt * )dev_id;
         cpu_id = smp_processor_id();
 
         if (cpu_id == 0) {
-                get_wdt_base(0, &wdt_base);
-                readl(wdt_base + WDOG_EOI_REG_OFFSET);
-                get_wdt_base(1, &wdt_base);
-                readl(wdt_base + WDOG_EOI_REG_OFFSET);
+                readl(bst_wdt->regs + WDOG_EOI_REG_OFFSET);
+                readl(bst_wdt->regs + WDOG_EOI_REG_OFFSET);
         } else if (cpu_id == 1) {
-                get_wdt_base(2, &wdt_base);
-                readl(wdt_base + WDOG_EOI_REG_OFFSET);
-                get_wdt_base(3, &wdt_base);
-                readl(wdt_base + WDOG_EOI_REG_OFFSET);
+                readl(bst_wdt->regs + WDOG_EOI_REG_OFFSET);
+                readl(bst_wdt->regs + WDOG_EOI_REG_OFFSET);
         }
-
-        // wdt_err("cpu[%d] db_a78 irq = %d trigger and clear \n", cpu_id, irq);
 
         return IRQ_HANDLED;
 }
 
-static int num_called = 0;
+
+
+
+/*
+ * get_psmid_from_safety: send block_id to safetylib get psm status,
+ * this function is called by driver.
+ * @block_id_in: the block_id value.
+ * @block_id_out: get block_id form safetylib .
+ * @psm_id_out: get psm id form safetylib.
+ * @return 0 if it successes to get psm status.
+ */
+int get_psmid_from_safety(uint8_t block_id_in ,uint8_t *block_id_out, uint32_t *psm_id_out){
+	int ret = -1;
+	int i = 0;
+	uint8_t blockid = 0;
+        watchdog_UInt32Array4_t *psm_id=NULL;
+	watchdog_ErrorEnum_t err=0;
+
+	if(!m_client)
+		return ret;
+
+	ret = m_client->watchdog_client.fusaenable_method_sync(block_id_in,&blockid,&psm_id,&err,500,NULL);
+        if(ret < 0|| err != 0){
+                pr_err("%s,%d ret is %d,err = %d.", __func__, __LINE__,ret,(int)err);
+                return -2;
+        }
+
+        *block_id_out = blockid;
+        if(psm_id != NULL){
+                for(i=0;i<4;i++)
+                psm_id_out[i]=(*psm_id)[i];
+        }
+
+	return 0;
+}
+
+
+
 static int bst_wdt_drv_probe(struct platform_device *pdev)
 {
         struct device *dev = &pdev->dev;
@@ -784,27 +832,67 @@ static int bst_wdt_drv_probe(struct platform_device *pdev)
         int cpu_id;
         int i;//, j;
         u32 rmod;
+        int status = 1;
+        ipc_inf_version_t version = {0};
+
+        uint8_t block_id_in;
+        uint8_t block_id_out;
+        uint32_t psm_id_out[4] = {0};
+		
+
+        #if defined(CONFIG_BST_C1200_ADAS)
+        m_data.com_data.pid = CPU_4;
+	m_data.com_data.sid = 12;
+	m_data.com_data.fid = F1;
+        #elif defined(CONFIG_BST_C1200_IVI)
+        m_data.com_data.pid = CPU_0;
+	m_data.com_data.sid = 12;
+	m_data.com_data.fid = DEF;
+        #else
+        m_data.com_data.pid = CPUMP2_0;
+	m_data.com_data.sid = 12;
+	m_data.com_data.fid = DEF;
+        #endif
+
+
+	m_client = watchdogClient_init(&m_data);
+	if (!m_client) {
+		pr_err("watchdogClient_init init client fail\n");
+		return ret;
+	}
+
+        
+	// client start
+	ret = m_client->start();
+        if(ret) {
+                pr_err("watchdogClient_init start failed\n");
+		return ret;
+        }
+	// get version
+	version = m_client->watchdog_client.version();
+
+        #if defined(CONFIG_BST_C1200_DB) 
+             block_id_in = 0x6d;
+        #else
+             block_id_in = 0x76;
+        #endif
+
+        ret = get_psmid_from_safety(block_id_in ,&block_id_out,psm_id_out);
+        if(ret == 0)
+        {
+                #if defined(CONFIG_BST_C1200_DB)
+                        status =  psm_id_out[0] & (1U<<14);
+                #else
+                        status = psm_id_out[0] & (1U<<4);
+                #endif
+        }
+
 
         cpu_online_num = num_online_cpus();
         cpu_id = smp_processor_id();
 
-        if(num_called == 0){
-                A78_WDT_BASE0 = ioremap(BST_WDT_BASE0, 0x20);
-                A78_WDT_BASE1 = ioremap(BST_WDT_BASE1, 0x20);
-                A78_WDT_BASE2 = ioremap(BST_WDT_BASE2, 0x20);
-                A78_WDT_BASE3 = ioremap(BST_WDT_BASE3, 0x20);
-        #ifdef IS_SLT
-                A78_WDT_BASE4 = ioremap(BST_WDT_BASE4, 0x20);
-                A78_WDT_BASE5 = ioremap(BST_WDT_BASE5, 0x20);
-                A78_WDT_BASE6 = ioremap(BST_WDT_BASE6, 0x20);
-                A78_WDT_BASE7 = ioremap(BST_WDT_BASE7, 0x20);
-        #endif
-                // wdt_err("wdt %s, %d BST_WDT_BASE0 %x %px\n", __func__, __LINE__, BST_WDT_BASE0, A78_WDT_BASE0);
-                // wdt_err("wdt %s, %d BST_WDT_BASE1 %x %px\n", __func__, __LINE__, BST_WDT_BASE1, A78_WDT_BASE1);
-                // wdt_err("wdt %s, %d BST_WDT_BASE2 %x %px\n", __func__, __LINE__, BST_WDT_BASE2, A78_WDT_BASE2);
-                // wdt_err("wdt %s, %d BST_WDT_BASE3 %x %px\n", __func__, __LINE__, BST_WDT_BASE3, A78_WDT_BASE3);
-                num_called ++;
-        }
+     
+
         bst_wdt = devm_kzalloc(dev, sizeof(*bst_wdt), GFP_KERNEL);
         if (!bst_wdt)
                 return -ENOMEM;
@@ -817,12 +905,13 @@ static int bst_wdt_drv_probe(struct platform_device *pdev)
         bst_wdt->phy_base = mem->start;
 
         bst_wdt_open_rstreport(bst_wdt);
+		
         of_property_read_string(dev->of_node, "bst_wdt_name", &(bst_wdt->name));
-        if (strncmp(bst_wdt->name, BST_WDT0_NAME_STR, 2) == 0) {
+        if (strstr(bst_wdt->name, BST_WDT_LSP_NAME_STR) != NULL) {
                 bst_wdt->wdt_type = SOC_LSP_WDT;
-        } else if (strncmp(bst_wdt->name, BST_WDT4_NAME_STR, 2) == 0) {
+        } else if (strstr(bst_wdt->name, BST_WDT_MP4_NAME_STR) != NULL) {
                 bst_wdt->wdt_type = SOC_A78_WDT;
-        } else if (strncmp(bst_wdt->name, BST_WDT8_NAME_STR, 2) == 0) {
+        } else if (strstr(bst_wdt->name, BST_WDT_MP2_NAME_STR) != NULL) {
                 bst_wdt->wdt_type = DB_A78_WDT;
         }
 
@@ -866,17 +955,10 @@ static int bst_wdt_drv_probe(struct platform_device *pdev)
                 	goto out_disable_clk;
         	}
 	}
-#endif
-
-        //wdt_err("wdt %s, %d\n", __func__, __LINE__);
-        //wdt_err("cpu_online_num = %d, cpu_id = %d \n", cpu_online_num, cpu_id);
-
-        //wdt_err("%s:%s wdt, bst_wdt->rate = %ld \n", bst_wdt->name,
-        //        (bst_wdt->wdt_type == SOC_LSP_WDT) ? "LSP" : ((bst_wdt->wdt_type == SOC_A78_WDT) ? "SOC_A78" : "DB_A78"), bst_wdt->rate);
-        //wdt_err("smp_irq_flag = %d", smp_irq_flag);
-         
-
-        // IRQ register, include PPI & SPI type
+#endif		
+	set_bst_wdt_cpu_number(bst_wdt);
+		
+		
         bst_wdt->virq = platform_get_irq(pdev, 0);
         irq_desc = irq_to_desc(bst_wdt->virq);
         bst_wdt->hwirq = irq_desc->irq_data.hwirq;
@@ -893,6 +975,7 @@ static int bst_wdt_drv_probe(struct platform_device *pdev)
                         if (bst_wdt->wdt_type == SOC_A78_WDT) {                                                 // soc_a78 wdt
                                 if (smp_irq_flag == 0) {                                                        // online core register irq_handle && irq
                                         //wdt_info("PPI IRQ for percpu SOC_A78_WDT \n");
+
                                         ret = request_percpu_irq(bst_wdt->virq, bst_wdt_ppi_irq_handle_soc, pdev->name, bst_wdt);
                                         for (i = 0; i < cpu_online_num; i++) {
                                                 smp_call_function_single(i, wdt_percpu_irq_register, (void *)bst_wdt, 1);
@@ -933,7 +1016,7 @@ static int bst_wdt_drv_probe(struct platform_device *pdev)
         wdd->info = &bst_wdt_ident;
         wdd->ops = &bst_wdt_ops;
         wdd->min_timeout = 1;
-        wdd->max_hw_heartbeat_ms = bst_wdt_top_in_seconds(bst_wdt, BST_WDT_MAX_TOP) * 1000;
+        wdd->max_hw_heartbeat_ms = bst_wdt_top_in_millisecond(bst_wdt, BST_WDT_MAX_TOP);
         wdd->parent = dev;
 
         watchdog_set_drvdata(wdd, bst_wdt);
@@ -949,8 +1032,12 @@ static int bst_wdt_drv_probe(struct platform_device *pdev)
                 wdd->timeout = bst_wdt_get_top(bst_wdt);
                 set_bit(WDOG_HW_RUNNING, &wdd->status);
         } else {
-                wdd->timeout = BST_WDT_DEFAULT_SECONDS;
-                watchdog_init_timeout(wdd, 0, dev);
+                #if defined(CONFIG_BST_C1200_IVI)
+                wdd->timeout = BST_WDT_TIMEOUT_IVI_MS;
+                #else
+                wdd->timeout = BST_WDT_MAX_TOP_MS;
+                #endif
+                //watchdog_init_timeout(wdd, 0, dev);
         }
 
         platform_set_drvdata(pdev, bst_wdt);
@@ -958,22 +1045,19 @@ static int bst_wdt_drv_probe(struct platform_device *pdev)
 
 
         ret = watchdog_register_device(wdd);
-        if (ret)
-                goto out_disable_clk;
+        if (ret){
+            goto out_disable_clk;
+	}
 
+        if(bst_wdt->wdt_type != SOC_LSP_WDT) {
+                if(status)
+                  bst_kernel_wdt_start(wdd);
+        }
+		
         return 0;
 
 out_disable_clk:
-        iounmap(A78_WDT_BASE0);
-        iounmap(A78_WDT_BASE1);
-        iounmap(A78_WDT_BASE2);
-        iounmap(A78_WDT_BASE3);
-#ifdef IS_SLT
-        iounmap(A78_WDT_BASE4);
-        iounmap(A78_WDT_BASE5);
-        iounmap(A78_WDT_BASE6);
-        iounmap(A78_WDT_BASE7);
-#endif
+         iounmap(bst_wdt->regs);
         if(bst_wdt->wdt_type != DB_A78_WDT){
                 clk_disable_unprepare(bst_wdt->pclk);
                 clk_disable_unprepare(bst_wdt->wclk);                
@@ -986,16 +1070,8 @@ static int bst_wdt_drv_remove(struct platform_device *pdev)
 {
         struct bst_wdt *bst_wdt = platform_get_drvdata(pdev);
 
-        iounmap(A78_WDT_BASE0);
-        iounmap(A78_WDT_BASE1);
-        iounmap(A78_WDT_BASE2);
-        iounmap(A78_WDT_BASE3);
-#ifdef IS_SLT
-        iounmap(A78_WDT_BASE4);
-        iounmap(A78_WDT_BASE5);
-        iounmap(A78_WDT_BASE6);
-        iounmap(A78_WDT_BASE7);
-#endif
+        iounmap(bst_wdt->regs);
+
         watchdog_unregister_device(&bst_wdt->wdd);
         if(bst_wdt->wdt_type != DB_A78_WDT){
                 clk_disable_unprepare(bst_wdt->pclk);
@@ -1003,6 +1079,8 @@ static int bst_wdt_drv_remove(struct platform_device *pdev)
         }
         return 0;
 }
+
+
 
 
 

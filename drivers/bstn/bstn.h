@@ -1,4 +1,5 @@
-/* SPDX-License-Identifier: GPL-2.0+
+// SPDX-License-Identifier: GPL-2.0+
+/*
  *
  * Copyright (c) 2024 Black Sesame Technologies
  */
@@ -44,30 +45,34 @@
 #include "variable_queue.h"
 #include "bstn_user.h"
 
-#define BSTN_DRIVER_NAME                    "bstn"
+#define BSTN_DRIVER_NAME "bstn"
 
-#define BSTN_DEBUG_PRINT                    2
-#define BSTN_LOG_PRINT                      1
-#define BSTN_NO_PRINT                       0
+#define BSTN_DEBUG_PRINT 2
+#define BSTN_LOG_PRINT 1
+#define BSTN_NO_PRINT 0
 
-#define BSTN_TRACE_PRINTK(format, ...)                                         \
-  do {                                                                         \
-    if (bstn_print_level >= BSTN_DEBUG_PRINT)                                  \
-      printk(KERN_DEBUG "[%s]: %s %d: " format "\n", BSTN_DRIVER_NAME,         \
-             __FUNCTION__, __LINE__, ##__VA_ARGS__);                           \
-  } while (0)
+#define BSTN_TRACE_PRINTK(format, ...)                                   \
+	do {                                                             \
+		if (bstn_print_level >= BSTN_DEBUG_PRINT)                \
+			printk(KERN_DEBUG "[%s]: %s %d: " format "\n",   \
+			       BSTN_DRIVER_NAME, __FUNCTION__, __LINE__, \
+			       ##__VA_ARGS__);                           \
+	} while (0)
 
-#define BSTN_STAGE_PRINTK(format, ...)                                         \
-  do {                                                                         \
-    if (bstn_print_level >= BSTN_LOG_PRINT)                                    \
-      printk(KERN_INFO "[%s]: %s %d: " format "\n", BSTN_DRIVER_NAME,          \
-             __FUNCTION__, __LINE__, ##__VA_ARGS__);                           \
-  } while (0)
+#define BSTN_STAGE_PRINTK(format, ...)                                   \
+	do {                                                             \
+		if (bstn_print_level >= BSTN_LOG_PRINT)                  \
+			printk(KERN_INFO "[%s]: %s %d: " format "\n",    \
+			       BSTN_DRIVER_NAME, __FUNCTION__, __LINE__, \
+			       ##__VA_ARGS__);                           \
+	} while (0)
 
-#define BSTN_DEV_ERR(dev, format, ...)                                         \
-  dev_err(dev, "%s %d: " format "\n", __FUNCTION__, __LINE__, ##__VA_ARGS__)
-#define BSTN_DEV_INFO(dev, format, ...)                                        \
-  dev_info(dev, "%s %d: " format "\n", __FUNCTION__, __LINE__, ##__VA_ARGS__)
+#define BSTN_DEV_ERR(dev, format, ...)                              \
+	dev_err(dev, "%s %d: " format "\n", __FUNCTION__, __LINE__, \
+		##__VA_ARGS__)
+#define BSTN_DEV_INFO(dev, format, ...)                              \
+	dev_info(dev, "%s %d: " format "\n", __FUNCTION__, __LINE__, \
+		 ##__VA_ARGS__)
 
 struct bstn_device;
 
@@ -78,10 +83,10 @@ struct bstn_device;
 #include "bstn_sysfile.h"
 
 #define BSTN_VER_MAJOR 3
-#define BSTN_VER_MINOR 0
-#define BSTN_VER_PATCH 1
-#define BSTN_RELEASE_MONTH 3
-#define BSTN_RELEASE_DATE 15
+#define BSTN_VER_MINOR 1
+#define BSTN_VER_PATCH 0
+#define BSTN_RELEASE_MONTH 11
+#define BSTN_RELEASE_DATE 25
 #define BSTN_RELEASE_YEAR 2024
 
 extern int bstn_print_level;
@@ -96,14 +101,14 @@ extern int bstn_mem_usingsmmu;
 struct bstn_device {
 	struct platform_device *pdev;
 
-	struct mutex mutex;	//mutex to protect rc and state
-	uint32_t id;		//self-id, /dev/bstn(id)
+	struct mutex mutex; //mutex to protect rc and state
+	uint32_t id; //self-id, /dev/bstn(id)
 	enum {
 		BSTN_OFFLINE = 0,
 		BSTN_INIT,
 		BSTN_ONLINE,
 		BSTN_ERROR
-	} state;		//device state
+	} state; //device state
 
 	struct miscdevice miscdev;
 	struct kobject kobj;

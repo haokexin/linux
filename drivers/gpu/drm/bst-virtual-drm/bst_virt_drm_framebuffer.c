@@ -225,6 +225,11 @@ int bst_fb_check_src_coords(const struct bst_fb *kfb, u32 src_x, u32 src_y,
 		return -EINVAL;
 	}
 
+	if(!block_w || !block_h) {
+		DRM_WARN("Invalid block_w size: %d or block_h: %d.\n", block_w, block_h);
+		return -EINVAL;
+	}
+
 	if ((src_x % block_w) || (src_w % block_w) || (src_y % block_h) ||
 	    (src_h % block_h)) {
 		DRM_DEBUG_ATOMIC(
@@ -256,6 +261,10 @@ dma_addr_t bst_fb_get_pixel_addr(struct bst_fb *kfb, int x, int y, int plane)
 		plane_x = x / (plane ? fb->format->hsub : 1);
 		plane_y = y / (plane ? fb->format->vsub : 1);
 
+		if(!block_w) {
+			DRM_WARN("Invalid block_w size: %d.\n", block_w);
+			return -EINVAL;
+		}
 		offset += (plane_x / block_w) * block_sz +
 			  plane_y * fb->pitches[plane];
 	}
@@ -283,6 +292,10 @@ void* bst_fb_get_pixel_vaddr(struct bst_fb *kfb, int x, int y, int plane)
 		plane_x = x / (plane ? fb->format->hsub : 1);
 		plane_y = y / (plane ? fb->format->vsub : 1);
 
+		if(!block_w) {
+			DRM_WARN("Invalid block_w size: %d.\n", block_w);
+			return NULL;
+		}
 		offset += (plane_x / block_w) * block_sz +
 			  plane_y * fb->pitches[plane];
 	}

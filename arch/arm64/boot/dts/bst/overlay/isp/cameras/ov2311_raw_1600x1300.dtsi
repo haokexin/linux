@@ -1,8 +1,0 @@
-compatible = "bst,ov2311";
-sensor-id = <0x60>;
-data-type = <0x2b>;
-fv-polarity-low = <0>;
-fpd3-mode = "csi-2";
-serializer = "ti953";
-
-algo-bin = "ov2311/ov2311_raw10_AlgoParam.bin";

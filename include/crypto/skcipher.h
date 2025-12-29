@@ -110,6 +110,8 @@ struct skcipher_alg {
 	              unsigned int keylen);
 	int (*encrypt)(struct skcipher_request *req);
 	int (*decrypt)(struct skcipher_request *req);
+	int (*macgen)(struct skcipher_request *req);
+	int (*macver)(struct skcipher_request *req);
 	int (*init)(struct crypto_skcipher *tfm);
 	void (*exit)(struct crypto_skcipher *tfm);
 
@@ -434,6 +436,32 @@ int crypto_skcipher_encrypt(struct skcipher_request *req);
  * Return: 0 if the cipher operation was successful; < 0 if an error occurred
  */
 int crypto_skcipher_decrypt(struct skcipher_request *req);
+
+/**
+ * crypto_skcipher_macgen() - generate message authentication code(mac)
+ * @req: reference to the skcipher_request handle that holds all information
+ *	 needed to perform the cipher operation
+ *
+ * Generate mac data using the skcipher_request handle. That data
+ * structure and how it is filled with data is discussed with the
+ * skcipher_request_* functions.
+ *
+ * Return: 0 if the generate operation was successful; < 0 if an error occurred
+ */
+int crypto_skcipher_macgen(struct skcipher_request *req);
+
+/**
+ * crypto_skcipher_macver() - verify message authentication code(mac)
+ * @req: reference to the skcipher_request handle that holds all information
+ *	 needed to perform the verify operation
+ *
+ * Verify mac data using the skcipher_request handle. That data
+ * structure and how it is filled with data is discussed with the
+ * skcipher_request_* functions.
+ *
+ * Return: 0 if the verify operation was successful; < 0 if an error occurred
+ */
+int crypto_skcipher_macver(struct skcipher_request *req);
 
 /**
  * DOC: Symmetric Key Cipher Request Handle

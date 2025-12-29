@@ -21,6 +21,12 @@ config DRM_BST_DC
 	  Choose y to include the dc driver. Driver controls the dc
 	  functionalities.
 
+config DRM_BST_VOUT
+	tristate "BST VOUT: vout connector driver"
+	default y
+	help
+	  Choose y to include the dc driver. Driver controls the dc
+	  functionalities.
 
 config DRM_BST_DPTX
 	tristate "BST DP TX: control DP Tx driver"

@@ -7,6 +7,7 @@
 #include "usb_bst_pdu_kfifo.h"
 
 struct kfifo *g_msglist_bulk_out, *g_msglist_bulk_in;
+spinlock_t g_bulk_out_lock, g_bulk_in_lock;
 
 int msg_fifo_malloc(void)
 {
@@ -37,6 +38,8 @@ int msg_fifo_malloc(void)
 		kfree(g_msglist_bulk_in);
 		return -ENOMEM;
 	}
+	spin_lock_init(&g_bulk_out_lock);
+	spin_lock_init(&g_bulk_in_lock);
 
 	return 0;
 }
@@ -50,52 +53,84 @@ void msg_fifo_free(void)
 	kfree(g_msglist_bulk_in);
 }
 
-int push_pdu_to_msglist(struct kfifo *fifo, usb_bst_virsual_msg_t *pdu)
-{
-	return kfifo_in(fifo, (unsigned char *)pdu, sizeof(usb_bst_virsual_msg_t));
-}
-
-int pop_pdu_from_msglist(struct kfifo *fifo, usb_bst_virsual_msg_t *pdu)
-{
-	return kfifo_out(fifo, (unsigned char *)pdu, sizeof(usb_bst_virsual_msg_t));
-}
-
 int push_pdu_to_msglist_bulk_out(usb_bst_virsual_msg_t *pdu)
 {
+	int ret;
+	unsigned long flags;
+
 	pr_debug("%s BASE: core_id %x command %x   high_addr %x low_addr %x offset %x len %x seqnum %x\n",
 	     __func__, pdu->core_id, pdu->command, pdu->high_addr, pdu->low_addr,
 	     pdu->offset, pdu->len, pdu->seqnum);
-	return kfifo_in(g_msglist_bulk_out, (unsigned char *)pdu,
+	spin_lock_irqsave(&g_bulk_out_lock, flags);
+	ret = kfifo_in(g_msglist_bulk_out, (unsigned char *)pdu,
 			sizeof(usb_bst_virsual_msg_t));
+	spin_unlock_irqrestore(&g_bulk_out_lock, flags);
+
+	return ret;
 }
 
 int pop_pdu_from_msglist_bulk_out(usb_bst_virsual_msg_t *pdu)
 {
-	return kfifo_out(g_msglist_bulk_out, (unsigned char *)pdu,
+	int ret;
+	unsigned long flags;
+
+	spin_lock_irqsave(&g_bulk_out_lock, flags);
+	ret = kfifo_out(g_msglist_bulk_out, (unsigned char *)pdu,
 			 sizeof(usb_bst_virsual_msg_t));
+	spin_unlock_irqrestore(&g_bulk_out_lock, flags);
+
+	return ret;
 }
 
 int pdu_len_msglist_bulk_out(void)
 {
-	return kfifo_len(g_msglist_bulk_out);
+	int ret;
+	unsigned long flags;
+
+	spin_lock_irqsave(&g_bulk_out_lock, flags);
+	ret = kfifo_len(g_msglist_bulk_out);
+	spin_unlock_irqrestore(&g_bulk_out_lock, flags);
+
+	return ret;
 }
 
 int push_pdu_to_msglist_bulk_in(usb_bst_virsual_msg_t *pdu)
 {
+	int ret;
+	unsigned long flags;
+
 	pr_debug("%s BASE: core_id %x command %x   high_addr %x low_addr %x offset %x len %x seqnum %x\n",
 	     __func__, pdu->core_id, pdu->command, pdu->high_addr, pdu->low_addr,
 	     pdu->offset, pdu->len, pdu->seqnum);
-	return kfifo_in(g_msglist_bulk_in, (unsigned char *)pdu,
+	spin_lock_irqsave(&g_bulk_in_lock, flags);
+	ret = kfifo_in(g_msglist_bulk_in, (unsigned char *)pdu,
 			sizeof(usb_bst_virsual_msg_t));
+	spin_unlock_irqrestore(&g_bulk_in_lock, flags);
+
+	return ret;
 }
 
 int pop_pdu_from_msglist_bulk_in(usb_bst_virsual_msg_t *pdu)
 {
-	return kfifo_out(g_msglist_bulk_in, (unsigned char *)pdu,
+	int ret;
+	unsigned long flags;
+
+	spin_lock_irqsave(&g_bulk_in_lock, flags);
+	ret = kfifo_out(g_msglist_bulk_in, (unsigned char *)pdu,
 			 sizeof(usb_bst_virsual_msg_t));
+	spin_unlock_irqrestore(&g_bulk_in_lock, flags);
+
+	return ret;
 }
 
 int pdu_len_msglist_bulk_in(void)
 {
-	return kfifo_len(g_msglist_bulk_in);
+	int ret;
+	unsigned long flags;
+
+	spin_lock_irqsave(&g_bulk_in_lock, flags);
+	ret = kfifo_len(g_msglist_bulk_in);
+	spin_unlock_irqrestore(&g_bulk_in_lock, flags);
+
+	return ret;
 }

@@ -1,0 +1,5 @@
+config VIDEO_BST_DEV
+	tristate "BST video peripheral device driver"
+	select V4L2_FWNODE
+	help
+	  Video peripheral device driver for BST ISP

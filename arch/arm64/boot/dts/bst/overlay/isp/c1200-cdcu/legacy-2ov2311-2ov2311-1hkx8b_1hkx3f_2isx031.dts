@@ -1,0 +1,78 @@
+/dts-v1/;
+/plugin/;
+
+#include "../common/isp-csi-map.dtsi"
+#include "base-isp.dtsi"
+#include "base-csi-deser-camera.dtsi"
+#include "base-desers-3max96724.dtsi"
+
+&isp {
+	slab = "isp/common/slab-2ov2311-2ov2311-1x8b-1x3f.bin";
+	usage = "Test various cameras support";
+};
+&fsync0 {
+	tx-fps = <60>;
+};
+&fsync2 {
+	source = <FSYNC_INNER1>;
+	tx-pin = <7>;
+	tx-fps = <20>;
+	map-to-outer = <FSYNC_OUTER3>;
+	rx-pin = <4>;
+};
+&deser0 {
+	// set Alternative memory read mapping enable for 10-bit DT
+	pre-csi = <0x0933 0x04 0x0973 0x04>;
+};
+&deser0_rx0 {
+	rx-rate = <3>;
+};
+&deser1 {
+	fsync-fps = <60>;
+	fsync-mode = <FSYNC_INNER>;
+	// set Alternative memory read mapping enable for 10-bit DT
+	pre-csi = <0x0933 0x04 0x0973 0x04>;
+};
+&deser2_rx0 {
+	rx-rate = <6>;
+};
+&camera0 {
+	#include "../cameras/ov2311_raw10_li_1600x1300.dtsi"
+	ext-alias = <0x60>;
+	status = "okay";
+};
+&camera1 {
+	#include "../cameras/ov2311_raw10_li_1600x1300.dtsi"
+	ext-alias = <0x61>;
+	status = "okay";
+};
+&camera4 {
+	#include "../cameras/ov2311_raw10_cd1_1600x1300.dtsi"
+	ext-alias = <0x60>;
+	status = "okay";
+};
+&camera5 {
+	#include "../cameras/ov2311_raw10_cd1_1600x1300.dtsi"
+	ext-alias = <0x61>;
+	status = "okay";
+};
+&camera8 {
+	#include "../cameras/ox08b_raw14_hk_1920x1080.dtsi"
+	id-reg = <0x300C>;
+	id-val = <0x41>;
+	status = "okay";
+};
+&camera9 {
+	#include "../cameras/ox03f_raw12_hk_1920x1536.dtsi"
+	id-reg = <0x300C>;
+	id-val = <0x46>;
+	status = "okay";
+};
+&camera10 {
+	#include "../cameras/isx031_yuv_cd1_1920x1536.dtsi"
+	status = "okay";
+};
+&camera11 {
+	#include "../cameras/isx031_yuv_cd1_1920x1536.dtsi"
+	status = "okay";
+};

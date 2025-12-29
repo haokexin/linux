@@ -252,7 +252,7 @@ static void ccgx_get_gpio_irq(struct ccgx_data *ctx)
 {
 	struct device *dev = ctx->dev;
 	int intc_gpio;
-	enum of_gpio_flags gpio_flags;
+	enum of_gpio_flags gpio_flags = 0;
 	int ret = 0;
 
 	intc_gpio = of_get_named_gpio_flags(dev->of_node, "int-gpio", 0,
@@ -458,7 +458,7 @@ static const struct of_device_id bst_match_table[] = {
 
 static struct i2c_driver ccgx_driver = {
 	.driver = {
-		   .name = "bst_ccgx",
+		   .name = "usb_bst_ccgx",
 		   .of_match_table = bst_match_table,
 		   .pm = &ccgx_pm_ops,
 		    },

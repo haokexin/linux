@@ -37,8 +37,8 @@
 // max count definition
 #define MSG_CMD_MAX	     255
 #define MSG_CMD_MAX_IDX	     256
-#define REGISTER_MAP_MAX     8
-#define REGISTER_MAP_MAX_IDX     9
+#define REGISTER_MAP_MAX     256
+#define REGISTER_MAP_MAX_IDX     22
 #define SUBSCRIPTION_MAP_MAX 22
 
 // ipc cache coherency command define

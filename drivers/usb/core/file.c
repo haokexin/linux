@@ -35,9 +35,16 @@ static int usb_open(struct inode *inode, struct file *file)
 {
 	int err = -ENODEV;
 	const struct file_operations *new_fops;
-
+	int minor = iminor(inode);
+	
 	down_read(&minor_rwsem);
-	new_fops = fops_get(usb_minors[iminor(inode)]);
+
+	if (minor >= ARRAY_SIZE(usb_minors)) {
+		err = -ENODEV;
+		goto done;
+	}
+
+	new_fops = fops_get(usb_minors[minor]);
 
 	if (!new_fops)
 		goto done;

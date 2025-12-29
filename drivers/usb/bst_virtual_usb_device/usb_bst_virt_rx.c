@@ -142,7 +142,7 @@ int usb_local_bulk_out_submit(struct usb_virtual_device *vdev, char *data,
 			  usb_sndbulkpipe(vdev->udev,
 					  vdev->bulk_out->bEndpointAddress),
 			  buf, len, usb_local_bulk_out_submit_callback, vdev);
-	urb->transfer_flags |= URB_NO_TRANSFER_DMA_MAP;
+	urb->transfer_flags |= URB_NO_TRANSFER_DMA_MAP | URB_ZERO_PACKET;
 	usb_anchor_urb(urb, &vdev->submitted);
 
 	/* send the data out the bulk port */
@@ -198,7 +198,7 @@ static void usb_recv_ep_submit(struct usb_virtual_device *vdev,
 	pr_debug("buf1 %llx  buf_len %ld urb %p , bEndpointAddress %x urb->pipe %x\n",
 	     (u64) buf1, node->buf_len, urb, vdev->bulk_out->bEndpointAddress,
 	     urb->pipe);
-	urb->transfer_flags |= URB_NO_TRANSFER_DMA_MAP;
+	urb->transfer_flags |= URB_NO_TRANSFER_DMA_MAP | URB_ZERO_PACKET;
 	usb_anchor_urb(urb, &vdev->submitted);
 
 	/* send the data out the bulk port */
@@ -249,6 +249,10 @@ static int usb_rx_pdu(struct usb_virtual_device *vdev)
 
 	case USB_VIRT_DEVICE_SUBMIT | USB_VIRT_CMD_DIR_OUT:
 		usb_recv_cmd_submit(vdev, &pdu);
+		break;
+
+	case USB_VIRT_DEVICE_ACK | USB_VIRT_CMD_DIR_OUT:
+		usb_recv_device_ack(vdev, &pdu);
 		break;
 
 	default:

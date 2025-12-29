@@ -17,10 +17,9 @@
  * limitations under the License.
  */
 
-/* This file is auto generated for message box v1.2.0.
+/* This file is auto generated for message box v2.0.0.
  * All manual modifications will be LOST by next generation.
  * It is recommended NOT modify it.
- * Generator Version: francaidl cb46a82 msgbx_ipc f2e1e48
  */
 
 #ifndef DMABUF_IPC_CLIENT_H

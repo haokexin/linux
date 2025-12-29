@@ -1,56 +1,17 @@
-ccflags-y += -I$(srctree)/drivers/bst_ipc_msgbx/ipc_app_layer/include -I$(srctree)/drivers/bst_ipc_msgbx/include \
-	-I$(srctree)/drivers/bst_ipc_msgbx/ipc_trans_layer/include -I$(srctree)/drivers/bst_ipc_msgbx/ipc_app_layer/posix/
+obj-$(CONFIG_VIDEO_BST_DEV) += \
+    adi_des.o \
+    camera.o \
+    custom_camera.o \
+    imx623_raw.o \
+    max96724.o \
+    max96726.o \
+    ov2311_raw.o \
+    ox03c_hil_yuv.o \
+    ox03c_raw.o \
+    ox03f_hil_yuv.o \
+    ox03f_raw.o \
+    ox08b_hil_yuv.o \
+    ox08b_raw.o \
+    utils.o
 
-obj-y += ti_deser_hub.o
-obj-y += common_deser_hub.o
-#obj-y += max9286_deser.o
-obj-y += max9296_deser.o
-obj-y += max9296_gz_ox08b_yuv_deser.o
-obj-y += max9296_gz_ox3c_sunyu.o
-#obj-y += max96712_deser.o
-#obj-y += max96712_x1f_deser.o
-#obj-y += max96722_deser.o
-obj-y += max9296_ox08b_jinghua.o
-#obj-y += max96722_deser.o
-#obj-y += max_deser.o
-obj-y += max96726.o
-obj-y += maxim_deser_hub.o
-obj-y += maxim_deser_util.o
-
-obj-y += camera_common_op.o
-
-obj-y += ov2311_raw.o
-obj-y += ar0231_raw.o
-obj-y += ar0233_raw.o
-obj-y += imx390_raw.o
-obj-y += imx390_yuv.o
-obj-y += ar0231_yuv.o
-obj-y += ov10640_yuv.o
-obj-y += splitter_ar0231_yuv.o
-obj-y += ahd_yuv.o
-obj-y += adv7611.o
-obj-y += ar0143_yuv.o
-obj-y += imx424_yuv.o
-obj-y += imx424_raw.o
-obj-y += ov10652_raw.o
-obj-y += ox08b_yuv.o
-obj-y += x1f_yuv.o
-obj-y += ox08b_raw.o
-obj-y += ox3c_raw.o
-obj-y += ox3f_raw.o
-obj-y += ar0233_yuv.o
-obj-y += ox3c_hil_yuv.o
-obj-y += ox3f_hil_yuv.o
-obj-y += ox08b_hil_yuv.o
-
-ifeq ($(CONFIG_VIDEO_BST_C1200_ISP),y)
-	subdir-ccflags-y	+= -DC1200_ISP
-endif
-
-ifeq ($(CONFIG_I2C_BSTI2CQ),y)
-	subdir-ccflags-y	+= -DUSE_I2CQ
-endif
-
-ifeq ($(CONFIG_C1200_SLT), y)
-	subdir-ccflags-y	+= -DC1200_SLT
-endif
+subdir-ccflags-y += -Wall

@@ -53,7 +53,7 @@ static struct workqueue_struct *mver_work_queue;
 void mver_irq_handler_bottom(struct work_struct *work)
 {
     struct mver_irq_bottom_half *bottom = (struct mver_irq_bottom_half *)work;
-    uint32_t lsid;
+    int lsid;
 
     CSTD_UNUSED(work);
 

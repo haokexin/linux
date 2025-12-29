@@ -72,7 +72,106 @@ interface switch0_can_gateway{
         error ErrorEnum
     }
 
+    //vcan_method配置查询接口
+    struct time_segment_type {
+        // 数据域 (Data Domain), canfd模式下有效
+        // Bandrate = 80M/(timeSeg->preDivider + 1)/(1 + (timeSeg->propSeg + timeSeg->phaseSeg1 + 1)  + (timeSeg->phaseSeg2 + 1))
+        // 其中，timeSeg->preDivider为预分频器，timeSeg->propSeg为传播段，timeSeg->phaseSeg1为相位段1，timeSeg->phaseSeg2为相位段2
+        // from CAN_CBT or CAN_CTRL1 register, if CAN_CBT.BTF = 1, the CAN_CTRL1.PRESDIV/PROPSEG/PSEG1/PSEG2 become read-only
+        // NOTE: The CAN bit variables in CAN_CTRL1 and in CAN_CBT are stored in the same register 
+        // If CAN_CTRL2.BTE = 1, the [CAN_CTRL1 or CAN_CBT].PRESDIV/PROPSEG/PSEG1/PSEG2 are not used, 
+        // and they are read as zero and cannot be written(wirte to them has no effect).
+        // If CANFD feature is enabled(CAN_MCR.FDEN = 1), the CAN_CTRL1.PRESDIV/PROPSEG/PSEG1/PSEG2 are not used. Instead, alway set
+        // CAN_CBT.BTF=1 and use the CAN_CBT.EPRESDIV/EPROPSEG/EPSEG1/EPSEG2
+
+        // 仲裁域(Arbitration Domain)
+        // Bandrate = 80M/(PRESDIV + 1)/(SYNC_SEG  + ((PROPSEG + 1) + (PSEG1 + 1))+ (PSEG2 + 1))
+
+        // current CANFD configuration
+        // CAN_MCR.FDEN = 1
+        // CAN_CBT.BTF = 1
+        // CAN_CTRL2.BTE = 0
+
+        UInt16 presdiv //预分频器 (Prescaler Division)
+        // 同步段sync_seg固定为1
+        UInt8 propseg // 传播段 (Propagation segment)
+        UInt8 phaseseg1  //相位段1 (Phase segment 1)
+        UInt8 phaseseg2  //相位段2 (Phase segment 2)
+    }
+    struct can_config {
+        UInt8  can_bus_id
+        UInt8  canfd_enable //canfd使能
+        UInt32 nominal_baudrate //波特率(can模式下为标准波特率, canfd下为仲裁波特率)
+        UInt32 data_baudrate //数据波特率(canfd下为数据波特率)
+        time_segment_type nominal_timing //标准波特率时钟配置
+        time_segment_type data_timing //数据波特率时钟配置
+    }
+
+    method can_config_query {
+        in {
+            UInt8  can_bus_id
+        }
+        out {
+            can_config config_info
+        }
+        error ErrorEnum
+    }
+
+    //vcan_method 状态通知接口
+    enumeration sw_status_enum {
+        SW_STATUS_OK = 0
+        SW_STATUS_CANIP_UNINIT = 1 //vcan ip/sw uninit or not ready
+        SW_STATUS_CANIP_DISABLED = 2 //vcan ip/ is disabled
+        SW_STATUS_CANIP_UNKOWN = 4 //vcan ip/sw unkown error
+    }
+    struct can_status {
+        UInt8  can_bus_id
+        UInt8  sw_status
+        UInt32 reg_esr1
+        UInt32 reg_ecr
+    }
+
+    broadcast can_status_notify selective {
+         out {
+            can_status status_info
+         }
+    }
+
     broadcast can_gateway_recv selective{
+    }
+
+    method adas_vcan_notify_sqbuf_addr {
+        in {
+            UInt32 pa_low
+            UInt32 pa_high
+            UInt32 size
+        }
+        error ErrorEnum
+    }
+
+    method adas_vcan_driver_remove {
+        error ErrorEnum
+    }
+
+    array UInt32Array of UInt32
+    struct vcan_port_msg {
+        UInt32 msg_len
+        UInt32 cmd_id
+        UInt32Array content
+    }
+    method vcan_port_method {
+        in {
+            vcan_port_msg req
+        }
+        out {
+            vcan_port_msg rsp
+        }
+        error ErrorEnum
+    }
+    broadcast vcan_port_broadcast selective {
+        out {
+            vcan_port_msg evt
+        }
     }
 }
 

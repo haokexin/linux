@@ -151,7 +151,7 @@ int dptx_core_program_ssc(struct dptx *dptx, bool sink_ssc)
 	dptx_phy_set_lanes(dptx, 4);
 	dptx_write_regfield(dptx, dptx->field_phy_powerdown, 3);
 
-	retval = dptx_phy_wait_busy(dptx, DPTX_MAX_LINK_LANES);
+	retval = dptx_phy_wait_busy(dptx, dptx->link.lanes);
 	if (retval) {
 		dptx_err(dptx, "Timed out waiting for PHY BUSY\n");
 		return retval;
@@ -162,7 +162,7 @@ int dptx_core_program_ssc(struct dptx *dptx, bool sink_ssc)
 	else
 		dptx_write_regfield(dptx, dptx->field_ssc_dis, 1);
 
-	retval = dptx_phy_wait_busy(dptx, DPTX_MAX_LINK_LANES);
+	retval = dptx_phy_wait_busy(dptx, dptx->link.lanes);
 	if (retval) {
 		dptx_err(dptx, "Timed out waiting for PHY BUSY\n");
 		return retval;
@@ -364,7 +364,7 @@ int dptx_phy_wait_busy(struct dptx *dptx, unsigned int lanes)
 			dptx_warn(dptx, "%s: PHY BUSY timed out\n", __func__);
 			return -EBUSY;
 		}
-		udelay(10);
+		usleep_range(10, 20);
 	}
 
 	return 0;

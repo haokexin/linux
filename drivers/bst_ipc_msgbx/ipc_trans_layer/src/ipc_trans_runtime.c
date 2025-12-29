@@ -1,14 +1,20 @@
-// SPDX-License-Identifier: GPL-2.0 OR BSD-3-Clause
-/*
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2 of the License, or
- * (at your option) any later version.
+/* SPDX-License-Identifier: GPL-2.0 OR Apache 2.0
  *
- * This program is also distributed under the terms of the BSD 3-Clause
+ * Copyright (c) 2024 Black Sesame Technologies
+ *
+ * This program is also distributed under the terms of the Apache 2.0
  * License.
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
- * Copyright (C) 2023 Black Sesame Technologies. Inc.
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 
 /**
@@ -18,14 +24,16 @@
  * implement ipc_trans_impl.c for OS-specific adaptations.
  * @note
  * @details feature list
- * 1.
+ * 1. trans layer core api provider
  */
 #include <bst/ipc_trans_layer.h>
-#include "config.h"
 #include "ipc_trans_runtime.h"
 #include "ipc_trans_routing.h"
 #include "ipc_trans_sts_mgt.h"
+#include "ipc_trans_ses_mgt.h"
+#include "ipc_trans_msg_mgt.h"
 #include "ipc_trans_utl.h"
+#include "ipc_trans_cfg.h"
 
 /**
  * @name  ipc_trans_init
@@ -34,49 +42,41 @@
  * @return result of initiating trans layer
  * @details
  * 1. Initialize MsgBx hardware layer.
- * 2. Configure state management, if required.
- * 3. Establish trans layer data structure.
- * 4. Signal availability of MsgBx end message.
+ * 2. Establish trans layer data structure.
+ * 3. Signal availability of MsgBx end message.
  */
-int32_t ipc_trans_init(const uint8_t role, err_msg_callback err_func,
+int32_t ipc_trans_init(const uint8_t role, err_msg_ntf err_func,
 		       void *dev_info)
 {
 	int8_t ret = -1;
 	msgbx_end_device_t *module = NULL;
 	ipc_init_params_t init_params = { 0 };
-	msgbx_hw_info_t hw_info = { 0 };
 
 	if (!dev_info)
 		return ret;
 	module = (msgbx_end_device_t *)dev_info;
 
 	init_params.mbx_device = IPC_HW_MSGBX_MODE;
-#ifdef IPC_STATE_MGT_ENABLE
-	init_params.msgbx_end_mgt_flag = MSG_END_MGT_CONFIG;
-#else
-	init_params.msgbx_end_mgt_flag = 0;
-#endif
+	init_params.msgbx_end_mgt_flag = MSG_DEF_FLT_MGT_CONFIG;
 
-/* Note: This is a demo-specific configuration that designates the receiver.
- * In a practical scenario, this parameter might not be necessary.
- */
-	if (role == 0)
-		init_params.mbx_type = MSGBX_ROLE_SERVER_ONLY;
-	else
-		init_params.mbx_type = MSGBX_ROLE_CLIENT_ONLY;
-
-	ret = ipc_hw_layer_init(module->ops.cpuid, &init_params, &hw_info);
+	ret = ipc_hw_layer_init(module->g_ipc_cpuid, &init_params, &module->hw_info);
 	if (ret < 0)
 		return -ERR_TRANS_INIT_FAIL;
 
 	// update global info
-	module->g_ipc_pid = hw_info.mbx_end_id;
-	module->g_ipc_flt_cnt = hw_info.mbx_flt_cnt;
+	module->g_ipc_pid = module->hw_info.mbx_end_id;
+	module->g_ipc_flt_cnt = module->hw_info.mbx_flt_cnt;
+
 #ifdef ENABLE_REMOTE_LOG_PROCESS_FUNC
 	module->g_log_tok = 0;
 #endif
-	IPC_LOG_INFO("init msgbx filter cnt = %d, pid = %d",
-		     module->g_ipc_flt_cnt, module->g_ipc_pid);
+	pr_info("init msgbx filter cnt = %u, pid = %u, cpuid %u\n",
+		     module->g_ipc_flt_cnt, module->g_ipc_pid, module->g_ipc_cpuid);
+#if defined(MSGBX_HW_TYPE_A2000)
+	IPC_LOG_INFO("chipid = %u", module->hw_info.chipid);
+#elif defined(MSGBX_HW_TYPE_C1200)
+	module->hw_info.chipid = 0;
+#endif
 
 	if (module->g_ipc_flt_cnt < CHANNEL_COUNT) {
 		IPC_LOG_ERR(
@@ -97,9 +97,9 @@ int32_t ipc_trans_init(const uint8_t role, err_msg_callback err_func,
 	if (ret < 0)
 		return -ERR_TRANS_INIT_FAIL;
 
-		// state management setting
+	// state management setting
 #ifdef IPC_STATE_MGT_ENABLE
-	ret = ipc_hw_layer_err_msg_register(module->ops.cpuid, err_func);
+	ret = ipc_hw_layer_err_msg_register(module->g_ipc_cpuid, err_func);
 	if (ret < 0) {
 		IPC_LOG_WARNING("init err msg handle fail, ret = %d", ret);
 		return -ERR_TRANS_INIT_FAIL;
@@ -126,19 +126,14 @@ int32_t ipc_trans_reinit(void *dev_info)
 	msgbx_hw_info_t hw_info = { 0 };
 	ipc_init_params_t init_params = {
 		.mbx_device = IPC_HW_MSGBX_MODE,
-#ifdef IPC_STATE_MGT_ENABLE
-		.msgbx_end_mgt_flag = MSG_END_MGT_CONFIG,
-#else
-		.msgbx_end_mgt_flag = 0,
-#endif
-		.mbx_type = MSGBX_ROLE_SERVER_ONLY,
+		.msgbx_end_mgt_flag = MSG_DEF_FLT_MGT_CONFIG,
 	};
 
-	if (unlikely(!dev_info))
+	if (!dev_info)
 		return ret;
 	module = (msgbx_end_device_t *)dev_info;
 
-	ret = ipc_hw_layer_init(module->ops.cpuid, &init_params, &hw_info);
+	ret = ipc_hw_layer_init(module->g_ipc_cpuid, &init_params, &hw_info);
 	if (ret < 0)
 		return -ERR_TRANS_INIT_FAIL;
 
@@ -169,7 +164,7 @@ int32_t ipc_trans_deinit(void *dev_info)
 	if (ret < 0)
 		return -ERR_DEINIT_FAIL;
 
-	return ipc_hw_layer_deinit(module->ops.cpuid);
+	return ipc_hw_layer_deinit(module->g_ipc_cpuid);
 }
 
 /**
@@ -179,44 +174,47 @@ int32_t ipc_trans_deinit(void *dev_info)
  * @return result of creating session
  * @details
  * 1. Validate input parameters
- * 2. Register session and allocate buffer for message queue
- * 3. Define message box filter dispatch rules
+ * 2. Register session and assign buffer for message queue
  */
 int32_t ipc_trans_create_session(const uint8_t sid, const uint8_t fid,
-				 const uint8_t cid, const uint8_t role,
+				 const uint8_t cid, const uint8_t ccid, const uint8_t role,
 				 uint8_t *ses_id, void *dev_info)
 {
 	int8_t ret = -1;
 	ses_base_t ses_info = { 0 };
 
-	if (!dev_info)
+	if (!dev_info || !ses_id)
 		return ret;
 
-	IPC_LOG_DEBUG("create session fid: %d, sid: %d, cid: %d, role: %d", fid,
-		      sid, cid, role);
-	// input param check
+	IPC_LOG_DEBUG("create session fid: %u, sid: %u, cid: %u, role: %u, ccid: %u", fid,
+		      sid, cid, role, ccid);
+
 	if (sid >= SESSION_COUNT || fid >= CHANNEL_COUNT) {
 		IPC_LOG_WARNING(
-			"create session sid or fid overrange, sid %d, fid %d",
+			"create session sid or fid overrange, sid %u, fid %u",
 			sid, fid);
 		return -ERR_CREATE_SES_OUT_RANGE;
 	}
-
+#if defined(MULTI_DIE_HW_VERSION)
+	if (ccid > MULTI_DIE_CHIP_1) {
+		IPC_LOG_WARNING(
+			"create session ccid %u overrange", ccid);
+		return -ERR_CREATE_SES_OUT_RANGE;
+	}
+#endif
 	if (role >= MSGBX_SES_ROLE_MAX) {
-		IPC_LOG_WARNING("create session is invalid role %d", role);
+		IPC_LOG_WARNING("create session is invalid role %u", role);
 		return -ERR_CREATE_SES_ROLE_INVALID;
 	}
 
-	// check filter rule setting
-	ret = set_flt_rules(fid, dev_info);
-	if (ret < 0)
-		return -ERR_SET_FIL_RULE_FAIL;
-
-	// create session buffer
 	ses_info.sid = sid;
 	ses_info.fid = fid;
 	ses_info.cid = cid;
 	ses_info.role = role;
+#if defined(MSGBX_HW_TYPE_A2000)
+	ses_info.ccid = ccid;
+#endif
+
 	ret = session_register(ses_info, ses_id, dev_info);
 	if (ret < 0) {
 		IPC_LOG_WARNING("create session fail, ret:%d", ret);
@@ -238,17 +236,17 @@ int32_t ipc_trans_send_msg(const uint8_t ses_id, serdes_t *msg,
 			   const uint8_t type, void *dev_info)
 {
 	int8_t ret = -1;
-	msgbx_end_device_t *module = NULL;
+	msgbx_end_device_t *module = (msgbx_end_device_t *)dev_info;
+	ipc_ses_t *ses = NULL;
 	uint8_t cnt = 0;
+	rw_msg_t *rwmsg = NULL;
+	uint8_t cpuid = 0;
 #ifdef DEBUG_MODE_ENABLE
-	uint8_t fid = 0, sid = 0;
-	session_dist(ses_id, &sid, &fid);
+	debug_info_t *dbg_info = NULL;
 #endif
 
-	if (!dev_info || !msg)
+	if (!module || !msg)
 		return ret;
-
-	module = (msgbx_end_device_t *)dev_info;
 
 	if (type >= MSGBX_MSG_TYPE_MAX)
 		return -ERR_TYP_IS_INVALID;
@@ -256,77 +254,68 @@ int32_t ipc_trans_send_msg(const uint8_t ses_id, serdes_t *msg,
 	if (msg->header.pid != module->g_ipc_pid)
 		return -ERR_PID_IS_INVALID;
 
-	// note: remove this check senario for message loopback feature
-	// if (msg->header.pid == msg->header.cid)
-	//	return -ERR_CID_EQUAL_PID;
-
+	// note: remove pid can not equal cid check senario for message loopback feature
 	if (end_is_valid(msg->header.cid) == 0)
 		return -ERR_CID_IS_INVALID;
 
-	// input param check
-	ret = session_isvalid(ses_id, dev_info);
-	if (ret < 0) {
-		IPC_LOG_INFO("ses %d is invalid, ret: %d", ses_id, ret);
+	ses = get_session(ses_id, dev_info);
+	if (!ses) {
+		IPC_LOG_INFO("ses %d is invalid", ses_id);
 		return -ERR_SES_IS_INVALID;
 	}
-#if 0
-	ret = ipc_end_is_ready(msg->header.cid, dev_info);
-	if (ret < 0) {
-		IPC_LOG_INFO("ses %d send msg dst %d is not ready", ses_id,
-			     msg->header.cid);
-		return -ERR_DES_IS_OFFLINE;
+#ifndef REMOVE_STS_MGT
+	if (msg->header.typ != MSGBX_MSG_TYPE_REPLY) {
+#if defined(MSGBX_HW_TYPE_C1200)
+		ret = ipc_end_is_ready(msg->header.cid, 0, dev_info);
+#elif defined(MSGBX_HW_TYPE_A2000)
+		ret = ipc_end_is_ready(msg->header.cid, msg->header.chip_cid, dev_info);
+#endif
+		if (ret < 0) {
+			IPC_LOG_INFO("ses %d send msg dst %d is not ready", ses_id,
+					msg->header.cid);
+			return -ERR_DES_IS_OFFLINE;
+		}
 	}
 #endif
 
+	// set local variables.
+	rwmsg = &msg->msg_pool[0];
+	cpuid = module->g_ipc_cpuid;
 	IPC_LOG_DEBUG("ses %d send msg typ: %d, cmd: %d, tok: %d, idx cnt: %d",
 		      ses_id, type, msg->header.cmd, msg->header.tok,
 		      msg->index);
 
-#if defined(TIMESTAMP_DEBUG_ENABLE) && defined(DEBUG_MODE_ENABLE)
-	ipc_hw_layer_get_time(module->ops.cpuid,
-			      &module->debug_info[fid][sid].send_start_time);
+#ifdef DEBUG_MODE_ENABLE
+	dbg_info = &ses->debug_info;
+#ifdef TIMESTAMP_DEBUG_ENABLE
+	ipc_hw_layer_get_time(cpuid, &dbg_info->send_start_time);
+#endif
 #endif
 
-	// send package msg
-
 	for (cnt = 0; cnt <= msg->index; ++cnt) {
-		msg->msg_pool[cnt].header.ver = TRANS_LAYER_VERSION;
-		msg->msg_pool[cnt].header.typ = type;
-		msg->msg_pool[cnt].header.cid = msg->header.cid;
-		msg->msg_pool[cnt].header.pid = msg->header.pid;
-
-		// call hw_layer to send
-		ret = ipc_hw_layer_send_msg(module->ops.cpuid,
-					    &msg->msg_pool[cnt]);
+		ret = ipc_hw_layer_send_msg(cpuid, rwmsg);
 		if (ret < 0) {
 			IPC_LOG_WARNING("ses id %d hw send msg fail ret: %d",
 					ses_id, ret);
 #ifdef DEBUG_MODE_ENABLE
-			ATOMIC_FETCH_ADD(
-				&(module->debug_info[fid][sid].send_fail_cnt),
-				1, __ATOMIC_SEQ_CST);
+			++dbg_info->send_fail_cnt;
 #endif
 			return -ERR_SEND_MSG_FAIL;
 		}
 #ifdef DEBUG_MODE_ENABLE
-		ATOMIC_FETCH_ADD(
-			&(module->debug_info[fid][sid].send_rw_msg_cnt), 1,
-			__ATOMIC_SEQ_CST);
+		++dbg_info->send_rw_msg_cnt;
 #endif
-		if (msg->msg_pool[cnt].header.is_eof == 1)
+		if (rwmsg->header.is_eof == 1)
 			break;
+		++rwmsg;
 	}
 
 #ifdef DEBUG_MODE_ENABLE
-	ATOMIC_FETCH_ADD(&(module->debug_info[fid][sid].send_msg_cnt), 1,
-			 __ATOMIC_SEQ_CST);
-	module->debug_info[fid][sid].send_frame_cnt = cnt;
+	ATOMIC_FETCH_ADD(&dbg_info->send_msg_cnt, 1, __ATOMIC_SEQ_CST);
 #ifdef TIMESTAMP_DEBUG_ENABLE
-	ipc_hw_layer_get_time(module->ops.cpuid,
-			      &module->debug_info[fid][sid].send_end_time);
+	ipc_hw_layer_get_time(cpuid, &dbg_info->send_end_time);
 #endif
 #endif
-
 	return RESULT_SUCCESS;
 }
 
@@ -339,45 +328,43 @@ int32_t ipc_trans_send_msg(const uint8_t ses_id, serdes_t *msg,
  * 1. Validate inputs
  * 2. Get message from session message queue
  */
-int32_t ipc_trans_get_msg(const uint8_t ses_id, const ipc_msg_type_t msg_typ,
-			  serdes_t *msg, void *dev_info)
+int32_t ipc_trans_get_msg(const uint8_t ses_id, serdes_t *msg, void *dev_info)
 {
 	int8_t ret = -1;
-	msgbx_end_device_t *module = NULL;
+	msgbx_end_device_t *module = (msgbx_end_device_t *)dev_info;
+	ipc_ses_t *ses = NULL;
+	uint8_t cpuid = 0;
 #ifdef DEBUG_MODE_ENABLE
-	uint8_t sid = 0, fid = 0;
-	session_dist(ses_id, &sid, &fid);
+	debug_info_t *dbg_info = NULL;
 #endif
 
-	if (!msg || !dev_info)
+	if (!msg || !module)
 		return ret;
 
-	if (msg_typ > MSGBX_MSG_TYPE_BROADCAST)
-		return -ERR_TYP_IS_INVALID;
-
-	if (session_isvalid(ses_id, dev_info) < 0)
+	ses = get_session(ses_id, dev_info);
+	if (!ses)
 		return -ERR_SES_IS_INVALID;
 
-	module = (msgbx_end_device_t *)dev_info;
-#if defined(TIMESTAMP_DEBUG_ENABLE) && defined(DEBUG_MODE_ENABLE)
-	ipc_hw_layer_get_time(module->ops.cpuid,
-			      &module->debug_info[fid][sid].get_msg_time);
+	cpuid = module->g_ipc_cpuid;
+#ifdef DEBUG_MODE_ENABLE
+	dbg_info = &ses->debug_info;
+#ifdef TIMESTAMP_DEBUG_ENABLE
+	ipc_hw_layer_get_time(cpuid, &dbg_info->get_msg_time);
+#endif
 #endif
 
-	ret = session_msg_out(ses_id, msg_typ, msg, dev_info);
+	ret = session_msg_out(ses, msg);
 	if (ret < 0)
 		return -ERR_RECV_MSG_FAIL;
 
 #ifdef DEBUG_MODE_ENABLE
-	if (msg_typ == MSGBX_MSG_TYPE_METHOD || msg_typ == MSGBX_MSG_TYPE_REPLY)
-		ATOMIC_FETCH_ADD(&(module->debug_info[fid][sid].recv_msg_1_cnt), 1,
-			__ATOMIC_SEQ_CST);
+	if (msg->header.typ == MSGBX_MSG_TYPE_METHOD || msg->header.typ == MSGBX_MSG_TYPE_REPLY)
+		++dbg_info->recv_msg_1_cnt;
 	else
-		ATOMIC_FETCH_ADD(&(module->debug_info[fid][sid].recv_msg_2_cnt), 1,
-			__ATOMIC_SEQ_CST);
+		++dbg_info->recv_msg_2_cnt;
 #endif
 
-	ipc_hw_layer_get_time(module->ops.cpuid, &msg->recv_get_time);
+	ipc_hw_layer_get_time(cpuid, &msg->recv_get_time);
 	IPC_LOG_DEBUG("ses id %d get msg  typ: %d, tok: %d, cmd: %d, idx: %d",
 		      ses_id, msg->header.typ, msg->header.tok, msg->header.cmd,
 		      msg->rcv_index);
@@ -396,14 +383,16 @@ int32_t ipc_trans_get_msg(const uint8_t ses_id, const ipc_msg_type_t msg_typ,
 int32_t ipc_trans_close_session(const uint8_t ses_id, void *dev_info)
 {
 	int8_t ret = -1;
+	ipc_ses_t *ses = NULL;
 
 	if (!dev_info)
 		return ret;
 
-	if (session_isvalid(ses_id, dev_info) < 0)
+	ses = get_session(ses_id, dev_info);
+	if (!ses)
 		return -ERR_SES_IS_INVALID;
 
-	ret = session_destroy(ses_id, dev_info);
+	ret = session_destroy(ses);
 	if (ret < 0) {
 		IPC_LOG_WARNING("sid %d destroy fail, ret: %d", ses_id, ret);
 		return -ERR_SES_CLOSE_FAIL;
@@ -431,7 +420,7 @@ int32_t ipc_trans_err_hdl(const uint8_t type, const uint8_t id,
 		return -1;
 
 	module = (msgbx_end_device_t *)dev_info;
-	ret = ipc_hw_layer_err_hdl(module->ops.cpuid, type, id, hdl);
+	ret = ipc_hw_layer_err_hdl(module->g_ipc_cpuid, id, hdl);
 	if (ret < 0) {
 		IPC_LOG_INFO("hw err handle fail ret: %d", ret);
 		return -ERR_ERR_HANDLE_FAIL;
@@ -452,19 +441,15 @@ int32_t ipc_trans_get_debug_info(const uint8_t ses_id, debug_info_t *info,
 				 void *dev_info)
 {
 #ifdef DEBUG_MODE_ENABLE
-	int8_t ret = -1;
-	msgbx_end_device_t *module = NULL;
-	uint8_t sid = 0, fid = 0;
+	ipc_ses_t * ses = NULL;
+	if (!info || !dev_info)
+		return -1;
 
-	if (!dev_info)
-		return ret;
-
-	if (session_isvalid(ses_id, dev_info) < 0)
+	ses = get_session(ses_id, dev_info);
+	if (!ses)
 		return -ERR_SES_IS_INVALID;
 
-	module = (msgbx_end_device_t *)dev_info;
-	session_dist(ses_id, &sid, &fid);
-	*info = module->debug_info[fid][sid];
+	*info = ses->debug_info;
 #endif
 	return RESULT_SUCCESS;
 }
@@ -491,7 +476,6 @@ int32_t ipc_trans_transmit_log(const uint8_t cid, const char *log,
 
 	module = (msgbx_end_device_t *)dev_info;
 	ipc_ser_init(&msg);
-	msg.header.ver = TRANS_LAYER_VERSION;
 	msg.header.res = 0;
 	msg.header.typ = MSGBX_MSG_TYPE_PROTOCOL;
 	msg.header.cid = cid;
@@ -509,10 +493,8 @@ int32_t ipc_trans_transmit_log(const uint8_t cid, const char *log,
 	if (cid == module->g_ipc_pid || end_is_valid(cid) == 0)
 		return -ERR_CID_IS_INVALID;
 
-	// send package msg
 	for (cnt = 0; cnt <= msg.index; ++cnt) {
-		// call hw_layer to send
-		ret = ipc_hw_layer_send_msg(module->ops.cpuid,
+		ret = ipc_hw_layer_send_msg(module->g_ipc_cpuid,
 					    &msg.msg_pool[cnt]);
 		if (ret < 0) {
 			IPC_LOG_WARNING("trans log hw send msg fail ret: %d",
@@ -536,16 +518,15 @@ int32_t ipc_trans_send_rwmsg(const uint8_t ses_id, rw_msg_t *msg,
 			     void *dev_info)
 {
 	int8_t ret = -1;
-	msgbx_end_device_t *module = NULL;
+	msgbx_end_device_t *module = (msgbx_end_device_t *)dev_info;
+	ipc_ses_t * ses = NULL;
+	uint8_t cpuid = 0;
 #ifdef DEBUG_MODE_ENABLE
-	uint8_t fid = 0, sid = 0;
-	session_dist(ses_id, &sid, &fid);
+	debug_info_t *dbg_info = NULL;
 #endif
 
-	if (!dev_info || !msg)
+	if (!module || !msg)
 		return ret;
-
-	module = (msgbx_end_device_t *)dev_info;
 
 	if (msg->header.pid != module->g_ipc_pid)
 		return -ERR_PID_IS_INVALID;
@@ -554,7 +535,11 @@ int32_t ipc_trans_send_rwmsg(const uint8_t ses_id, rw_msg_t *msg,
 		return -ERR_CID_IS_INVALID;
 
 #ifndef REMOVE_STS_MGT
-	ret = ipc_end_is_ready(msg->header.cid, dev_info);
+#if defined(MSGBX_HW_TYPE_C1200)
+	ret = ipc_end_is_ready(msg->header.cid, 0, dev_info);
+#elif defined(MSGBX_HW_TYPE_A2000)
+	ret = ipc_end_is_ready(msg->header.cid, msg->header.chip_cid, dev_info);
+#endif
 	if (ret < 0) {
 		IPC_LOG_INFO("ses %d send msg dst %d is not ready", ses_id,
 			     msg->header.cid);
@@ -562,44 +547,45 @@ int32_t ipc_trans_send_rwmsg(const uint8_t ses_id, rw_msg_t *msg,
 	}
 #endif
 
-	// input param check
-	ret = session_isvalid(ses_id, dev_info);
-	if (ret < 0) {
-		IPC_LOG_INFO("ses %d is invalid, ret: %d", ses_id, ret);
+	ses = get_session(ses_id, dev_info);
+	if (!ses) {
+		IPC_LOG_INFO("ses %d is invalid", ses_id);
 		return -ERR_SES_IS_INVALID;
 	}
+
+	// set local variables.
+	cpuid = module->g_ipc_cpuid;
 
 	IPC_LOG_DEBUG("ses %d send msg cmd: %d, tok: %d fid: %d, sid: %d",
 		      ses_id, msg->header.cmd, msg->header.tok, msg->header.fid,
 		      msg->header.sid);
 
-#if defined(TIMESTAMP_DEBUG_ENABLE) && defined(DEBUG_MODE_ENABLE)
-	ipc_hw_layer_get_time(module->ops.cpuid,
-			      &module->debug_info[fid][sid].send_start_time);
+#ifdef DEBUG_MODE_ENABLE
+	dbg_info = &ses->debug_info;
+#ifdef TIMESTAMP_DEBUG_ENABLE
+	ipc_hw_layer_get_time(cpuid, &dbg_info->send_start_time);
+#endif
 #endif
 
-	// send package msg
-	msg->header.ver = TRANS_LAYER_VERSION;
-	// call hw_layer to send
-	ret = ipc_hw_layer_send_msg(module->ops.cpuid, msg);
+	ret = ipc_hw_layer_send_msg(cpuid, msg);
 	if (ret < 0) {
 		IPC_LOG_WARNING("ses id %d hw send msg fail ret: %d", ses_id,
 				ret);
 #ifdef DEBUG_MODE_ENABLE
-		ATOMIC_FETCH_ADD(&(module->debug_info[fid][sid].send_fail_cnt),
-				 1, __ATOMIC_SEQ_CST);
+		// ATOMIC_FETCH_ADD(&dbg_info->send_fail_cnt, 1, __ATOMIC_SEQ_CST);
+		++dbg_info->send_fail_cnt;
 #endif
 		return -ERR_SEND_MSG_FAIL;
 	}
 #ifdef DEBUG_MODE_ENABLE
-	ATOMIC_FETCH_ADD(&(module->debug_info[fid][sid].send_rw_msg_cnt), 1,
-			 __ATOMIC_SEQ_CST);
+	// ATOMIC_FETCH_ADD(&dbg_info->send_rw_msg_cnt, 1, __ATOMIC_SEQ_CST);
+	++dbg_info->send_rw_msg_cnt;
 #endif
 
 #ifdef DEBUG_MODE_ENABLE
 #ifdef TIMESTAMP_DEBUG_ENABLE
-	ipc_hw_layer_get_time(module->ops.cpuid,
-			      &module->debug_info[fid][sid].send_end_time);
+	ipc_hw_layer_get_time(module->g_ipc_cpuid,
+			      &ses->debug_info.send_end_time);
 #endif
 #endif
 
@@ -610,36 +596,167 @@ int32_t ipc_trans_get_rwmsg(const uint8_t ses_id, rw_msg_t *msg,
 			    uint64_t *timestamp, void *dev_info)
 {
 	int8_t ret = -1;
-	msgbx_end_device_t *module = NULL;
+	msgbx_end_device_t *module = (msgbx_end_device_t *)dev_info;
+	ipc_ses_t *ses = NULL;
+	uint8_t cpuid = 0;
 #ifdef DEBUG_MODE_ENABLE
-	uint8_t sid = 0, fid = 0;
-	session_dist(ses_id, &sid, &fid);
+	debug_info_t *dbg_info = NULL;
 #endif
 
-	if (!msg || !dev_info)
+	if (!msg || !module)
 		return ret;
 
-	if (session_isvalid(ses_id, dev_info) < 0)
+	ses = get_session(ses_id, dev_info);
+	if (!ses)
 		return -ERR_SES_IS_INVALID;
 
-	module = (msgbx_end_device_t *)dev_info;
-#if defined(TIMESTAMP_DEBUG_ENABLE) && defined(DEBUG_MODE_ENABLE)
-	ipc_hw_layer_get_time(module->ops.cpuid,
-			      &module->debug_info[fid][sid].get_msg_time);
+	cpuid = module->g_ipc_cpuid;
+#ifdef DEBUG_MODE_ENABLE
+	dbg_info = &ses->debug_info;
+#ifdef TIMESTAMP_DEBUG_ENABLE
+	ipc_hw_layer_get_time(cpuid, &dbg_info->get_msg_time);
+#endif
 #endif
 
-	ret = session_rwmsg_out(ses_id, msg, dev_info);
+	ret = session_rwmsg_out(ses, msg);
 	if (ret < 0)
 		return -ERR_RECV_MSG_FAIL;
 
 #ifdef DEBUG_MODE_ENABLE
-	ATOMIC_FETCH_ADD(&(module->debug_info[fid][sid].recv_msg_1_cnt), 1,
-			 __ATOMIC_SEQ_CST);
+	++dbg_info->recv_msg_1_cnt;
 #endif
 
-	ipc_hw_layer_get_time(module->ops.cpuid, timestamp);
+	ipc_hw_layer_get_time(cpuid, timestamp);
 	IPC_LOG_DEBUG("ses id %d get msg  typ: %d, tok: %d, cmd: %d, pid: %d",
 		      ses_id, msg->header.typ, msg->header.tok, msg->header.cmd,
 		      msg->header.pid);
+	return RESULT_SUCCESS;
+}
+
+int32_t ipc_trans_get_hw_count(const uint8_t fid, msgbox_hw_counter_t* hw_cnt, 
+				void *dev_info)
+{
+#if defined(MSGBX_HW_TYPE_A2000)
+	int8_t ret = -1;
+	msgbx_end_device_t *module = NULL;
+	if (!dev_info || !hw_cnt)
+		return ret;
+
+	if (fid >= module->g_ipc_flt_cnt)
+		return ret;
+
+	module = (msgbx_end_device_t *)dev_info;
+	ret = ipc_hw_layer_get_hw_counter(module->g_ipc_cpuid, fid, hw_cnt);
+	return ret;
+#endif
+	return RESULT_SUCCESS;
+}
+
+int32_t ipc_trans_clr_hw_count(const uint8_t fid, const uint8_t clr_mask, 
+				void *dev_info)
+{
+#if defined(MSGBX_HW_TYPE_A2000)
+	int8_t ret = -1;
+	msgbx_end_device_t *module = NULL;
+	if (!dev_info)
+		return ret;
+
+	if (fid >= module->g_ipc_flt_cnt)
+		return ret;
+
+	module = (msgbx_end_device_t *)dev_info;
+	ret = ipc_hw_layer_clr_hw_counter(module->g_ipc_cpuid, fid, clr_mask);
+	return ret;
+#endif
+	return RESULT_SUCCESS;
+}
+
+int32_t ipc_trans_register_method(const uint8_t session_id, const uint8_t cmd,
+				  void *dev_info)
+{
+#if (SESSION_COUNT > 1)
+#if !defined(BAREMETAL_VERSION_TRUNCATE)
+	msgbx_end_device_t *module = NULL;
+	ipc_ses_t *ses = NULL;
+
+	if (!dev_info)
+		return -1;
+
+	module = (msgbx_end_device_t *)dev_info;
+	ses = get_session(session_id, dev_info);
+	if (!ses)
+		return -ERR_SES_IS_INVALID;
+
+	// spec note: even cmd value is over 256, compiler will optimize and truncate it.
+	if (module->method_register_map[cmd] >= 0)
+		return -ERR_REGISTER_METHOD_REPEATE;
+
+	module->method_register_map[cmd] = session_id;
+	IPC_LOG_DEBUG("ses %d register cmd %d success", session_id, cmd);
+#endif
+#endif
+	return RESULT_SUCCESS;
+}
+
+int32_t ipc_trans_unregister_method(const uint8_t session_id, void *dev_info)
+{
+#if (SESSION_COUNT > 1)
+#if !defined(BAREMETAL_VERSION_TRUNCATE)
+	msgbx_end_device_t *module = NULL;
+	ipc_ses_t *ses = NULL;
+	uint8_t cnt = 0;
+
+	if (!dev_info)
+		return -1;
+
+	module = (msgbx_end_device_t *)dev_info;
+	ses = get_session(session_id, dev_info);
+	if (!ses)
+		return -ERR_SES_IS_INVALID;
+
+	for (cnt = 0; cnt < CMD_MAX_COUNT; ++cnt)
+		if (module->method_register_map[cnt] == session_id)
+			module->method_register_map[cnt] = -1;
+#endif
+#endif
+	return RESULT_SUCCESS;
+}
+
+int32_t ipc_trans_map_session(const uint8_t ses_id, void **msg_queue_addr, void *dev_info)
+{
+	ipc_ses_t *ses = NULL;
+
+	if (!dev_info)
+		return -1;
+
+	ses = get_session(ses_id, dev_info);
+	if (!ses)
+		return -ERR_SES_IS_INVALID;
+#if defined(USE_EXTERNAL_MSG_BUFFER)
+	*msg_queue_addr = ses->msg_queue;
+	ses->msg_queue->k_addr = (uintptr_t)ses->msg_queue;
+#else
+	*msg_queue_addr = &ses->msg_queue;
+	ses->msg_queue.k_addr = (uintptr_t)&ses->msg_queue;
+#endif
+	return RESULT_SUCCESS;
+}
+
+int32_t ipc_trans_msg_queue_alloc(const uint8_t session_id, const void* addr, void* dev_info)
+{
+#if defined(USE_EXTERNAL_MSG_BUFFER)
+	ipc_ses_t *ses = NULL;
+
+	if (!dev_info || !addr)
+		return -ERR_CREATE_SES_ALLOC_FAIL;
+
+	ses = get_session(session_id, dev_info);
+	if (!ses)
+		return -ERR_SES_IS_INVALID;
+
+	ses->msg_queue = (bst_msg_queue_t*)addr;
+	ses->msg_queue->k_addr = (uintptr_t)addr;
+	msg_queue_init(ses->msg_queue);
+#endif
 	return RESULT_SUCCESS;
 }

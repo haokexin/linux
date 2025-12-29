@@ -1,0 +1,10 @@
+import "platform:/plugin/com.bst.os.idl/deployment/ipc_spec.fdepl"
+import "r5mem_interface.fidl"
+
+define com.bst.ipc.deployment for interface com.bst.ipc.dmabuf.r5mem {
+    MaxMethodNum = 10
+    MaxBroadcastNum = 10
+    method send2r5 {
+        MethodID = 1
+    }
+}

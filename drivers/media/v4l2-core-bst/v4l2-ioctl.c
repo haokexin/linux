@@ -469,6 +469,16 @@ static void v4l_print_buffer(const void *arg, bool write_only)
 				i, plane->bytesused, plane->data_offset,
 				plane->m.userptr, plane->length);
 		}
+	} else if (V4L2_TYPE_IS_MULTIVIEW(p->type) && p->m.views) {
+		pr_cont("\n");
+		for (i = 0; i < p->length; ++i) {
+			struct v4l2_buffer *view;
+			view = &p->m.views[i];
+			printk(KERN_DEBUG
+			       "view %d: bytesused=%d, offset/userptr=0x%lx, length=%d\n",
+			       i, view->bytesused, view->m.userptr,
+			       view->length);
+		}
 	} else {
 		pr_cont(", bytesused=%d, offset/userptr=0x%lx, length=%d\n",
 			p->bytesused, p->m.userptr, p->length);
@@ -2845,7 +2855,7 @@ static const struct v4l2_ioctl_info v4l2_ioctls[] = {
 	IOCTL_INFO(VIDIOC_OVERLAY, v4l_overlay, v4l_print_u32, INFO_FL_PRIO),
 	IOCTL_INFO(VIDIOC_QBUF, v4l_qbuf, v4l_print_buffer, INFO_FL_QUEUE),
 	IOCTL_INFO(VIDIOC_EXPBUF, v4l_stub_expbuf, v4l_print_exportbuffer, INFO_FL_QUEUE | INFO_FL_CLEAR(v4l2_exportbuffer, flags)),
-	IOCTL_INFO(VIDIOC_DQBUF, v4l_dqbuf, v4l_print_buffer, INFO_FL_QUEUE),
+	IOCTL_INFO(VIDIOC_DQBUF, v4l_dqbuf, v4l_print_buffer, INFO_FL_QUEUE | INFO_FL_ALWAYS_COPY),
 	IOCTL_INFO(VIDIOC_STREAMON, v4l_streamon, v4l_print_buftype, INFO_FL_PRIO | INFO_FL_QUEUE),
 	IOCTL_INFO(VIDIOC_STREAMOFF, v4l_streamoff, v4l_print_buftype, INFO_FL_PRIO | INFO_FL_QUEUE),
 	IOCTL_INFO(VIDIOC_G_PARM, v4l_g_parm, v4l_print_streamparm, INFO_FL_CLEAR(v4l2_streamparm, type)),
@@ -3108,6 +3118,16 @@ static int check_array_args(unsigned int cmd, void *parg, size_t *array_size,
 			*user_ptr = (void __user *)buf->m.planes;
 			*kernel_ptr = (void **)&buf->m.planes;
 			*array_size = sizeof(struct v4l2_plane) * buf->length;
+			ret = 1;
+		} else if (V4L2_TYPE_IS_MULTIVIEW(buf->type) &&
+			   buf->length > 0) {
+			if (buf->length > VIDEO_MAX_VIEWS) {
+				ret = -EINVAL;
+				break;
+			}
+			*user_ptr = (void __user *)buf->m.views;
+			*kernel_ptr = (void **)&buf->m.views;
+			*array_size = sizeof(struct v4l2_buffer) * buf->length;
 			ret = 1;
 		}
 		break;

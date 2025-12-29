@@ -1,4 +1,5 @@
-/* SPDX-License-Identifier: GPL-2.0+
+// SPDX-License-Identifier: GPL-2.0+
+/*
  *
  * Copyright (c) 2024 Black Sesame Technologies
  */
@@ -34,32 +35,32 @@
 #ifndef LWNN_RT_FW_KAPI_H
 #define LWNN_RT_FW_KAPI_H
 
-#define BST_LWNN_INIT_START              1
-#define BST_LWNN_INIT_END                2
-#define BST_LWNN_INIT_EXIT               3
+#define BST_LWNN_INIT_START 1
+#define BST_LWNN_INIT_END 2
+#define BST_LWNN_INIT_EXIT 3
 
-#pragma pack(push)  /* push current alignment to stack */
-#pragma pack(4)     /* set alignment to 4 byte boundary */
+#pragma pack(push) /* push current alignment to stack */
+#pragma pack(4) /* set alignment to 4 byte boundary */
 
 struct bst_lwnn_fw_ver_info {
-  uint8_t month;
-  uint8_t date;
-  uint16_t year;
-  uint8_t major;
-  uint8_t minor;
-  uint8_t patch;
+	uint8_t month;
+	uint8_t date;
+	uint16_t year;
+	uint8_t major;
+	uint8_t minor;
+	uint8_t patch;
 };
 
 struct bst_lwnn_rt_init {
-  uint32_t init_status; // the status field to indicate the handshake progress
-  //from arm
-  dsp_ptr assigned_mem; // the start address of assigned memory 
-  uint32_t assigned_mem_size; // the size of assigned memory
-  uint32_t dest_core_id;  // the IPC destination core id of the ARM core
-  uint32_t src_core_id; // the IPC source core id of the DSP
-  dsp_ptr ipc_register_addr; // the IPC buffer array address
-  //to arm
-  struct bst_lwnn_fw_ver_info ver_info; // firmware version information
+	uint32_t init_status; // the status field to indicate the handshake progress
+	//from arm
+	dsp_ptr assigned_mem; // the start address of assigned memory
+	uint32_t assigned_mem_size; // the size of assigned memory
+	uint32_t dest_core_id; // the IPC destination core id of the ARM core
+	uint32_t src_core_id; // the IPC source core id of the DSP
+	dsp_ptr ipc_register_addr; // the IPC buffer array address
+	//to arm
+	struct bst_lwnn_fw_ver_info ver_info; // firmware version information
 };
 
 #pragma pack(pop)

@@ -1,0 +1,155 @@
+/dts-v1/;
+/plugin/;
+
+#include "../common/isp-csi-map.dtsi"
+#include "base-isp.dtsi"
+#include "base-csi-deser-camera.dtsi"
+#include "base-desers-3max96724.dtsi"
+
+&i2cq0 {
+	clock-frequency = <400000>;
+};
+&i2cq1 {
+	clock-frequency = <400000>;
+};
+&i2cq2 {
+	clock-frequency = <400000>;
+};
+&isp {
+	slab = "isp/common/slab-4x1f-4x1f-2x1f_cat.bin";
+	usage = "GMSL 1 demo, offline, bypass, concatenation";
+};
+&deser0 {
+	fsync-mode = <FSYNC_INNER>;
+	deser0_pipes: pipes {
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		deser0_pipe0: port@0 {
+			reg = <0>;
+			to-vc = <3>;
+		};
+		deser0_pipe1: port@1 {
+			reg = <1>;
+			to-vc = <2>;
+		};
+		deser0_pipe2: port@2 {
+			reg = <2>;
+			to-vc = <1>;
+		};
+		deser0_pipe3: port@3 {
+			reg = <3>;
+			to-vc = <0>;
+		};
+	};
+};
+&deser0_rx0 {
+	rx-rate = <3>;
+	gmsl-ver = <GMSL1>;
+	him;
+	pre-ser = <0x0B07 0x84>; // Double rate output, enable HS/VS encoding, match module's serializer
+};
+&deser0_rx1 {
+	gmsl-ver = <GMSL1>;
+	him;
+	pre-ser = <0x0C07 0x84>; // Double rate output, enable HS/VS encoding, match module's serializer
+};
+&deser0_rx2 {
+	gmsl-ver = <GMSL1>;
+	him;
+	pre-ser = <0x0D07 0x84>; // Double rate output, enable HS/VS encoding, match module's serializer
+};
+&deser0_rx3 {
+	gmsl-ver = <GMSL1>;
+	him;
+	pre-ser = <0x0E07 0x84>; // Double rate output, enable HS/VS encoding, match module's serializer
+};
+&deser1 {
+	fsync-mode = <FSYNC_OUTER>;
+};
+&deser1_rx0 {
+	gmsl-ver = <GMSL1>;
+	him;
+	pre-ser = <0x0B07 0x84>; // Double rate output, enable HS/VS encoding, match module's serializer
+};
+&deser1_rx1 {
+	gmsl-ver = <GMSL1>;
+	him;
+	pre-ser = <0x0C07 0x84>; // Double rate output, enable HS/VS encoding, match module's serializer
+};
+&deser1_rx2 {
+	gmsl-ver = <GMSL1>;
+	him;
+	pre-ser = <0x0D07 0x84>; // Double rate output, enable HS/VS encoding, match module's serializer
+};
+&deser1_rx3 {
+	gmsl-ver = <GMSL1>;
+	him;
+	pre-ser = <0x0E07 0x84>; // Double rate output, enable HS/VS encoding, match module's serializer
+};
+&deser2_rx0 {
+	gmsl-ver = <GMSL1>;
+	him;
+	pre-ser = <0x0B07 0x84>; // Double rate output, enable HS/VS encoding, match module's serializer
+};
+&deser2_rx1 {
+	gmsl-ver = <GMSL1>;
+	him;
+	pre-ser = <0x0C07 0x84>; // Double rate output, enable HS/VS encoding, match module's serializer
+};
+&deser2_rx2 {
+	gmsl-ver = <GMSL1>;
+	him;
+	pre-ser = <0x0D07 0x84>; // Double rate output, enable HS/VS encoding, match module's serializer
+};
+&deser2_rx3 {
+	gmsl-ver = <GMSL1>;
+	him;
+	pre-ser = <0x0E07 0x84>; // Double rate output, enable HS/VS encoding, match module's serializer
+};
+&deser2 {
+	fsync-mode = <FSYNC_OUTER>;
+	post-csi =
+		<0x094B 0x00>, // Disable pipe to controller mapping
+		<0x0971 0x83>; // CSI 1, concat pipe 0 and pipe 1
+};
+&camera0 {
+	#include "../cameras/x1f_yuv_cd1_1280x960.dtsi"
+	status = "okay";
+};
+&camera1 {
+	#include "../cameras/x1f_yuv_cd1_1280x960.dtsi"
+	status = "okay";
+};
+&camera2 {
+	#include "../cameras/x1f_yuv_cd1_1280x960.dtsi"
+	status = "okay";
+};
+&camera3 {
+	#include "../cameras/x1f_yuv_cd1_1280x960.dtsi"
+	status = "okay";
+};
+&camera4 {
+	#include "../cameras/x1f_yuv_cd1_1280x960.dtsi"
+	status = "okay";
+};
+&camera5 {
+	#include "../cameras/x1f_yuv_cd1_1280x960.dtsi"
+	status = "okay";
+};
+&camera6 {
+	#include "../cameras/x1f_yuv_cd1_1280x960.dtsi"
+	status = "okay";
+};
+&camera7 {
+	#include "../cameras/x1f_yuv_cd1_1280x960.dtsi"
+	status = "okay";
+};
+&camera8 {
+	#include "../cameras/x1f_yuv_cd1_1280x960.dtsi"
+	status = "okay";
+};
+&camera9 {
+	#include "../cameras/x1f_yuv_cd1_1280x960.dtsi"
+	status = "okay";
+};

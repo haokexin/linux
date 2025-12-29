@@ -1,4 +1,5 @@
-/* SPDX-License-Identifier: GPL-2.0+
+// SPDX-License-Identifier: GPL-2.0+
+/*
  *
  * Copyright (c) 2024 Black Sesame Technologies
  */
@@ -18,7 +19,7 @@
 struct bstn_vmarea_handler {
 	refcount_t *refcount;
 	void (*put)(void *arg);
-	void  *arg;
+	void *arg;
 };
 
 typedef struct bstn_memblock {
@@ -33,42 +34,41 @@ typedef struct bstn_memblock {
 	unsigned long size;
 	unsigned long attrs;
 	enum dma_data_direction dma_dir;
-	struct sg_table        *dma_sgt;
-	struct frame_vector    *vec;
+	struct sg_table *dma_sgt;
+	struct frame_vector *vec;
 
 	/* MMAP related */
 	struct bstn_vmarea_handler handler;
-	struct sg_table           *sgt_base;
+	struct sg_table *sgt_base;
 	refcount_t refcount;
 
 	/* DMABUF related */
 	struct dma_buf_attachment *db_attach;
 } bstn_memblock_t;
 
-
 struct bstn_dma_ops {
-	void *(*dma_alloc) (struct device *dev,
-					unsigned long attrs,
-					unsigned long size,
-					enum dma_data_direction dma_dir,
-					gfp_t gfp_flags);
-	void  (*put)   (void *buffer_priv);
+	void *(*dma_alloc)(struct device *dev, unsigned long attrs,
+			   unsigned long size, enum dma_data_direction dma_dir,
+			   gfp_t gfp_flags);
+	void (*put)(void *buffer_priv);
 
 	struct dma_buf *(*get_dmabuf)(void *buffer_priv, unsigned long flags);
 
 	void (*prepare)(void *buffer_priv);
-	void (*finish) (void *buffer_priv);
+	void (*finish)(void *buffer_priv);
 
-	void *(*attach_dmabuf) (struct device *dev,
-							struct dma_buf *dbuf,
-							unsigned long size,
-							enum dma_data_direction dma_dir);
-	void  (*detach_dmabuf) (void *buffer_priv);
-	int   (*map_dmabuf)    (void *buffer_priv);
-	void  (*unmap_dmabuf)  (void *buffer_priv);
+	void (*dma_sync)(void *buf_priv, uint32_t offset, uint32_t size,
+			 enum dma_data_direction dir);
 
-	void *(*vaddr)         (void *buffer_priv);
-	void *(*cookie)        (void *buffer_priv);
+	void *(*attach_dmabuf)(struct device *dev, struct dma_buf *dbuf,
+			       unsigned long size,
+			       enum dma_data_direction dma_dir);
+	void (*detach_dmabuf)(void *buffer_priv);
+	int (*map_dmabuf)(void *buffer_priv);
+	void (*unmap_dmabuf)(void *buffer_priv);
+
+	void *(*vaddr)(void *buffer_priv);
+	void *(*cookie)(void *buffer_priv);
 
 	unsigned int (*num_users)(void *buffer_priv);
 

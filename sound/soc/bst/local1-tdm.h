@@ -176,6 +176,7 @@ struct dw_tdm_dev {
 	void __iomem *tdm_base;
 	resource_size_t phy_base;
 	struct clk *clk;
+	struct pinctrl *pin;
 	int active;
 	int lsp_crm;
 	unsigned int capability;
@@ -186,6 +187,7 @@ struct dw_tdm_dev {
 	u32 ccr;
 	u32 xfer_resolution;
 	u32 fifo_th;
+	u32 slot_cnt;
 
 	/* data related to DMA transfers b/w i2s and DMAC */
 	union dw_tdm_snd_dma_data play_dma_data;

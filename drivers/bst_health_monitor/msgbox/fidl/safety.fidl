@@ -1,0 +1,41 @@
+//sample.fidl
+
+//package名，前缀统一为com.bst.ipc，XXX为模块名，由对应模块的开发人员确定，如safety/security/realtime/isp/net等。
+package com.bst.ipc.safety
+
+//为简化使用场景，禁用import。
+//为简化使用场景，降低interface间的耦合度，禁用typeCollection。
+//为简化使用场景，禁用contract。
+
+//interface为一组服务的集合，同一模块下可有一组或多组interface。
+//为简化使用场景，IPC接口描述中，禁用了interface的extends/manages特性
+//interface命名以简洁清晰为准，或以缩写代替，如BST_HSM/BST_DMA。命名时，不建议加入芯片名称，这会对跨芯片移植造成困难，如C1200_HSM等。
+interface healthmonitor{
+
+    version {major 1  minor 0}
+
+    enumeration ErrorEnum {
+        NO_ERROR = 0
+        SERVER_FAIL = -1
+        ERROR_2 = -2
+        ERROR_3 = -3
+    }
+
+    method fusacoreip_method{
+        in {
+            UInt32 dtc
+        }
+        error ErrorEnum
+    }
+    
+    method fusaenable_method{
+        in {
+            UInt8 block_id
+        }
+        out {
+            UInt8 block_id_out
+            UInt32[4] psm_id
+        }
+        error ErrorEnum
+    }
+}

@@ -47,6 +47,10 @@ struct cpuinfo_arm64 {
 	u64		reg_revidr;
 	u64		reg_gmid;
 	u64		reg_smidr;
+	u64		reg_currentel;
+	u64		reg_tcr_el1;
+	u64		reg_tcr_el12;
+	u64		reg_hcr_el2;
 
 	u64		reg_id_aa64dfr0;
 	u64		reg_id_aa64dfr1;

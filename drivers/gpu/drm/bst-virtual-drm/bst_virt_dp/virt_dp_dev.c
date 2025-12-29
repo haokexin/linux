@@ -92,7 +92,7 @@ static int virt_dp_probe(struct bst_virt_device *vdev)
 	struct bst_display_submodule_header submodule_head = { 0 };
 	struct bst_display_submodule_req submodule_req = { 0 };
 	struct bst_display_dp_probed_info *dp_probed_info = vdev->dev_info.private;
-	u32 i = 0, subdev_session, client_id;
+	u32 i = 0, subdev_session;
 	int err;
 
 	dp_dev = devm_kzalloc(vdev->dev, sizeof(*dp_dev), GFP_KERNEL);
@@ -103,14 +103,15 @@ static int virt_dp_probe(struct bst_virt_device *vdev)
 
 	dp_dev->base_dev = vdev;
 	subdev_session = vdev->subdev_session;
-	client_id = vdev->dev_info.client_id;
+
+	if (dp_probed_info->num_submodules > SUBMODULE_ID_DP_MAX)
+		return -EINVAL;
 
 	while (i < dp_probed_info->num_submodules) {
 		memset(&submodule_head, 0, sizeof(submodule_head));
 		memset(&submodule_req, 0, sizeof(submodule_req));
-		submodule_req.client_id = client_id;
 		submodule_req.submodule_id = dp_probed_info->submodule_ids[i];
-		err = bst_display_dp_cmd_probe_submodule(subdev_session, &submodule_req, &submodule_head);
+		err = bst_display_conn_cmd_probe_submodule(subdev_session, &submodule_req, &submodule_head);
 		if (err) {
 			DRM_ERROR("probe dp submodules failed.\n");
 			goto err_cleanup;
@@ -160,30 +161,30 @@ virt_dp_identify(struct device *dev, struct bst_virt_platform_info *plat_info,
 	struct bst_display_dp_probed_info *probed_info;
 	int ret = 0;
 
+	if (sizeof(*probed_info) > SUBDEV_PROBE_INFO_MAX_SIZE) {
+		DRM_ERROR("err! dp probe info size[%d] > max_size[%d].\n",
+			(int32_t)sizeof(*probed_info), (int32_t)SUBDEV_PROBE_INFO_MAX_SIZE);
+		return NULL;
+	}
+
 	probed_info = devm_kzalloc(dev, sizeof(*probed_info), GFP_KERNEL);
 	if (!probed_info)
 		return NULL;
 
-	request.client_id = plat_info->client_id;
-	request.platform_id = plat_info->platform_id;
 	request.want_subdev = to_fw_dp_device_type(plat_info->device_type);
-
-	request.want_info_size = sizeof(response) + sizeof(*probed_info);
+	request.want_info_size = sizeof(response);
 	ret = bst_display_glb_cmd_probe_subdev(&request, &response);
-	if (!ret && response.status == SUBDEV_PROBE_STATUS_OK) {
-		memcpy(probed_info, &response.probed_info[0],
-		       sizeof(*probed_info));
+	if (!ret && response.base.status == DISP_COMM_REPLAY_OK) {
+		memcpy(probed_info, &response.probed_info[0], sizeof(*probed_info));
 		dev_info->subdev_session = response.subdev_session;
 		dev_info->is_owner_device = response.is_owner;
-		dev_info->client_id = response.client_id;
 		dev_info->arch_id = probed_info->arch_id;
 		dev_info->private = probed_info;
 		dev_info->device_type = plat_info->device_type;
-		dev_info->platform_id = request.platform_id;
-		if (dev_info->is_owner_device)
+		//if (dev_info->is_owner_device)
 			return &virt_dp_dev_funcs;
-		else
-			return &virt_shared_conn_dev_funcs;
+		//else
+		//	return &virt_shared_conn_dev_funcs;
 	}
 	return NULL;
 }
@@ -219,8 +220,8 @@ bst_virt_dp_create(struct device *dev, struct bst_virt_platform_info *plat_info,
 	vdev->device_type = plat_info->device_type;
 	vdev->this_pipe = pipe;
 
-	DRM_INFO("Found BST-eDP-%x, Client ID:0x%x, Device Session:%x, Device Role:%s\n",
-		 vdev->dev_info.arch_id, vdev->dev_info.client_id,
+	DRM_INFO("Found BST-eDP-%x, Device Session:%x, Device Role:%s\n",
+		 vdev->dev_info.arch_id,
 		 vdev->dev_info.subdev_session,
 		 vdev->dev_info.is_owner_device ? "is_owner" : "not_owner");
 

@@ -146,6 +146,8 @@
 #define PTE_TABLE_BIT		(_AT(pteval_t, 1) << 1)
 #define PTE_USER		(_AT(pteval_t, 1) << 6)		/* AP[1] */
 #define PTE_RDONLY		(_AT(pteval_t, 1) << 7)		/* AP[2] */
+#define PTE_NON_SHARED		(_AT(pteval_t, 0) << 8)		/* SH[1:0], non shareable */
+#define PTE_OUTER_SHARED	(_AT(pteval_t, 2) << 8)		/* SH[1:0], outer shareable */
 #define PTE_SHARED		(_AT(pteval_t, 3) << 8)		/* SH[1:0], inner shareable */
 #define PTE_AF			(_AT(pteval_t, 1) << 10)	/* Access Flag */
 #define PTE_NG			(_AT(pteval_t, 1) << 11)	/* nG */
@@ -162,6 +164,8 @@
 #else
 #define PTE_ADDR_MASK		PTE_ADDR_LOW
 #endif
+
+#define PTE_SH_MASK		(_AT(pteval_t, 3) << 8)
 
 /*
  * AttrIndx[2:0] encoding (mapping attributes defined in the MAIR* registers).

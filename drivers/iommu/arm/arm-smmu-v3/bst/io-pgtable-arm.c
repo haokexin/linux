@@ -23,6 +23,7 @@
 #include <asm/barrier.h>
 
 #include "io-pgtable-arm.h"
+#include <linux/spinlock.h>
 
 #define ARM_LPAE_MAX_ADDR_BITS		52
 #define ARM_LPAE_S2_MAX_CONCAT_PAGES	16
@@ -138,11 +139,16 @@
 
 
 /* bst cmn address offset define , start */
+#define CMN_DEVICE_ADDR_OFFSET_SET			BIT(36)		/* device --> cmn --> ddr, address offset 0x10—— */
 #define CMN_TCU_ADDR_OFFSET_SET			BIT(36)		/* tcu --> cmn --> ddr, address offset 0x10—— */
 #define CMN_TCU_ADDR_OFFSET_MASK			(~BIT(36))
 
 #define CMN_TCU_ADDR_OFFSET_FLAG			BIT(9)		/* device --> cmn --> ddr. if addr_offset 0x10——, then FLAG is 1; if addr_offset 0x0, then FLAG is 0 */
 /* bst cmn address offset define , end */
+/* bst multi_os define , start */
+#define MULTI_OS_S2_COMMON_LVL0_BASE			(0x804c80000)	/* COMMON STR LEVEL0 ADDRESS */
+#define MULTI_OS_S2_SINGLE_SID_LVL0_SIZE		(0x2000)		/* ONE STREAM_ID STR LEVLE0 SIZE */
+/* bst multi_os define , end */
 
 /* IOPTE accessors */
 #define iopte_deref(pte, d) __va(iopte_to_paddr(pte, d))
@@ -163,6 +169,7 @@ struct arm_lpae_io_pgtable {
 };
 
 typedef u64 arm_lpae_iopte;
+static DEFINE_SPINLOCK(pte_lock);
 
 static inline bool iopte_leaf(arm_lpae_iopte pte, int lvl,
 			      enum io_pgtable_fmt fmt)
@@ -283,6 +290,10 @@ static void __arm_lpae_init_pte(struct arm_lpae_io_pgtable *data,
 	else
 		pte |= ARM_LPAE_PTE_TYPE_BLOCK;
 
+	/* low 4GB remain raw address, special master cmn_dev add offset */
+	if ((cfg->quirks & SMMU_FEAT_SPECIAL_CMN_DEV_FLAG) && (paddr & 0xf00000000))
+		paddr |= CMN_DEVICE_ADDR_OFFSET_SET;
+
 	for (i = 0; i < num_entries; i++)
 		ptep[i] = pte | paddr_to_iopte(paddr + i * sz, data);
 
@@ -322,10 +333,25 @@ static int arm_lpae_init_pte(struct arm_lpae_io_pgtable *data,
 	return 0;
 }
 
+
+static inline u64 arm_lpae_nocache_xchg(arm_lpae_iopte *ptep, arm_lpae_iopte curr, arm_lpae_iopte new)
+{
+	unsigned long flags;
+	u64 old;
+
+	spin_lock_irqsave(&pte_lock, flags);
+	old = readq(ptep);
+	if (old == curr)
+		writeq(new, ptep);
+	spin_unlock_irqrestore(&pte_lock, flags);
+
+	return old;
+}
+
 static arm_lpae_iopte arm_lpae_install_table(arm_lpae_iopte *table,
 					     arm_lpae_iopte *ptep,
 					     arm_lpae_iopte curr,
-					     struct arm_lpae_io_pgtable *data, bool cmn_tcu_offset_flag)
+					     struct arm_lpae_io_pgtable *data, bool cmn_tcu_offset_flag, int lvl)
 {
 	arm_lpae_iopte old, new;
 	struct io_pgtable_cfg *cfg = &data->iop.cfg;
@@ -345,7 +371,10 @@ static arm_lpae_iopte arm_lpae_install_table(arm_lpae_iopte *table,
 	 */
 	dma_wmb();
 
-	old = cmpxchg64_relaxed(ptep, curr, new);
+	if (!((lvl == 1) && (data->iop.cfg.quirks & SMMU_FEAT_MULTI_OS_S2)))
+		old = cmpxchg64_relaxed(ptep, curr, new);
+	else /* SMMU_FEAT_MULTI_OS_S2 is only used by coreip */ /* need no cache */
+		old = arm_lpae_nocache_xchg(ptep, curr, new);
 
 	if (cfg->coherent_walk || (old & ARM_LPAE_PTE_SW_SYNC))
 		return old;
@@ -369,7 +398,7 @@ static int __arm_lpae_map(struct arm_lpae_io_pgtable *data, unsigned long iova,
 	struct io_pgtable_cfg *cfg = &data->iop.cfg;
 	int ret = 0, num_entries, max_entries, map_idx_start;
 
-	/* cmn */ /* if (lvl == 3) printk("@@@ %s %d, level=0x%x, iova=0x%llx, pa=0x%llx, size=0x%x, ptep = 0x%llx\n", __func__, __LINE__,lvl, iova, paddr, size, ptep);*/
+	/* cmn */ /* if (lvl == 3) printk("@@@ %s %d, level=0x%x, iova=0x%lx, pa=0x%llx, size=0x%lx, ptep = 0x%llx\n", __func__, __LINE__,lvl, iova, paddr, size, (u64)ptep);*/
 	bool cmn_tcu_offset_flag = paddr & CMN_TCU_ADDR_OFFSET_FLAG;
 
 	/* Find our entry at the current level */
@@ -399,7 +428,7 @@ static int __arm_lpae_map(struct arm_lpae_io_pgtable *data, unsigned long iova,
 			return -ENOMEM;
 
 		/* cmn */ /* level 0/1/2 maybe run, need add CMN_TCU_ADDR_OFFSET_SET */
-		pte = arm_lpae_install_table(cptep, ptep, 0, data, cmn_tcu_offset_flag);
+		pte = arm_lpae_install_table(cptep, ptep, 0, data, cmn_tcu_offset_flag, lvl);
 		if (pte)
 			__arm_lpae_free_pages(cptep, tblsz, cfg);
 	} else if (!cfg->coherent_walk && !(pte & ARM_LPAE_PTE_SW_SYNC)) {
@@ -544,6 +573,12 @@ static void __arm_lpae_free_pgtable(struct arm_lpae_io_pgtable *data, int lvl,
 	arm_lpae_iopte *start, *end;
 	unsigned long table_size;
 
+	/* SMMU_FEAT_MULTI_OS_S2 is only used by coreip */
+	if ((lvl == 1) && (data->iop.cfg.quirks & SMMU_FEAT_MULTI_OS_S2)) {
+		iounmap(data->pgd);
+		return;
+	}
+
 	if (lvl == data->start_level)
 		table_size = ARM_LPAE_PGD_SIZE(data);
 	else
@@ -559,6 +594,9 @@ static void __arm_lpae_free_pgtable(struct arm_lpae_io_pgtable *data, int lvl,
 
 	while (ptep != end) {
 		arm_lpae_iopte pte = *ptep++;
+
+		/* cmn */ /* cpu read ptep, need handle */
+		pte &= CMN_TCU_ADDR_OFFSET_MASK;
 
 		if (!pte || iopte_leaf(pte, lvl, data->iop.fmt))
 			continue;
@@ -615,7 +653,7 @@ static size_t arm_lpae_split_blk_unmap(struct arm_lpae_io_pgtable *data,
 		__arm_lpae_init_pte(data, blk_paddr, pte, lvl, 1, &tablep[i]);
 	}
 
-	pte = arm_lpae_install_table(tablep, ptep, blk_pte, data, 0);
+	pte = arm_lpae_install_table(tablep, ptep, blk_pte, data, 0, lvl);
 	if (pte != blk_pte) {
 		__arm_lpae_free_pages(tablep, tablesz, cfg);
 		/*
@@ -969,7 +1007,7 @@ arm_64_lpae_alloc_pgtable_s2(struct io_pgtable_cfg *cfg, void *cookie)
 	typeof(&cfg->arm_lpae_s2_cfg.vtcr) vtcr = &cfg->arm_lpae_s2_cfg.vtcr;
 
 	/* The NS quirk doesn't apply at stage 2 */
-	if (cfg->quirks)
+	if (cfg->quirks & 0xff)
 		return NULL;
 
 	data = arm_lpae_alloc_pgtable(cfg);
@@ -1045,17 +1083,29 @@ arm_64_lpae_alloc_pgtable_s2(struct io_pgtable_cfg *cfg, void *cookie)
 	vtcr->tsz = 64ULL - cfg->ias;
 	vtcr->sl = ~sl & ARM_LPAE_VTCR_SL0_MASK;
 
-	/* Allocate pgd pages */
-	data->pgd = __arm_lpae_alloc_pages(ARM_LPAE_PGD_SIZE(data),
-					   GFP_KERNEL, cfg);
-	if (!data->pgd)
-		goto out_free_data;
+	/* SMMU_FEAT_MULTI_OS_S2 is only used by coreip */
+	if (!(cfg->quirks & SMMU_FEAT_MULTI_OS_S2)) {
+		/* Allocate pgd pages */
+		data->pgd = __arm_lpae_alloc_pages(ARM_LPAE_PGD_SIZE(data),
+						GFP_KERNEL, cfg);
+		if (!data->pgd)
+			goto out_free_data;
 
-	/* Ensure the empty pgd is visible before any actual TTBR write */
-	wmb();
+		/* Ensure the empty pgd is visible before any actual TTBR write */
+		wmb();
 
-	/* VTTBR */
-	cfg->arm_lpae_s2_cfg.vttbr = virt_to_phys(data->pgd);
+		/* VTTBR */
+		cfg->arm_lpae_s2_cfg.vttbr = virt_to_phys(data->pgd);
+	} else {
+		data->pgd = ioremap_wc(MULTI_OS_S2_COMMON_LVL0_BASE + (cfg->quirks >> 16) * MULTI_OS_S2_SINGLE_SID_LVL0_SIZE, MULTI_OS_S2_SINGLE_SID_LVL0_SIZE);
+		if (!data->pgd)
+			goto out_free_data;
+
+		/* Ensure the empty pgd is visible before any actual TTBR write */
+		wmb();
+		cfg->arm_lpae_s2_cfg.vttbr = MULTI_OS_S2_COMMON_LVL0_BASE + (cfg->quirks >> 16) * MULTI_OS_S2_SINGLE_SID_LVL0_SIZE;
+	}
+
 	return &data->iop;
 
 out_free_data:

@@ -217,8 +217,9 @@ static int pci_virtnet_get_intmsg(struct virtnet_adapter *adapter)
 {
 	struct virtnet_bar *bar = (struct virtnet_bar *)adapter->base;
 	u32 bar_num = bar->ep_int_bar;
+	unsigned long ep_status = bar->ep_status;
 
-	if (test_bit(__VNET_POLLING, (unsigned long *)&bar->ep_status)) {
+	if (test_bit(__VNET_POLLING, &ep_status)) {
 		adapter->int_desc.is_valid = false;
 	} else {
 		adapter->int_desc.is_valid = true;
@@ -458,7 +459,7 @@ static int pci_virtnet_core_init(void *arg)
 
 	while (true) {
 		if ((reg->ep_status & 0xFFFF0000) == __VNET_MAGIC &&
-		     reg->ep_status & (1 << __VNET_INIT)) {
+		    reg->ep_status & (1 << __VNET_INIT)) {
 			pr_info("ep virtnet is ready, continue to initialize\n");
 			break;
 		}

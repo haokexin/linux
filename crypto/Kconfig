@@ -79,6 +79,9 @@ config CRYPTO_FIPS140_MOD_EVAL_TESTING
 	  errors and support for a userspace interface to some of the module's
 	  services.  This option should not be enabled in production builds.
 
+config CRYPTODEV
+	tristate "A device that allows access to Linux cryptographic drivers"
+
 config CRYPTO_ALGAPI
 	tristate
 	select CRYPTO_ALGAPI2

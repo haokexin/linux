@@ -1,0 +1,36 @@
+//virt-bl.fidl
+//package名，前缀统一为com.bst.ipc，XXX为模块名，由对应模块的开发人员确定，如safety/security/realtime/isp/net等。
+package com.bst.ipc.soc
+
+interface backlight {
+    version {major 1  minor 0}
+    
+    enumeration ErrorEnum {
+        NO_ERROR = 0
+        SERVER_FAIL = -1
+    }
+
+    /* message define for virt-backlight */
+    array UInt32Array of UInt32
+    struct virt_bl_msg {
+        UInt32 msg_len
+        UInt32 cmd_id
+        UInt32Array content
+    }
+    method virt_bl_request {
+        in {
+            virt_bl_msg req
+        }
+        out {
+            virt_bl_msg rsp
+        }
+        error ErrorEnum
+    }
+    broadcast virt_bl_broadcast selective {
+         // broadcast的输出参数表，输出参数禁止重名。
+        out {
+            virt_bl_msg evt
+        }
+    }
+    /* -------- virt-backlight message end -------- */
+}

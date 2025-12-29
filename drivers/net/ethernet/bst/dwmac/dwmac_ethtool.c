@@ -276,112 +276,38 @@ static int bstgmac_ethtool_get_link_ksettings(struct net_device *dev,
 					      *cmd)
 {
 	struct bstgmac_priv *priv = netdev_priv(dev);
-	struct phy_device *phy = dev->phydev;
-	u32 lp;
+	u32 supported, advertising, lp_advertising;
 
-	if (priv->hw->pcs & BSTGMAC_PCS_SGMII) {
-		struct rgmii_adv adv;
-		u32 supported, advertising, lp_advertising;
-
-		if (!priv->xstats.pcs_link) {
-			cmd->base.speed = SPEED_UNKNOWN;
-			cmd->base.duplex = DUPLEX_UNKNOWN;
-			return 0;
-		}
-		cmd->base.duplex = priv->xstats.pcs_duplex;
-
-		cmd->base.speed = priv->xstats.pcs_speed;
-
-		/* Get and convert ADV/LP_ADV from the HW AN registers */
-		if (bstgmac_pcs_get_adv_lp(priv, priv->ioaddr, &adv))
-			return -EOPNOTSUPP;	/* should never happen indeed */
-		/* Encoding of PSE bits is defined in 802.3z, 37.2.1.4 */
-
-		ethtool_convert_link_mode_to_legacy_u32(&supported,
-							cmd->link_modes.supported);
-		ethtool_convert_link_mode_to_legacy_u32(&advertising,
-							cmd->link_modes.advertising);
-		ethtool_convert_link_mode_to_legacy_u32(&lp_advertising,
-							cmd->link_modes.lp_advertising);
-
-		if (adv.pause & BSTGMAC_PCS_PAUSE)
-			advertising |= ADVERTISED_Pause;
-		if (adv.pause & BSTGMAC_PCS_ASYM_PAUSE)
-			advertising |= ADVERTISED_Asym_Pause;
-		if (adv.lp_pause & BSTGMAC_PCS_PAUSE)
-			lp_advertising |= ADVERTISED_Pause;
-		if (adv.lp_pause & BSTGMAC_PCS_ASYM_PAUSE)
-			lp_advertising |= ADVERTISED_Asym_Pause;
-
-		/* Reg49[3] always set because ANE is always supported */
-		cmd->base.autoneg = ADVERTISED_Autoneg;
-		supported |= SUPPORTED_Autoneg;
-		advertising |= ADVERTISED_Autoneg;
-		lp_advertising |= ADVERTISED_Autoneg;
-
-		if (adv.duplex) {
-			supported |= (SUPPORTED_1000baseT_Full |
-				      SUPPORTED_100baseT_Full |
-				      SUPPORTED_10baseT_Full);
-			advertising |= (ADVERTISED_1000baseT_Full |
-					ADVERTISED_100baseT_Full |
-					ADVERTISED_10baseT_Full);
-		} else {
-			supported |= (SUPPORTED_1000baseT_Half |
-				      SUPPORTED_100baseT_Half |
-				      SUPPORTED_10baseT_Half);
-			advertising |= (ADVERTISED_1000baseT_Half |
-					ADVERTISED_100baseT_Half |
-					ADVERTISED_10baseT_Half);
-		}
-		if (adv.lp_duplex)
-			lp_advertising |= (ADVERTISED_1000baseT_Full |
-					   ADVERTISED_100baseT_Full |
-					   ADVERTISED_10baseT_Full);
-		else
-			lp_advertising |= (ADVERTISED_1000baseT_Half |
-					   ADVERTISED_100baseT_Half |
-					   ADVERTISED_10baseT_Half);
-		cmd->base.port = PORT_OTHER;
-
-		ethtool_convert_legacy_u32_to_link_mode(cmd->link_modes.supported,
-							supported);
-		ethtool_convert_legacy_u32_to_link_mode(cmd->link_modes.advertising,
-							advertising);
-		ethtool_convert_legacy_u32_to_link_mode(cmd->link_modes.lp_advertising,
-							lp_advertising);
-
-		return 0;
-	}
-
-	if (!phy && priv->plat->bypass) {
-		pr_err("%s: %s: PHY is not registered\n", __func__, dev->name);
+	if (priv->plat->bypass)
 		return -ENODEV;
-	}
 
-	if (phy) {
-		if (!netif_running(dev)) {
-			pr_err("%s: interface is disabled: we cannot track link speed / duplex setting\n", dev->name);
-			return -EBUSY;
-		}
-		phy_ethtool_ksettings_get(phy, cmd);
+	if (!priv->phylink)
+		return -EOPNOTSUPP;
 
-		ethtool_convert_link_mode_to_legacy_u32(&lp, phy->lp_advertising);
-		lp &= ~(ADVERTISED_1000baseT_Half |
-			ADVERTISED_100baseT_Half |
-			ADVERTISED_10baseT_Half |
-			ADVERTISED_100baseT_Full |
-			ADVERTISED_10baseT_Full |
-			ADVERTISED_10000baseKX4_Full |
-			ADVERTISED_10000baseKR_Full |
-			ADVERTISED_20000baseMLD2_Full |
-			ADVERTISED_40000baseKR4_Full |
-			ADVERTISED_40000baseSR4_Full |
-			ADVERTISED_2500baseX_Full |
-			__ETHTOOL_LINK_MODE_LEGACY_MASK(25000baseCR_Full));
-		ethtool_convert_legacy_u32_to_link_mode(cmd->link_modes.lp_advertising,
-							lp);
-	}
+	phylink_ethtool_ksettings_get(priv->phylink, cmd);
+	
+	ethtool_convert_link_mode_to_legacy_u32(&supported,
+							cmd->link_modes.supported);
+	ethtool_convert_link_mode_to_legacy_u32(&advertising,
+						cmd->link_modes.advertising);
+	ethtool_convert_link_mode_to_legacy_u32(&lp_advertising,
+						cmd->link_modes.lp_advertising);
+
+	cmd->base.autoneg = 0;
+	supported &= (~SUPPORTED_Autoneg);
+	advertising &= (~ADVERTISED_Autoneg);
+	lp_advertising &= (~ADVERTISED_Autoneg);
+
+	supported |= SUPPORTED_Pause | SUPPORTED_Asym_Pause;
+	advertising |= ADVERTISED_Pause | ADVERTISED_Asym_Pause;
+	lp_advertising |= ADVERTISED_Pause | ADVERTISED_Asym_Pause;
+
+	ethtool_convert_legacy_u32_to_link_mode(cmd->link_modes.supported,
+							supported);
+	ethtool_convert_legacy_u32_to_link_mode(cmd->link_modes.advertising,
+						advertising);
+	ethtool_convert_legacy_u32_to_link_mode(cmd->link_modes.lp_advertising,
+						lp_advertising);
 
 	return 0;
 }
@@ -522,9 +448,10 @@ bstgmac_get_pauseparam(struct net_device *netdev,
 {
 	struct bstgmac_priv *priv = netdev_priv(netdev);
 
-	pause->rx_pause = 0;
-	pause->tx_pause = 0;
-	phylink_ethtool_get_pauseparam(priv->phylink, pause);
+	pause->rx_pause = (priv->flow_ctrl & FLOW_RX);
+	pause->tx_pause = (priv->flow_ctrl & FLOW_TX);
+	pause->autoneg = 0;
+	//phylink_ethtool_get_pauseparam(priv->phylink, pause);
 }
 
 static int
@@ -533,16 +460,17 @@ bstgmac_set_pauseparam(struct net_device *netdev,
 {
 	struct bstgmac_priv *priv = netdev_priv(netdev);
 
+	if (pause->tx_pause || pause->autoneg) {
+		pr_err("ONLY SUPPORT RX PAUSE\n");
+		return 0;
+	}
 	/* Flow Control operation */
-	if (pause->rx_pause && pause->tx_pause)
-		priv->flow_ctrl = FLOW_AUTO;
-	else if (pause->rx_pause && !pause->tx_pause)
+	if (pause->rx_pause)
 		priv->flow_ctrl = FLOW_RX;
-	else if (!pause->rx_pause && pause->tx_pause)
-		priv->flow_ctrl = FLOW_TX;
 	else
-		priv->flow_ctrl = FLOW_OFF;
-	phylink_ethtool_set_pauseparam(priv->phylink, pause);
+		priv->flow_ctrl &= (~FLOW_RX);
+
+	//phylink_ethtool_set_pauseparam(priv->phylink, pause);
 
 	return 0;
 }

@@ -2183,15 +2183,6 @@ int kbase_map_external_resource(struct kbase_context *kctx, struct kbase_va_regi
  */
 void kbase_unmap_external_resource(struct kbase_context *kctx, struct kbase_va_region *reg);
 
-/**
- * kbase_unpin_user_buf_page - Unpin a page of a user buffer.
- * @page: page to unpin
- *
- * The caller must have ensured that there are no CPU mappings for @page (as
- * might be created from the struct kbase_mem_phy_alloc that tracks @page), and
- * that userspace will not be able to recreate the CPU mappings again.
- */
-void kbase_unpin_user_buf_page(struct page *page);
 
 /**
  * kbase_jd_user_buf_pin_pages - Pin the pages of a user buffer.

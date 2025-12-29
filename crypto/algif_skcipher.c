@@ -43,6 +43,10 @@ static inline int skcipher_cipher_op(struct af_alg_ctx *ctx,
 		return crypto_skcipher_encrypt(&areq->cra_u.skcipher_req);
 	case ALG_OP_DECRYPT:
 		return crypto_skcipher_decrypt(&areq->cra_u.skcipher_req);
+	case ALG_OP_MACGEN:
+		return crypto_skcipher_macgen(&areq->cra_u.skcipher_req);
+	case ALG_OP_MACVER:
+		return crypto_skcipher_macver(&areq->cra_u.skcipher_req);
 	default:
 		return -EOPNOTSUPP;
 	}
@@ -57,7 +61,6 @@ static int skcipher_sendmsg(struct socket *sock, struct msghdr *msg,
 	struct alg_sock *pask = alg_sk(psk);
 	struct crypto_skcipher *tfm = pask->private;
 	unsigned ivsize = crypto_skcipher_ivsize(tfm);
-
 	return af_alg_sendmsg(sock, msg, size, ivsize);
 }
 

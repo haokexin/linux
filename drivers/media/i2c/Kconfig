@@ -1601,5 +1601,5 @@ config VIDEO_THS7303
 	  module will be called ths7303.
 
 endmenu
-
+source "drivers/media/i2c/bst/Kconfig"
 endif # VIDEO_DEV

@@ -742,6 +742,8 @@ struct arm_smmu_master {
 	bool				iopf_enabled;
 	struct list_head		bonds;
 	unsigned int			ssid_bits;
+	/* special master cmn_dev add offset flag */
+	bool				cmn_dev_offset_flag;
 };
 
 /* SMMU private data for an IOMMU domain */

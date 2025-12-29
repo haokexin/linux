@@ -602,9 +602,11 @@ int bstgmac_mdio_reset(struct mii_bus *bus)
 		data->active_low = of_property_read_bool(np,
 							 "reset-active-low");
 
-		of_property_read_u32(np, "reset-assert-us", &data->delays[1]);
+		if (of_property_read_u32(np, "reset-assert-us", &data->delays[1]))
+			data->delays[1] = 20000;
 
-		of_property_read_u32(np, "reset-deassert-us", &data->delays[2]);
+		if (of_property_read_u32(np, "reset-deassert-us", &data->delays[2]))
+			data->delays[2] = 20000;
 
 		gpio_direction_output(data->reset_gpio,
 				      data->active_low ? 1 : 0);

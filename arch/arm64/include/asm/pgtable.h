@@ -560,6 +560,8 @@ static inline void set_pud_at(struct mm_struct *mm, unsigned long addr,
 	__pgprot_modify(prot, PTE_ATTRINDX_MASK, PTE_ATTRINDX(MT_DEVICE_nGnRE) | PTE_PXN | PTE_UXN)
 #define pgprot_tagged(prot) \
 	__pgprot_modify(prot, PTE_ATTRINDX_MASK, PTE_ATTRINDX(MT_NORMAL_TAGGED))
+#define pgprot_normal_nonshared(prot) \
+	__pgprot_modify(prot, PTE_ATTRINDX_MASK | PTE_SH_MASK, PTE_ATTRINDX(MT_NORMAL) | PTE_NON_SHARED | PTE_PXN | PTE_UXN)
 #define pgprot_mhp	pgprot_tagged
 /*
  * DMA allocations for non-coherent devices use what the Arm architecture calls

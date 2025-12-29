@@ -133,7 +133,7 @@ void mver_scheduler_stop(mver_session_id session_id);
  * Called when an interrupt has been received for a LSID.
  * @param lsid LSID of the session that generated the interrupt.
  */
-void mver_scheduler_handle_irq(enum LSID lsid);
+void mver_scheduler_handle_irq(/*enum LSID*/int lsid);
 
 /**
  * Call this function to invalidate all cached page mappings in the TLB. This

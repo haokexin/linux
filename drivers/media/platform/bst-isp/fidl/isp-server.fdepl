@@ -1,0 +1,15 @@
+// isp-server.fdepl
+import "isp-inf.fdepl"
+
+define com.bst.ipc.deployment for provider as isp_msgbx_server {
+    ProviderType = Server
+    RTE = BareMetal
+    SrcEndID = ISPCV_4
+    // Note: Server FID MUST be set to DEF
+    FID = DEF
+    SID = 1
+    instance com.bst.ipc.isp.video {
+        GenerateReplyMethod = true
+        NotUseSwitchCase = true
+    }
+}

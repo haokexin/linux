@@ -1,0 +1,418 @@
+/dts-v1/;
+/plugin/;
+
+#include <dt-bindings/interrupt-controller/arm-gic.h>
+
+/{
+    fragment_root {
+        target-path = "/";
+	__overlay__ {
+		/* This section was used on AOSP v9.0 for defining first-stage fstab records */
+		model = "BST C1296 CDCU1.0 4C6G";
+		firmware {
+			android {
+				compatible = "android,firmware";
+
+				fstab {
+					compatible = "android,fstab";
+				};
+			};
+		};
+
+		/* This is used to push the total usable DDR to Normal Zone
+		 * DON NOT USE IT !!!
+		 */
+		memory@1000000 {
+			device_type = "memory";
+			reg = <0x0 0x1000000 0x0 0x1000>;
+		};
+
+		memory@c00000000 {
+			device_type = "memory";
+			reg = <0xc 0x40000000 0x1 0x80000000>;
+		};
+
+		memory@800000000 {
+			device_type = "memory";
+			reg = <0x8 0x00000000 0x0 0x20000>;
+		};
+
+		memory@806400000 {
+			device_type = "memory";
+			reg = <0x8 0x6400000 0x0 0x100000>;
+		};
+
+
+		memory@800300000 {
+			device_type = "memory";
+			reg = <0x8 0x300000 0x0 0x400000>;
+		};
+
+		memory@821000000 {
+			device_type = "memory";
+			reg = <0x8 0x21000000 0x0 0x16000000>;
+		};
+
+		memory@837000000 {
+			device_type = "memory";
+			reg = <0x8 0x37000000 0x0 0x49000000>;
+		};
+
+		memory@806a10000 {
+			device_type = "memory";
+			reg = <0x8 0x06a10000 0x0 0x100000>;
+		};
+		memory@80e000000 {
+			device_type = "memory";
+			reg = <0x8 0x0e000000 0x0 0x1000000>;
+		};
+		/****************************************************************************************/
+/*	c0_lockstep/c1_split	1 + 5: c0 0x0 + c0 0x100 \ c1 0x0 ~ 0x300
+ *	c0_lockstep/c1_lockstep	1 + 3: c0 0x0 + c0 0x100 \ c1 0x0 ~ 0x100
+ *	split			2 + 6: c0 0x0 ~ 0x100 + c0 0x200 ~ 0x300 \ c1 0x0 ~ 0x300
+ *	split			4 + 4: c0 0x0 ~ 0x300 + c1 0x0 ~ 0x300
+ */
+/****************************************************************************************/
+	cpus {
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		cpu_l3: cpu@3 {
+			compatible = "arm,cortex-a78", "arm,armv8";
+			device_type = "cpu";
+			enable-method = "psci";
+			next-level-cache = <&l2_3>;
+			reg = <0x300>;
+			freq-domain = <&cpufreq 0>;
+
+			i-cache-size = <0x10000>;
+			i-cache-line-size = <64>;
+			i-cache-sets = <256>;
+			d-cache-size = <0x10000>;
+			d-cache-line-size = <64>;
+			d-cache-sets = <256>;
+
+			l2_3: l2-cache {
+				compatible = "cache";
+				cache-level = <2>;
+				next-level-cache = <&l3_0>;
+				cache-size = <0x80000>;
+				cache-line-size = <64>;
+				cache-sets = <1024>;
+			};
+		};
+
+		cpu_l2: cpu@2 {
+			compatible = "arm,cortex-a78", "arm,armv8";
+			device_type = "cpu";
+			enable-method = "psci";
+			next-level-cache = <&l2_2>;
+			reg = <0x200>;
+			freq-domain = <&cpufreq 0>;
+
+			i-cache-size = <0x10000>;
+			i-cache-line-size = <64>;
+			i-cache-sets = <256>;
+			d-cache-size = <0x10000>;
+			d-cache-line-size = <64>;
+			d-cache-sets = <256>;
+
+			l2_2: l2-cache {
+				compatible = "cache";
+				cache-level = <2>;
+				next-level-cache = <&l3_0>;
+				cache-size = <0x80000>;
+				cache-line-size = <64>;
+				cache-sets = <1024>;
+			};
+		};
+
+		cpu_l1: cpu@1 {
+			compatible = "arm,cortex-a78", "arm,armv8";
+			device_type = "cpu";
+			enable-method = "psci";
+			next-level-cache = <&l2_1>;
+			reg = <0x100>;
+			freq-domain = <&cpufreq 0>;
+
+			i-cache-size = <0x10000>;
+			i-cache-line-size = <64>;
+			i-cache-sets = <256>;
+			d-cache-size = <0x10000>;
+			d-cache-line-size = <64>;
+			d-cache-sets = <256>;
+
+			l2_1: l2-cache {
+				compatible = "cache";
+				cache-level = <2>;
+				next-level-cache = <&l3_0>;
+				cache-size = <0x80000>;
+				cache-line-size = <64>;
+				cache-sets = <1024>;
+			};
+		};
+
+		cpu_l0: cpu@0 {
+			compatible = "arm,cortex-a78", "arm,armv8";
+			device_type = "cpu";
+			enable-method = "psci";
+			next-level-cache = <&l2_0>;
+			reg = <0x0>;
+			freq-domain = <&cpufreq 0>;
+
+			i-cache-size = <0x10000>;
+			i-cache-line-size = <64>;
+			i-cache-sets = <256>;
+			d-cache-size = <0x10000>;
+			d-cache-line-size = <64>;
+			d-cache-sets = <256>;
+
+			l2_0: l2-cache {
+				compatible = "cache";
+				cache-level = <2>;
+				next-level-cache = <&l3_0>;
+				cache-size = <0x80000>;
+				cache-line-size = <64>;
+				cache-sets = <1024>;
+			};
+		};
+
+		l3_0: l3-cache@0 {
+			compatible = "cache";
+			cache-level = <3>;
+			cache-size = <0x200000>;
+			cache-line-size = <64>;
+			cache-sets = <2048>;
+		};
+	};
+	};
+    };
+};
+&scmi_pinctrl {    
+    uart3_pinctrl:uart3_pinctrl  {
+        mux {
+            pins = "SC_UART3_TXD", "SC_UART3_RXD","SC_UART3_RTS", "SC_UART3_CTS";
+            function = "uart3";
+        };
+    };
+
+    gpio_pinctrl:gpio_pinctrl {
+        mux {
+            pins = "WK_GPIO13", "SC_I2S1_MCK", "SC_I2S0_MCK", "SC_I2S2_DIN1", "SC_I2S2_DOUT1",
+            "SC_I2S2_DIN2", "SC_I2S2_DOUT2", "SC_I2S2_DIN3", "SC_I2S2_DOUT3";
+            function = "gpio";
+        };
+    };
+    tdm0_pinctrl:tdm0_pinctrl  {
+        mux {
+            pins = "SC_I2S0_SCK", "SC_I2S0_WS", "SC_I2S0_DIN0", "SC_I2S0_DOUT0";
+            function = "pcm0";
+        };
+    };
+    tdm1_pinctrl:tdm1_pinctrl  {
+        mux {
+            pins = "SC_I2S1_SCK", "SC_I2S1_WS", "SC_I2S1_DIN0", "SC_I2S1_DOUT0";
+            function = "pcm1";
+        };
+    };
+    i2s0_pinctrl:i2s0_pinctrl  {
+        mux {
+            pins = "SC_I2S0_SCK", "SC_I2S0_WS", "SC_I2S0_DIN0", "SC_I2S0_DOUT0";
+            function = "i2s0";
+        };
+    };
+    i2s1_pinctrl:i2s1_pinctrl  {
+        mux {
+            pins = "SC_I2S1_SCK", "SC_I2S1_WS", "SC_I2S1_DIN0", "SC_I2S1_DOUT0";
+            function = "i2s1";
+        };
+    };
+    i2s2_pinctrl:i2s2_pinctrl  {
+        mux {
+            pins = "SC_I2S2_MCK", "SC_I2S2_SCK", "SC_I2S2_WS", "SC_I2S2_DIN0", "SC_I2S2_DOUT0";
+            function = "i2s2";
+        };
+    };
+
+    hpd_pinctrl:hpd_pinctrl {
+        mux {
+            pins = "EDP_HPD";
+            function = "edp";
+        };
+    };
+    lvds0_pinconfig:lvds0_pinconfig {
+        config {
+            pins = "LVDS0_ODD_TX0", "LVDS0_ODD_TX1", "LVDS0_ODD_TX2", "LVDS0_ODD_TX3", "LVDS0_ODD_CLKN";
+            input-enable;
+        };
+    };
+    lvds1_pinconfig:lvds1_pinconfig {
+        config {
+            pins = "LVDS0_EVEN_TX0", "LVDS0_EVEN_TX1", "LVDS0_EVEN_TX2", "LVDS0_EVEN_TX3", "LVDS0_EVEN_CLKN";
+            input-enable;
+        };
+    };
+    sw_gmac_pinctrl:sw_gmac_pinctrl {
+		mux {
+			pins = "SW_XGMAC2_MDIO", "SW_XGMAC2_MDC";    //PAD NAME
+			function = "sw_gmac"; 
+		};
+	};
+};
+&uart3 {
+    status = "okay";
+    pinctrl-names = "default";
+    pinctrl-0 = <&uart3_pinctrl>;
+};
+&gpio0 {
+	status = "okay";
+	pinctrl-names = "default";
+	pinctrl-0 = <&gpio_pinctrl &isp_pinctrl &deser_pinctrl>;
+};
+
+&i2c0 {
+	status = "okay";
+};
+
+&i2c1 {
+	status = "disable";
+};
+
+&i2c2 {
+	status = "disable";
+};
+
+&i2c3 {
+	status = "disable";
+};
+
+&i2c4 {
+	status = "okay";
+};
+
+&i2c5 {
+	status = "disable";
+};
+
+&i2c6 {
+	status = "disable";
+};
+
+&i2c7 {
+	status = "disable";
+};
+
+&tdm1 {
+    status = "okay";
+    //use-dma;
+    pinctrl-names = "default";
+    pinctrl-0 = <&tdm1_pinctrl>;
+    slot_cnt = <8>;
+};
+
+&i2s0 {
+    status = "okay";
+    use-dma;
+    pinctrl-names = "default";
+    pinctrl-0 = <&i2s0_pinctrl>;
+};
+
+&i2s2 {
+    status = "okay";
+    use-dma;
+    pinctrl-names = "default";
+    pinctrl-0 = <&i2s2_pinctrl>;
+};
+
+&bst_adsp_tdm_codec1 {
+    status = "okay";
+};
+
+&bst_adsp_i2s_codec0 {
+    status = "okay";
+};
+
+&bst_adsp_i2s_codec1 {
+    status = "okay";
+};
+
+&bst_rfkill_bt {
+    status = "okay";
+};
+
+&virtouch {
+	status = "okay";
+};
+
+&bst_dptx {
+    status = "okay";
+    pinctrl-names = "default";
+    pinctrl-0 = <&hpd_pinctrl>;
+};
+&gmac0 {
+	status = "disable";
+	phy-handle = <&eth_phy1>;
+	extend-op = <20>;
+	phy-mode = "sgmii";
+	mac-mode = "gmii";
+    xpcs-addr = <1>;
+	/*bypass;  //bool, set: bypass , non set : non bypass
+	pinctrl-names = "default"; //bypass
+    pinctrl-0 = <&sw_gmac_pinctrl>;*/
+
+	mdio {
+		compatible = "snps,dwmac-mdio";
+		#address-cells = <1>;
+		#size-cells = <0>;
+		status = "okay";		
+		eth_phy1: eth_phy1@1 {
+			compatible = "marvell,88E1510", "ethernet-phy-id0141.0DD1", "ethernet-phy-ieee802.3-c22";
+			device_type = "ethernet-phy";
+			max-speed = <1000>;
+			reg = <0x1>;
+			reset-active-low;
+			reset-gpios = <&portf 4 1>; //gpio 164
+			reset-assert-us = <20000>;
+			reset-deassert-us = <20000>;
+		};
+		
+	};
+};
+
+&msgbox {
+	status = "okay";
+	spi-irq-num = <4>;
+	filter-num = <8>;
+	// id = <0x0>;
+	// end0 and end1 spi irq
+	interrupts =    <
+			GIC_PPI 2 (GIC_CPU_MASK_SIMPLE(8) | IRQ_TYPE_LEVEL_LOW)
+			GIC_PPI 3 (GIC_CPU_MASK_SIMPLE(8) | IRQ_TYPE_LEVEL_LOW)
+			GIC_PPI 4 (GIC_CPU_MASK_SIMPLE(8) | IRQ_TYPE_LEVEL_LOW)
+			GIC_PPI 15 (GIC_CPU_MASK_SIMPLE(8) | IRQ_TYPE_LEVEL_LOW)
+			GIC_SPI 544 (IRQ_TYPE_LEVEL_HIGH)
+			GIC_SPI 545 (IRQ_TYPE_LEVEL_HIGH)
+			GIC_SPI 546 (IRQ_TYPE_LEVEL_HIGH)
+			GIC_SPI 547 (IRQ_TYPE_LEVEL_HIGH)
+			GIC_SPI 548 (IRQ_TYPE_LEVEL_HIGH)
+			GIC_SPI 549 (IRQ_TYPE_LEVEL_HIGH)
+			GIC_SPI 550 (IRQ_TYPE_LEVEL_HIGH)
+			GIC_SPI 551 (IRQ_TYPE_LEVEL_HIGH)
+			GIC_SPI 552 (IRQ_TYPE_LEVEL_HIGH)
+			GIC_SPI 553 (IRQ_TYPE_LEVEL_HIGH)
+			GIC_SPI 554 (IRQ_TYPE_LEVEL_HIGH)
+			GIC_SPI 555 (IRQ_TYPE_LEVEL_HIGH)
+			GIC_SPI 556 (IRQ_TYPE_LEVEL_HIGH)
+			GIC_SPI 557 (IRQ_TYPE_LEVEL_HIGH)
+			GIC_SPI 558 (IRQ_TYPE_LEVEL_HIGH)
+			GIC_SPI 559 (IRQ_TYPE_LEVEL_HIGH)
+			>;
+	#mbox-cells = <0x1>;
+};
+
+&codec0 {
+	compatible = "arm china,linlon-v5";
+	status = "okay";
+	/* PMU_CODEC0 value defined in safety power domain */
+	power-domains = <&scmi_devpd 0x19>;
+};

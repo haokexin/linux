@@ -1,0 +1,9 @@
+#include <dt-bindings/media/bst-isp.h>
+
+compatible = "bst,ox03f-yuv-hil";
+sensor-addr = <0x36>;
+data-type = <DT_YUV422_8B>;
+reg-width = <WORD_REG_BYTE_VAL>;
+
+ser-fsync-tx-pin = <0>;
+ser-addr = <0x40>;

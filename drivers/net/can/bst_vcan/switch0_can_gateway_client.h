@@ -17,10 +17,9 @@
  * limitations under the License.
  */
 
-/* This file is auto generated for message box v1.1.0.
+/* This file is auto generated for message box v2.0.0.
  * All manual modifications will be LOST by next generation.
  * It is recommended NOT modify it.
- * Generator Version: francaidl e39325d5 msgbx_ipc 
  */
 
 #ifndef SWITCH0_CAN_GATEWAY_CLIENT_H
@@ -112,6 +111,96 @@ typedef void (*switch0_can_gateway_can_gateway_send_callback_t)(
 				);
 
 /**
+ * Callback function for can_config_query_async method.
+ *
+ * @param config_info The output argument returned by can_config_query_async.
+ * @param err The error code returned by the method.
+ * @param ext The user-defined data passed to the method.
+ * @param info The extended information, containing uuid and timestamp.
+ * @note all the data are stored in ext_buf passed to async call.
+ * If ext_buf is NULL, internal buffer will be used.
+ * Please note that, the internal buffer is shared by all callbacks.
+ * The data MAY CHANGED after leaving the callback function.
+ */
+typedef void (*switch0_can_gateway_can_config_query_callback_t)(
+				const switch0_can_gateway_can_config_t *config_info,
+				const switch0_can_gateway_ErrorEnum_t err,
+				void *ext,
+				const ext_info_t *info
+				);
+
+/**
+ * Callback function for adas_vcan_notify_sqbuf_addr_async method.
+ *
+
+ * @param err The error code returned by the method.
+ * @param ext The user-defined data passed to the method.
+ * @param info The extended information, containing uuid and timestamp.
+ * @note all the data are stored in ext_buf passed to async call.
+ * If ext_buf is NULL, internal buffer will be used.
+ * Please note that, the internal buffer is shared by all callbacks.
+ * The data MAY CHANGED after leaving the callback function.
+ */
+typedef void (*switch0_can_gateway_adas_vcan_notify_sqbuf_addr_callback_t)(
+				const switch0_can_gateway_ErrorEnum_t err,
+				void *ext,
+				const ext_info_t *info
+				);
+
+/**
+ * Callback function for adas_vcan_driver_remove_async method.
+ *
+
+ * @param err The error code returned by the method.
+ * @param ext The user-defined data passed to the method.
+ * @param info The extended information, containing uuid and timestamp.
+ * @note all the data are stored in ext_buf passed to async call.
+ * If ext_buf is NULL, internal buffer will be used.
+ * Please note that, the internal buffer is shared by all callbacks.
+ * The data MAY CHANGED after leaving the callback function.
+ */
+typedef void (*switch0_can_gateway_adas_vcan_driver_remove_callback_t)(
+				const switch0_can_gateway_ErrorEnum_t err,
+				void *ext,
+				const ext_info_t *info
+				);
+
+/**
+ * Callback function for vcan_port_method_async method.
+ *
+ * @param rsp The output argument returned by vcan_port_method_async.
+ * @param err The error code returned by the method.
+ * @param ext The user-defined data passed to the method.
+ * @param info The extended information, containing uuid and timestamp.
+ * @note all the data are stored in ext_buf passed to async call.
+ * If ext_buf is NULL, internal buffer will be used.
+ * Please note that, the internal buffer is shared by all callbacks.
+ * The data MAY CHANGED after leaving the callback function.
+ */
+typedef void (*switch0_can_gateway_vcan_port_method_callback_t)(
+				const switch0_can_gateway_vcan_port_msg_t rsp,
+				const switch0_can_gateway_ErrorEnum_t err,
+				void *ext,
+				const ext_info_t *info
+				);
+
+/**
+ * Callback function for broadcast can_status_notify.
+ *
+ * @param status_info The output argument returned by broadcast can_status_notify.
+ * @param ext The user-defined data passed to the method.
+ * @param info The extended information, containing uuid and timestamp.
+ * @note all the data are stored in ext_buf passed to async call.
+ * If ext_buf is NULL, internal buffer will be used.
+ * Please note that, the internal buffer is shared by all callbacks.
+ * The data MAY CHANGED after leaving the callback function.
+ */
+typedef void (*switch0_can_gateway_can_status_notify_callback_t)(
+				const switch0_can_gateway_can_status_t *status_info,
+				void *ext,
+				const ext_info_t *info
+				);
+/**
  * Callback function for broadcast can_gateway_recv.
  *
 
@@ -123,6 +212,22 @@ typedef void (*switch0_can_gateway_can_gateway_send_callback_t)(
  * The data MAY CHANGED after leaving the callback function.
  */
 typedef void (*switch0_can_gateway_can_gateway_recv_callback_t)(
+				void *ext,
+				const ext_info_t *info
+				);
+/**
+ * Callback function for broadcast vcan_port_broadcast.
+ *
+ * @param evt The output argument returned by broadcast vcan_port_broadcast.
+ * @param ext The user-defined data passed to the method.
+ * @param info The extended information, containing uuid and timestamp.
+ * @note all the data are stored in ext_buf passed to async call.
+ * If ext_buf is NULL, internal buffer will be used.
+ * Please note that, the internal buffer is shared by all callbacks.
+ * The data MAY CHANGED after leaving the callback function.
+ */
+typedef void (*switch0_can_gateway_vcan_port_broadcast_callback_t)(
+				const switch0_can_gateway_vcan_port_msg_t evt,
 				void *ext,
 				const ext_info_t *info
 				);
@@ -348,6 +453,191 @@ struct _switch0_can_gateway_client_t {
 					des_buf_t *ext_buf
 					);
 
+	#ifndef IPC_RTE_BAREMETAL
+	/**
+	 * Synchronously call the hello method.
+	 *
+	 * @param can_bus_id The input argument of method can_config_query.
+	 * @param config_info The output argument of method can_config_query.
+	 * @param err The error code returned by the method.
+	 * @param timeout_ms The timeout for the method call in milliseconds, less or equal to 0 means wait forever.
+	 * @param ext_buf The buffer to store the user-defined data.
+	 * @return 0 if success, negative if fail.
+	 */
+	int32_t (*can_config_query_sync)(
+					const uint8_t can_bus_id,
+					switch0_can_gateway_can_config_t **config_info,
+					switch0_can_gateway_ErrorEnum_t *err,
+					int64_t timeout_ms,
+					des_buf_t *ext_buf
+					);
+	#endif
+
+	/**
+	 * Asynchronously call the can_config_query method.
+	 *
+	 * @param can_bus_id The input argument of method can_config_query.
+	 * @param cb The callback function to be called when the method returns.
+	 * @param ext The user-defined data passed to the method.
+	 * @param ext_buf The buffer to store the user-defined data.
+	 * @return 0 if success, negative if fail.
+	 */
+	int32_t (*can_config_query_async)(
+					const uint8_t can_bus_id,
+					switch0_can_gateway_can_config_query_callback_t cb,
+					void *ext,
+					des_buf_t *ext_buf
+					);
+
+	#ifndef IPC_RTE_BAREMETAL
+	/**
+	 * Synchronously call the hello method.
+	 *
+	 * @param pa_low The input argument of method adas_vcan_notify_sqbuf_addr.
+	 * @param pa_high The input argument of method adas_vcan_notify_sqbuf_addr.
+	 * @param size The input argument of method adas_vcan_notify_sqbuf_addr.
+
+	 * @param err The error code returned by the method.
+	 * @param timeout_ms The timeout for the method call in milliseconds, less or equal to 0 means wait forever.
+	 * @param ext_buf The buffer to store the user-defined data.
+	 * @return 0 if success, negative if fail.
+	 */
+	int32_t (*adas_vcan_notify_sqbuf_addr_sync)(
+					const uint32_t pa_low,
+					const uint32_t pa_high,
+					const uint32_t size,
+					switch0_can_gateway_ErrorEnum_t *err,
+					int64_t timeout_ms,
+					des_buf_t *ext_buf
+					);
+	#endif
+
+	/**
+	 * Asynchronously call the adas_vcan_notify_sqbuf_addr method.
+	 *
+	 * @param pa_low The input argument of method adas_vcan_notify_sqbuf_addr.
+	 * @param pa_high The input argument of method adas_vcan_notify_sqbuf_addr.
+	 * @param size The input argument of method adas_vcan_notify_sqbuf_addr.
+	 * @param cb The callback function to be called when the method returns.
+	 * @param ext The user-defined data passed to the method.
+	 * @param ext_buf The buffer to store the user-defined data.
+	 * @return 0 if success, negative if fail.
+	 */
+	int32_t (*adas_vcan_notify_sqbuf_addr_async)(
+					const uint32_t pa_low,
+					const uint32_t pa_high,
+					const uint32_t size,
+					switch0_can_gateway_adas_vcan_notify_sqbuf_addr_callback_t cb,
+					void *ext,
+					des_buf_t *ext_buf
+					);
+
+	#ifndef IPC_RTE_BAREMETAL
+	/**
+	 * Synchronously call the hello method.
+	 *
+
+
+	 * @param err The error code returned by the method.
+	 * @param timeout_ms The timeout for the method call in milliseconds, less or equal to 0 means wait forever.
+	 * @param ext_buf The buffer to store the user-defined data.
+	 * @return 0 if success, negative if fail.
+	 */
+	int32_t (*adas_vcan_driver_remove_sync)(
+					switch0_can_gateway_ErrorEnum_t *err,
+					int64_t timeout_ms,
+					des_buf_t *ext_buf
+					);
+	#endif
+
+	/**
+	 * Asynchronously call the adas_vcan_driver_remove method.
+	 *
+
+	 * @param cb The callback function to be called when the method returns.
+	 * @param ext The user-defined data passed to the method.
+	 * @param ext_buf The buffer to store the user-defined data.
+	 * @return 0 if success, negative if fail.
+	 */
+	int32_t (*adas_vcan_driver_remove_async)(
+					switch0_can_gateway_adas_vcan_driver_remove_callback_t cb,
+					void *ext,
+					des_buf_t *ext_buf
+					);
+
+	#ifndef IPC_RTE_BAREMETAL
+	/**
+	 * Synchronously call the hello method.
+	 *
+	 * @param req The input argument of method vcan_port_method.
+	 * @param rsp The output argument of method vcan_port_method.
+	 * @param err The error code returned by the method.
+	 * @param timeout_ms The timeout for the method call in milliseconds, less or equal to 0 means wait forever.
+	 * @param ext_buf The buffer to store the user-defined data.
+	 * @return 0 if success, negative if fail.
+	 */
+	int32_t (*vcan_port_method_sync)(
+					const switch0_can_gateway_vcan_port_msg_t req,
+					switch0_can_gateway_vcan_port_msg_t *rsp,
+					switch0_can_gateway_ErrorEnum_t *err,
+					int64_t timeout_ms,
+					des_buf_t *ext_buf
+					);
+	#endif
+
+	/**
+	 * Asynchronously call the vcan_port_method method.
+	 *
+	 * @param req The input argument of method vcan_port_method.
+	 * @param cb The callback function to be called when the method returns.
+	 * @param ext The user-defined data passed to the method.
+	 * @param ext_buf The buffer to store the user-defined data.
+	 * @return 0 if success, negative if fail.
+	 */
+	int32_t (*vcan_port_method_async)(
+					const switch0_can_gateway_vcan_port_msg_t req,
+					switch0_can_gateway_vcan_port_method_callback_t cb,
+					void *ext,
+					des_buf_t *ext_buf
+					);
+
+	/**
+	 * Subscribe to the can_status_notify broadcast.
+	 *
+	 * @param cb The callback function called when the broadcast received.
+	 * @param ext The user-defined data passed to the broadcast callback.
+	 * @param ext_buf The buffer to store the user-defined data.
+	 * @param cb2 The callback function called when the subscription is complete.
+	 * @param ext2 The user-defined data passed to the subscription callback.
+	 * @note all the data are stored in ext_buf passed to async call.
+	 * If ext_buf is NULL, internal buffer will be used.
+	 * Please note that, the internal buffer is shared by all callbacks.
+	 * The data MAY CHANGED after leaving the callback function.
+	 * @note subscribe multiple times will result in multiple callbacks, while
+	 * the broadcast registry will be overwritten by the last subscription. This
+	 * means the cb, ext, ext_buf will be overwritten by the last subscription.
+	 * cb2 and ext2 will not be affected.
+	 * @return 0 if success, negative if fail.
+	 */
+	int32_t (*can_status_notify_sub)(
+					switch0_can_gateway_can_status_notify_callback_t cb,
+					void *ext,
+					des_buf_t *ext_buf,
+					broadcast_sub_unsub_callback_t cb2,
+					void *ext2
+					);
+
+	/**
+	 * Unsubscribe from the can_status_notify broadcast.
+	 *
+	 * @param cb The callback function called when the unsubscription is complete.
+	 * @param ext The user-defined data passed to the callback.
+	 * @return 0 if success, negative if fail.
+	 * @note if the subscription is not found, return -1.
+	 * @note unsubscribe multiple times will result in multiple callbacks.
+	 * cb and ext will not be affected by multiple unsubscriptions.
+	 */
+	int32_t (*can_status_notify_unsub)(broadcast_sub_unsub_callback_t cb, void *ext);
 	/**
 	 * Subscribe to the can_gateway_recv broadcast.
 	 *
@@ -360,6 +650,10 @@ struct _switch0_can_gateway_client_t {
 	 * If ext_buf is NULL, internal buffer will be used.
 	 * Please note that, the internal buffer is shared by all callbacks.
 	 * The data MAY CHANGED after leaving the callback function.
+	 * @note subscribe multiple times will result in multiple callbacks, while
+	 * the broadcast registry will be overwritten by the last subscription. This
+	 * means the cb, ext, ext_buf will be overwritten by the last subscription.
+	 * cb2 and ext2 will not be affected.
 	 * @return 0 if success, negative if fail.
 	 */
 	int32_t (*can_gateway_recv_sub)(
@@ -376,8 +670,48 @@ struct _switch0_can_gateway_client_t {
 	 * @param cb The callback function called when the unsubscription is complete.
 	 * @param ext The user-defined data passed to the callback.
 	 * @return 0 if success, negative if fail.
+	 * @note if the subscription is not found, return -1.
+	 * @note unsubscribe multiple times will result in multiple callbacks.
+	 * cb and ext will not be affected by multiple unsubscriptions.
 	 */
 	int32_t (*can_gateway_recv_unsub)(broadcast_sub_unsub_callback_t cb, void *ext);
+	/**
+	 * Subscribe to the vcan_port_broadcast broadcast.
+	 *
+	 * @param cb The callback function called when the broadcast received.
+	 * @param ext The user-defined data passed to the broadcast callback.
+	 * @param ext_buf The buffer to store the user-defined data.
+	 * @param cb2 The callback function called when the subscription is complete.
+	 * @param ext2 The user-defined data passed to the subscription callback.
+	 * @note all the data are stored in ext_buf passed to async call.
+	 * If ext_buf is NULL, internal buffer will be used.
+	 * Please note that, the internal buffer is shared by all callbacks.
+	 * The data MAY CHANGED after leaving the callback function.
+	 * @note subscribe multiple times will result in multiple callbacks, while
+	 * the broadcast registry will be overwritten by the last subscription. This
+	 * means the cb, ext, ext_buf will be overwritten by the last subscription.
+	 * cb2 and ext2 will not be affected.
+	 * @return 0 if success, negative if fail.
+	 */
+	int32_t (*vcan_port_broadcast_sub)(
+					switch0_can_gateway_vcan_port_broadcast_callback_t cb,
+					void *ext,
+					des_buf_t *ext_buf,
+					broadcast_sub_unsub_callback_t cb2,
+					void *ext2
+					);
+
+	/**
+	 * Unsubscribe from the vcan_port_broadcast broadcast.
+	 *
+	 * @param cb The callback function called when the unsubscription is complete.
+	 * @param ext The user-defined data passed to the callback.
+	 * @return 0 if success, negative if fail.
+	 * @note if the subscription is not found, return -1.
+	 * @note unsubscribe multiple times will result in multiple callbacks.
+	 * cb and ext will not be affected by multiple unsubscriptions.
+	 */
+	int32_t (*vcan_port_broadcast_unsub)(broadcast_sub_unsub_callback_t cb, void *ext);
 
 	/**
 	 * Dispatch broadcast messages.
@@ -385,7 +719,7 @@ struct _switch0_can_gateway_client_t {
 	 * @param des The received message package.
 	 * @return 0 if success, negative if fail.
 	 */
-	int32_t (*dispatch_broadcast)(serdes_t *des);
+	int32_t (*dispatch_broadcast)(des_buf_t *des);
 
 	/**
 	 * Dispatch reply messages.
@@ -393,7 +727,7 @@ struct _switch0_can_gateway_client_t {
 	 * @param des The received message package.
 	 * @return 0 if success, negative if fail.
 	 */
-	int32_t (*dispatch_reply)(serdes_t *des);
+	int32_t (*dispatch_reply)(des_buf_t *des);
 };
 #define switch0_can_gateway_client_t struct _switch0_can_gateway_client_t
 
@@ -402,8 +736,23 @@ struct _switch0_can_gateway_client_t {
  */
 struct _switch0_can_gateway_client_ext_t {
 	uint8_t cid;
-	uint8_t res[7];
+	uint8_t ccid;
+	uint8_t status;
+	uint8_t res[5];
+	uint64_t cid_mask;
+	avail_changed_callback_t avail_changed_cb;
+	void *avail_ext;
+	callback_registration_t get_ETH_statistics_registry[IPC_TOKEN_NUM];
+	callback_registration_t vmac_method_registry[IPC_TOKEN_NUM];
+	callback_registration_t vcan_method_registry[IPC_TOKEN_NUM];
+	callback_registration_t can_gateway_send_registry[IPC_TOKEN_NUM];
+	callback_registration_t can_config_query_registry[IPC_TOKEN_NUM];
+	callback_registration_t adas_vcan_notify_sqbuf_addr_registry[IPC_TOKEN_NUM];
+	callback_registration_t adas_vcan_driver_remove_registry[IPC_TOKEN_NUM];
+	callback_registration_t vcan_port_method_registry[IPC_TOKEN_NUM];
+	callback_registration_t can_status_notify_registry;
 	callback_registration_t can_gateway_recv_registry;
+	callback_registration_t vcan_port_broadcast_registry;
 };
 #define switch0_can_gateway_client_ext_t struct _switch0_can_gateway_client_ext_t
 

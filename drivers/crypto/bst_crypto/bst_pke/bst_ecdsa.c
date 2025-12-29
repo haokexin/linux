@@ -27,6 +27,7 @@
 #include <asm/unaligned.h>
 #include "bst_pke.h"
 #include "eccp_curve.h"
+#include "../common/bst_sa_common.h"
 
 static int sg_copy_part_from_buf(struct scatterlist *dest, u8 *src,
 			   unsigned int len, unsigned int skip)
@@ -45,12 +46,12 @@ static void ecdsa_print_key(uint8_t *in, uint8_t len, char *str)
 {
 	uint8_t i;
 	if (in == NULL) {
-		printk("%s print input is NULL", str);
+		bst_dbg(1, "%s print input is NULL", str);
 		return;
 	}
-	printk("%s print:", str);
+	bst_dbg(1, "%s print:", str);
 	for (i = 0; i < len; i++) {
-		printk("0x%02x", in[i]);
+		bst_dbg(1, "0x%02x", in[i]);
 	}
 }
 */
@@ -104,8 +105,8 @@ int bst_ecdsa_verify(struct akcipher_request *req)
 	}
 	sg_copy_part_from_buf(req->dst, result, sizeof(result), 0);
 
-	kfree(signature);
-	kfree(digest);
+	bst_kfree(signature);
+	bst_kfree(digest);
 
 	return ret;
 }
@@ -152,8 +153,8 @@ int bst_ecdsa_sign(struct akcipher_request *req)
 	sg_copy_part_from_buf(req->dst, signature, sign_len, 0);
 
 leave:
-	kfree(signature);
-	kfree(digest);
+	bst_kfree(signature);
+	bst_kfree(digest);
 
 	return rc;
 }
@@ -223,7 +224,7 @@ int bst_ecdsa_set_pub_key(struct crypto_akcipher *tfm, const void *key,
 		return -ENOPKG;
 		
 	ctx->key_len = params[1];
-	kfree(ctx->key);
+	bst_kfree(ctx->key);
 	ctx->key = kmalloc(ctx->key_len, GFP_KERNEL);
 	if (ctx->key == NULL)
 		return -ENOMEM;
@@ -300,7 +301,7 @@ int bst_ecdsa_set_priv_key(struct crypto_akcipher *tfm, const void *key,
 		return -ENOPKG;
 	
 	ctx->key_len = params[1];
-	kfree(ctx->key);
+	bst_kfree(ctx->key);
 	ctx->key = kmalloc(ctx->key_len, GFP_KERNEL);
 	if (ctx->key == NULL)
 		return -ENOMEM;
@@ -342,6 +343,7 @@ void bst_ecdsa_exit_tfm(struct crypto_akcipher *tfm)
 
 int bst_ecdsa_init_tfm(struct crypto_akcipher *tfm)
 {
+	pke_enable_interrupt();
 	return 0;
 }
 

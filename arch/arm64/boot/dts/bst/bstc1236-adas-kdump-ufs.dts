@@ -1,0 +1,435 @@
+// SPDX-License-Identifier: GPL-2.0+
+/dts-v1/;
+#include "bstc1200.dtsi"
+#include "bstc1200-soc-cluster1.dtsi"
+
+/ {
+	compatible = "bst,c1200";
+	model = "BST C1200 36";
+
+	chosen {
+		bootargs = "earlycon=uart8250,mmio32,0x20008000 console=ttyS0,115200n8 rdinit=/sbin/init root=/dev/ram rw init=/linuxrc rodata=n";
+		stdout-path = "uart0";
+	};
+
+	memory@8c0000000 {
+		device_type = "memory";
+		reg = < 0x8 0x10000000 0x0 0x30000000
+			0x8 0xc0000000 0x1 0x0
+			0xc 0x00000000 0x0 0x800000
+			0xc 0x02C00000 0x0 0x3D400000
+			0x8 0x1400000 0x0 0x1000000
+		>;
+	};
+
+	reserved-memory {
+		#address-cells = <2>;
+		#size-cells = <2>;
+		ranges;
+
+		scmi_buf_reserved: scmi_buf@800151000 {
+			compatible = "shared-dma-pool";
+			reg = <0x8 0x151000 0x0 0x1000>;
+			no-map;
+		};
+
+		scmi_buf_reserved1: scmi_buf1@800254000 {
+			compatible = "shared-dma-pool";
+			reg = <0x8 0x254000 0x0 0x1000>;
+			no-map;
+		};
+
+		bst_optee_reserved: bst_optee@801400000 {
+			compatible = "shared-dma-pool";
+			reg = <0x8 0x1400000 0x0 0x1000000>;
+			no-map;
+		};
+
+		bst_ipc_reserved: bst_ipc@800300000 {
+			compatible = "shared-dma-pool";
+			reg = <0x8 0x00300000 0x0 0x400000>;
+			no-map;
+		};
+
+	};
+
+	firmware {
+		optee {
+                compatible = "linaro,optee-tz";
+                method = "smc";
+                chip-number = <2>;
+        };
+	};
+
+	tee {
+		#address-cells = <0x2>;
+		#size-cells = <0x2>;
+		reg = <0x0 0x18060000 0x0 0x1f000>;
+		memory-region = <&bst_optee_reserved>;
+		mbox-names = "bst-mbox";
+		chip-number = <2>;
+	};
+};
+
+	&firmware_scmi {
+
+		shmem = <&scmi_buf_reserved>;
+		reg = <0x0 0x20011014 0 0x14>;
+		status = "okay";
+
+		scmi_voltage: protocol@17 {
+
+			regulators {
+				#address-cells = <1>;
+				#size-cells = <0>;
+				v_qmmc: regulator {
+					reg = <0>;
+					regulator-name = "voltage_qmmc";
+					regulator-min-microvolt = <1800000>;
+					regulator-max-microvolt = <3300000>;
+					regulator-always-on;
+				};
+			};
+
+		};
+
+		scmi_pinctrl: protocol@19 {
+
+			isp_pinctrl:isp_pinctrl {
+				mux {
+					pins = "WK_GPIO33", "WK_GPIO34","WK_GPIO35";
+					function = "isp";
+				};
+			};
+			hpd_pinctrl:hpd_pinctrl {
+				mux {
+					pins = "EDP_HPD";
+					function = "edp";
+				};
+			};
+			lvds0_pinconfig:lvds0_pinconfig {
+				config {
+					pins = "LVDS0_ODD_TX0", "LVDS0_ODD_TX1", "LVDS0_ODD_TX2", "LVDS0_ODD_TX3", "LVDS0_ODD_CLKN";
+					input-enable;
+				};
+			};
+			lvds1_pinconfig:lvds1_pinconfig {
+				config {
+					pins = "LVDS0_EVEN_TX0", "LVDS0_EVEN_TX1", "LVDS0_EVEN_TX2", "LVDS0_EVEN_TX3", "LVDS0_EVEN_CLKN";
+					input-enable;
+				};
+			};
+			soc_xgmac_pinctrl:soc_xgmac_pinctrl {
+				mux {
+					pins = "SC_UART2_TXD", "SC_UART2_RXD";    //PAD NAME
+					function = "xgmac"; 
+				};
+			};
+		};
+	};
+
+
+&i2c0 {
+	status = "okay";
+};
+&i2c1 {
+	status = "okay";
+};
+&i2c2 {
+	status = "disable";
+};
+&i2c3 {
+	status = "okay";
+};
+&i2c4 {
+	status = "okay";
+};
+&i2c5 {
+	status = "okay";
+};
+&i2c6 {
+	status = "okay";
+};
+&i2c7 {
+	status = "okay";
+};
+
+&uart0 {
+	status = "disable";
+};
+&uart1 {
+	status = "okay";
+};
+&uart2 {
+	status = "disable";
+};
+&uart3 {
+	status = "disable";
+};
+
+&spi0 {
+	status = "disable";
+};
+&spi1 {
+	status = "disable";
+};
+&spi2 {
+	status = "disable";
+};
+&spi3 {
+	status = "disable";
+};
+
+&i2s0 {
+	status = "disable";
+};
+&i2s1 {
+	status = "disable";
+};
+&i2s2 {
+	status = "disable";
+};
+&i2s3 {
+	status = "disable";
+};
+
+&tdm0 {
+	status = "disable";
+};
+&tdm1 {
+	status = "disable";
+};
+&tdm2 {
+	status = "disable";
+};
+&tdm3 {
+	status = "disable";
+};
+
+&watchdog0 {
+	status = "disable";
+};
+&watchdog1 {
+	status = "disable";
+};
+&watchdog2 {
+	status = "disable";
+};
+&watchdog3 {
+	status = "disable";
+};
+&watchdog_soc0 {
+	status = "disable";
+};
+&watchdog_soc1 {
+	status = "disable";
+};
+&watchdog_soc2 {
+	status = "disable";
+};
+&watchdog_soc3 {
+	status = "disable";
+};
+
+&watchdog_soc4 {
+	status = "disable";
+};
+&watchdog_soc5 {
+	status = "disable";
+};
+&watchdog_soc6 {
+	status = "disable";
+};
+&watchdog_soc7 {
+	status = "disable";
+};
+&watchdog_db0 {
+	status = "disable";
+};
+&watchdog_db1 {
+	status = "disable";
+};
+&watchdog_db2 {
+	status = "disable";
+};
+&watchdog_db3 {
+	status = "disable";
+};
+
+&lsp0_pwm0 {
+	status = "disable";
+};
+&lsp1_pwm0 {
+	status = "disable";
+};
+
+&gpio0 {
+	status = "okay";
+	pinctrl-names = "default";
+	pinctrl-0 = <&isp_pinctrl>;
+};
+&gpio1 {
+	status = "okay";
+};
+&gpio2 {
+	status = "okay";
+};
+&gpio3 {
+	status = "okay";
+};
+&gpio4 {
+	status = "okay";
+};
+&gpio5 {
+	status = "okay";
+};
+&gpio6 {
+	status = "okay";
+};
+&gpio7 {
+	status = "okay";
+};
+&gpiokeys {
+	status = "disable";
+};
+
+&mmu600_soc{
+	//status = "okay";
+};
+
+&usbdwc3{
+	//iommus = <&mmu600_soc 1>;
+};
+&usbdwc2{
+	//iommus = <&mmu600_soc 2>;
+};
+&usbdrd_dwc3 {
+	status = "disable";
+};
+&dwc3 {
+	status = "disable";
+};
+
+&ufs {
+	interrupts = <GIC_SPI 118 IRQ_TYPE_EDGE_RISING
+		GIC_SPI 253 IRQ_TYPE_LEVEL_HIGH>; 
+	ufs-timer = <0x0>;
+	status = "okay";
+};
+
+&mmu600_pcie {
+	status = "disable";
+};
+&mmu600_codec {
+	status = "disable";
+};
+&mmu600_soc {
+	status = "disable";
+};
+
+&pcie_phy {
+	dmc-lane = <0x1>; /* bit0: 1=2x2ports, 0=1x4ports */
+	dmc-mode = <0x3>; /* (bit1 for ctl0)/(bit0 for ctl1):1=RC-mode, 0=EP-mode */
+	pcie-ctl0 = <1>;  /* Controller reset */
+	pcie-ctl1 = <1>;  /* Controller reset */
+	pcie-ref-clk0 = <1>; /* 0=onchip_clk, 1=pad_clk*/
+	pcie-ref-clk1 = <1>; /* 0=onchip_clk, 1=pad_clk, 2=repeat_clk */
+};
+
+&codec0 {
+	status = "disable";
+};
+
+&mipi_dsi0 {
+	status = "disable";
+};
+&mipi_dsi1 {
+	status = "disable";
+};
+&mipi_csr {
+	status = "disable";
+};
+
+&bst_dptx {
+	status = "disable";
+};
+
+&xrp0 {
+	status = "disable";
+};
+
+&pinctrl {
+	status = "disable";
+};
+
+&gtc {
+	status = "okay";
+};
+
+&xgmac0 {
+	status = "disable";
+};
+
+&gic600 {
+	status = "okay";
+};
+
+&its1_x2 {
+	status = "okay";
+};
+
+&ipc {
+	status = "okay";
+	memory-region = <&bst_ipc_reserved>;
+};
+
+&mbox {
+	status = "okay";
+	memory-region = <&bst_ipc_reserved>;
+};
+
+
+&msgbox {
+	status = "okay";
+	spi-irq-num = <4>;
+	filter-num = <8>;
+	// id = <0x0>;
+	// end0 and end1 spi irq
+	interrupts =    <
+			GIC_PPI 2 (GIC_CPU_MASK_SIMPLE(8) | IRQ_TYPE_LEVEL_LOW)
+			GIC_PPI 3 (GIC_CPU_MASK_SIMPLE(8) | IRQ_TYPE_LEVEL_LOW)
+			GIC_PPI 4 (GIC_CPU_MASK_SIMPLE(8) | IRQ_TYPE_LEVEL_LOW)
+			GIC_PPI 15 (GIC_CPU_MASK_SIMPLE(8) | IRQ_TYPE_LEVEL_LOW)
+            GIC_SPI 560 (IRQ_TYPE_LEVEL_HIGH)
+            GIC_SPI 561 (IRQ_TYPE_LEVEL_HIGH)
+            GIC_SPI 562 (IRQ_TYPE_LEVEL_HIGH)
+            GIC_SPI 563 (IRQ_TYPE_LEVEL_HIGH)
+            GIC_SPI 564 (IRQ_TYPE_LEVEL_HIGH)
+            GIC_SPI 565 (IRQ_TYPE_LEVEL_HIGH)
+            GIC_SPI 566 (IRQ_TYPE_LEVEL_HIGH)
+            GIC_SPI 567 (IRQ_TYPE_LEVEL_HIGH)
+            GIC_SPI 568 (IRQ_TYPE_LEVEL_HIGH)
+            GIC_SPI 569 (IRQ_TYPE_LEVEL_HIGH)
+            GIC_SPI 570 (IRQ_TYPE_LEVEL_HIGH)
+            GIC_SPI 571 (IRQ_TYPE_LEVEL_HIGH)
+            GIC_SPI 572 (IRQ_TYPE_LEVEL_HIGH)
+            GIC_SPI 573 (IRQ_TYPE_LEVEL_HIGH)
+            GIC_SPI 574 (IRQ_TYPE_LEVEL_HIGH)
+            GIC_SPI 575 (IRQ_TYPE_LEVEL_HIGH)
+			>;
+	#mbox-cells = <0x1>;
+};
+
+&arm_pmu {
+	status = "disable";
+};
+
+&timer0 {
+       status = "disable";
+};
+
+&timer1 {
+    interrupts = <GIC_SPI 253 IRQ_TYPE_LEVEL_HIGH>;
+       timer-chan = <0x0>;
+    status = "okay";
+};

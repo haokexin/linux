@@ -648,6 +648,9 @@ struct device {
     defined(CONFIG_ARCH_HAS_SYNC_DMA_FOR_CPU) || \
     defined(CONFIG_ARCH_HAS_SYNC_DMA_FOR_CPU_ALL)
 	bool			dma_coherent:1;
+#ifdef CONFIG_BST_OF_DMA_NEED_SYNC_TO_POP
+	bool			dma_need_sync_to_pop:1;
+#endif
 #endif
 #ifdef CONFIG_DMA_OPS_BYPASS
 	bool			dma_ops_bypass : 1;

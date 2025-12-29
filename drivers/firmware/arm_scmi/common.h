@@ -190,6 +190,7 @@ struct scmi_transport_ops {
 	void (*clear_channel)(struct scmi_chan_info *cinfo);
 	bool (*poll_done)(struct scmi_chan_info *cinfo, struct scmi_xfer *xfer);
 	int (*chan_resume)(struct scmi_chan_info *cinfo);
+	int (*get_count)(struct scmi_chan_info *cinfo);
 };
 
 int scmi_protocol_device_request(const struct scmi_device_id *id_table);

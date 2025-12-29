@@ -3,8 +3,9 @@ import "platform:/plugin/com.bst.os.idl/deployment/ipc_spec.fdepl"
 import "switch0-can-gateway.fidl"
 
 define com.bst.ipc.deployment for interface com.bst.ipc.switch.switch0_can_gateway {
-    MaxMethodNum = 10
+    MaxMethodNum = 64
     MaxBroadcastNum = 10
+    EnableSection = false
     method notify_Eth_2_Can_enqueue {
         MethodID = 1
     }
@@ -29,9 +30,40 @@ define com.bst.ipc.deployment for interface com.bst.ipc.switch.switch0_can_gatew
     method can_gateway_send {
         MethodID = 8
     }
+
+    method can_config_query {
+        MethodID = 9
+    }
+
     broadcast can_gateway_recv {
-        SubscribeMethodID = 10
-        UnsubscribeMethodID = 11
+        SubscribeMethodID = 64
+        UnsubscribeMethodID = 65
         BroadcastID = 1
+    }
+
+    broadcast can_status_notify {
+        SubscribeMethodID = 12
+        UnsubscribeMethodID = 13
+        BroadcastID = 2
+    }
+
+    //adas通知SW0使用新的sqbuffer地址
+    method adas_vcan_notify_sqbuf_addr {
+        MethodID = 14
+    }
+
+    //adas通知SW0，vcan驱动卸载
+    method adas_vcan_driver_remove {
+        MethodID = 15
+    }
+
+    method vcan_port_method {
+        MethodID = 16
+    }
+
+    broadcast vcan_port_broadcast {
+        SubscribeMethodID = 17
+        UnsubscribeMethodID = 18
+        BroadcastID = 3
     }
 }

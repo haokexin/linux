@@ -7,4 +7,7 @@ endif
 ifdef CONFIG_PCIE_BST_EP
 bst_pcie-objs += pcie-bst-ep.o 
 endif
+ifdef CONFIG_PCIE_BST_DIAGNOSTIC
+bst_pcie-objs += pcie-bst-diagnostic.o 
+endif
 

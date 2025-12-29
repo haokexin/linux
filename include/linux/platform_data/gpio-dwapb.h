@@ -22,4 +22,9 @@ struct dwapb_platform_data {
 	unsigned int nports;
 };
 
+#define LSP0_CRM_REG_GPIO_INTR_SEL  0x20000020
+#define LSP0_CRM_REG_GPIO_INTR_MASK 0x20000100
+#define LSP1_CRM_REG_GPIO_INTR_SEL  0x20020020
+#define LSP1_CRM_REG_GPIO_INTR_MASK 0x20020100
+
 #endif

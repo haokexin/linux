@@ -1,0 +1,66 @@
+/dts-v1/;
+/plugin/;
+
+
+#include "../common/isp-csi-map.dtsi"
+#include "base-isp.dtsi"
+#include "base-csi-deser-camera.dtsi"
+#include "base-desers-3max96724.dtsi"
+
+&isp {
+	slab = "isp/common/slab-1x8b-2x3c-2x3f-1x3c.bin";
+	usage = "Splitter slave";
+};
+&fsync0 {
+	pulse-width = <50000>;
+};
+&fsync1 {
+	pulse-width = <50000>;
+};
+&fsync2 {
+	pulse-width = <50000>;
+};
+
+&camera0 {
+	#include "../cameras/ox08b_raw14_hk_1920x1080.dtsi"
+	sensor-fps = <20>;
+	ser-fsync-tx-pin = <7>;
+	ser-addr = <0x40>;
+	role = <ROLE_SLAVE>;
+	status = "okay";
+};
+&camera1 {
+	#include "../cameras/ox03c_raw14_hk_1920x1080.dtsi"
+	sensor-fps = <20>;
+	ser-fsync-tx-pin = <7>;
+	role = <ROLE_SLAVE>;
+	status = "okay";
+};
+&camera4 {
+	#include "../cameras/ox03c_raw14_hk_1920x1080.dtsi"
+	sensor-fps = <20>;
+	ser-fsync-tx-pin = <7>;
+	role = <ROLE_SLAVE>;
+	status = "okay";
+};
+&camera5 {
+	#include "../cameras/ox03c_raw14_hk_1920x1080.dtsi"
+	sensor-fps = <20>;
+	ser-fsync-tx-pin = <7>;
+	role = <ROLE_SLAVE>;
+	status = "okay";
+};
+&camera8 {
+	#include "../cameras/ox03f_raw12_hk_1920x1536.dtsi"
+	sensor-fps = <20>;
+	ser-fsync-tx-pin = <7>;
+	role = <ROLE_SLAVE>;
+	status = "okay";
+};
+&camera9 {
+	#include "../cameras/ox03f_raw12_hk_1920x1536.dtsi"
+	sensor-fps = <20>;
+	ser-fsync-tx-pin = <7>;
+	role = <ROLE_SLAVE>;
+	status = "okay";
+};

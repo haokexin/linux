@@ -928,8 +928,16 @@ dma_addr_t swiotlb_map(struct device *dev, phys_addr_t paddr, size_t size,
 		return DMA_MAPPING_ERROR;
 	}
 
+#ifdef CONFIG_BST_OF_DMA_NEED_SYNC_TO_POP
+	if(dev_dma_need_sync_to_pop(dev) && !(attrs & DMA_ATTR_SKIP_CPU_SYNC))
+		arch_sync_dma_for_device_pop(swiotlb_addr, size, dir);
+	else if (!dev_is_dma_coherent(dev) && !(attrs & DMA_ATTR_SKIP_CPU_SYNC))
+		arch_sync_dma_for_device(swiotlb_addr, size, dir);
+#else /* CONFIG_BST_OF_DMA_NEED_SYNC_TO_POP */
 	if (!dev_is_dma_coherent(dev) && !(attrs & DMA_ATTR_SKIP_CPU_SYNC))
 		arch_sync_dma_for_device(swiotlb_addr, size, dir);
+#endif
+
 	return dma_addr;
 }
 

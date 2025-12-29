@@ -1,5 +1,0 @@
-/*
-  ahd-yuv   1920x1080
-*/
-compatible = "bst,ahd-yuv";
-data-type = <0x1e>;

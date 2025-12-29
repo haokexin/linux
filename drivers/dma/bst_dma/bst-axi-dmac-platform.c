@@ -26,6 +26,7 @@
 #include <linux/types.h>
 #include <linux/of_platform.h>
 #include <linux/reset.h>
+#include <linux/dma/bst-dma.h>
 
 #include "bst-axi-dmac.h"
 #include "../dmaengine.h"
@@ -474,16 +475,20 @@ static int axi_chan_block_xfer_start(struct axi_dma_chan *chan,
 		break;
 	}
 
-	if (chan->hw_handshake_num == 17 ||
-		chan->hw_handshake_num == 19 ||
-		chan->hw_handshake_num == 21) {
+	if (chan->hw_handshake_num == 21) {
 
 		config.tt_fc = BSTAXIDMAC_TT_FC_PER_TO_MEM_SRC;
 		config.hs_sel_dst = BSTAXIDMAC_HS_SEL_SW;
 		config.hs_sel_src = BSTAXIDMAC_HS_SEL_HW;
 
 		irq_mask = BSTAXIDMAC_IRQ_BLOCK_TRF | BSTAXIDMAC_IRQ_ALL_ERR;
-	}
+	} 
+
+	if (chan->flags & (1 << BLOCK_TRF_INT_MODE)) {
+
+		irq_mask = BSTAXIDMAC_IRQ_BLOCK_TRF | BSTAXIDMAC_IRQ_ALL_ERR;
+	} 
+
 	axi_chan_config_write(chan, &config);
 	write_chan_llp(chan, first->hw_desc[0].llp | lms);
   axi_chan_irq_sig_set(chan, 0xdfffffff);
@@ -502,17 +507,19 @@ static void axi_chan_start_first_queued(struct axi_dma_chan *chan)
 	struct virt_dma_desc *vd = NULL;
 
 	vd = vchan_next_desc(&chan->vc);
-	if (!vd){
-    //dev_err(chan2dev(chan), "%s %d no more desc!!\n", __FUNCTION__, __LINE__);
-    chan->vd_issueing = NULL;
-    return;
-  }
+	if (!vd) {
+		//dev_err(chan2dev(chan), "%s %d no more desc!!\n", __FUNCTION__, __LINE__);
+		chan->vd_issueing = NULL;
+		return;
+ 	}
 
-  if(chan->vd_issueing == vd)  //if vd is last, noneed to transfer
-  {
-    //dev_err(chan2dev(chan), "%s %d vd is the same, skip!!\n", __FUNCTION__, __LINE__);
-    return;
-  }
+	if(chan->vd_issueing == vd)  //if vd is last, noneed to transfer
+	{
+		//dev_err(chan2dev(chan), "%s %d vd is the same, skip!!\n", __FUNCTION__, __LINE__);
+		if (!chan->cyclic) {
+			return;
+		}
+	}
 
 	desc = vd_to_axi_desc(vd);
 	//dev_err(chan2dev(chan), "%s: started %u\n", axi_chan_name(chan),
@@ -695,14 +702,20 @@ static int bst_axi_dma_set_hw_desc(struct axi_dma_chan *chan,
 		return -ENOMEM;
 
 	ctlhi = CH_CTL_H_LLI_VALID;
-	if (chan->hw_handshake_num == 17 ||
-		chan->hw_handshake_num == 19 ||
-		chan->hw_handshake_num == 21) {
+	if (chan->hw_handshake_num == 21) {
 			ctlhi |= CH_CTL_H_ARLEN_EN | CH_CTL_H_AWLEN_EN | 
 				0x1 << CH_CTL_H_ARLEN_POS |
 				0x0 << CH_CTL_H_AWLEN_POS | 
 				CH_CTL_H_IOC_BlkTf_EN;
-	}else{
+	} else if (chan->flags & (1 << BLOCK_TRF_INT_MODE)) {
+		if (chan->chip->bst->hdata->restrict_axi_burst_len) {
+			burst_len = chan->chip->bst->hdata->axi_rw_burst_len;
+			ctlhi |= CH_CTL_H_ARLEN_EN | CH_CTL_H_AWLEN_EN | 
+				burst_len << CH_CTL_H_ARLEN_POS |
+				burst_len << CH_CTL_H_AWLEN_POS |
+				CH_CTL_H_IOC_BlkTf_EN;
+		}
+	} else {
 		if (chan->chip->bst->hdata->restrict_axi_burst_len) {
 			burst_len = chan->chip->bst->hdata->axi_rw_burst_len;
 			ctlhi |= CH_CTL_H_ARLEN_EN | CH_CTL_H_AWLEN_EN | 
@@ -724,16 +737,22 @@ static int bst_axi_dma_set_hw_desc(struct axi_dma_chan *chan,
 
 	hw_desc->lli->block_ts_lo = cpu_to_le32(block_ts - 1);
 
-	if (chan->hw_handshake_num == 17 ||
-		chan->hw_handshake_num == 19 ||
-		chan->hw_handshake_num == 21) {
+	if (chan->hw_handshake_num == 21) {
 		ctllo |= BSTAXIDMAC_BURST_TRANS_LEN_1 << CH_CTL_L_DST_MSIZE_POS |
 		 	BSTAXIDMAC_BURST_TRANS_LEN_1 << CH_CTL_L_SRC_MSIZE_POS;
-	}else{
-		// ctllo |= BSTAXIDMAC_BURST_TRANS_LEN_1 << CH_CTL_L_DST_MSIZE_POS |
-		// 	BSTAXIDMAC_BURST_TRANS_LEN_8 << CH_CTL_L_SRC_MSIZE_POS;
+	} else if (chan->flags & (1 << BLOCK_TRF_INT_MODE)) { 
 		ctllo |= BSTAXIDMAC_BURST_TRANS_LEN_1 << CH_CTL_L_DST_MSIZE_POS |
 			BSTAXIDMAC_BURST_TRANS_LEN_1 << CH_CTL_L_SRC_MSIZE_POS;
+	} else {
+		//55: lsp0 uart0 53: lsp0 uart1 23: lsp1 uart0 
+		if(chan->hw_handshake_num == 23 || chan->hw_handshake_num == 53 || chan->hw_handshake_num == 55 || chan->hw_handshake_num == 21) {
+			
+			ctllo |= BSTAXIDMAC_BURST_TRANS_LEN_128 << CH_CTL_L_DST_MSIZE_POS | BSTAXIDMAC_BURST_TRANS_LEN_128 << CH_CTL_L_SRC_MSIZE_POS;
+		}
+		else {
+
+			ctllo |= BSTAXIDMAC_BURST_TRANS_LEN_1 << CH_CTL_L_DST_MSIZE_POS | BSTAXIDMAC_BURST_TRANS_LEN_1 << CH_CTL_L_SRC_MSIZE_POS;
+		}
 	}
 
 	hw_desc->lli->ctl_lo = cpu_to_le32(ctllo);
@@ -810,6 +829,8 @@ bst_axi_dma_chan_prep_cyclic(struct dma_chan *dchan, dma_addr_t dma_addr,
 		goto err_desc_get;
 
 	chan->direction = direction;
+	chan->block_num = 0;
+//	chan->flags = flags;
 	desc->chan = chan;
 	chan->cyclic = true;
 	desc->length = 0;
@@ -827,7 +848,10 @@ bst_axi_dma_chan_prep_cyclic(struct dma_chan *dchan, dma_addr_t dma_addr,
 		/* Set end-of-link to the linked descriptor, so that cyclic
 		 * callback function can be triggered during interrupt.
 		 */
-		set_desc_last(hw_desc);
+	
+		if (!(chan->flags & (1 << BLOCK_TRF_INT_MODE))) {		//for block transfer mode
+			set_desc_last(hw_desc);
+		}
 
 		src_addr += segment_len;
 	}
@@ -1060,6 +1084,13 @@ static int bst_axi_dma_chan_slave_config(struct dma_chan *dchan,
 
 	memcpy(&chan->config, config, sizeof(*config));
 
+	if ((config->peripheral_config != NULL) && (config->peripheral_size == sizeof(struct bst_dma_snd_peripheral_cfg))) {
+		struct bst_dma_snd_peripheral_cfg *peripheral_cfg = (struct bst_dma_snd_peripheral_cfg *)config->peripheral_config;
+		if (peripheral_cfg->dma_transfer_mode == 1) {
+			chan->flags = (1 << BLOCK_TRF_INT_MODE);
+		}
+	}
+
 	return 0;
 }
 
@@ -1149,6 +1180,54 @@ can_out:
 	spin_unlock_irqrestore(&chan->vc.lock, flags);
 }
 
+
+static void axi_chan_block_xfer_complete_bst_tdm(struct axi_dma_chan *chan)
+{
+	struct axi_dma_hw_desc *hw_desc;
+	struct axi_dma_desc *desc;
+	struct virt_dma_desc *vd;
+	unsigned long flags;
+
+	spin_lock_irqsave(&chan->vc.lock, flags);
+
+	/* The completed descriptor currently is in the head of vc list */
+	vd = vchan_next_desc(&chan->vc);
+	if (!vd) {
+		dev_err(chan2dev(chan), "BUG: %s, IRQ with no descriptors\n",
+			axi_chan_name(chan));
+		goto out;
+	}
+
+	if (chan->cyclic) {
+		desc = vd_to_axi_desc(vd);
+		if (desc) {
+			hw_desc = &desc->hw_desc[chan->block_num];
+			axi_chan_irq_clear(chan, hw_desc->lli->status_lo);
+			hw_desc->lli->ctl_hi |= CH_CTL_H_LLI_VALID;
+			desc->completed_blocks = chan->block_num;
+
+			if (((hw_desc->len * (chan->block_num + 1)) % desc->period_len) == 0){
+				vchan_cyclic_callback(vd);
+			}
+
+			chan->block_num++;
+     		if (chan->block_num == desc->count) {
+                chan->block_num = 0;
+            }
+		}
+	} else {
+		/* Remove the completed descriptor from issued list before completing */
+		list_del(&vd->node);
+		vchan_cookie_complete(vd);
+		/* Submit queued descriptors after processing the completed ones */
+		axi_chan_start_first_queued(chan);
+	}
+
+out:
+	spin_unlock_irqrestore(&chan->vc.lock, flags);
+}
+
+
 static void axi_chan_block_xfer_complete(struct axi_dma_chan *chan)
 {
 	//int count = atomic_read(&chan->descs_allocated);
@@ -1227,6 +1306,8 @@ static irqreturn_t bst_axi_dma_bst_chan_interrupt(int irq, void *dev_id)
 		axi_chan_handle_err(chan, status);
 	else if (status & BSTAXIDMAC_IRQ_DMA_TRF) 
 		axi_chan_block_xfer_complete(chan);
+	else if ((status & BSTAXIDMAC_IRQ_BLOCK_TRF) && (chan->flags & (1 << BLOCK_TRF_INT_MODE)))
+		axi_chan_block_xfer_complete_bst_tdm(chan);
 	else if (status & BSTAXIDMAC_IRQ_BLOCK_TRF)
 		axi_chan_block_xfer_complete_bst_canfd(chan);
 
@@ -1236,6 +1317,8 @@ static irqreturn_t bst_axi_dma_bst_chan_interrupt(int irq, void *dev_id)
   
 	return IRQ_HANDLED;
 }
+
+
 
 static int dma_chan_terminate_all(struct dma_chan *dchan)
 {

@@ -247,12 +247,7 @@ int bst_bl_get_brightness(struct virt_bl_resource *res, unsigned int *brightness
     return 0;
 }
 
-int bst_bl_suspend(struct virt_bl_resource *res)
-{
-    return bst_bl_set_brightness(res, 0);
-}
-
-int bst_bl_resume(struct virt_bl_resource *res)
+int bst_bl_declare_resource(struct virt_bl_resource *res)
 {
     struct virt_bl_request_resource_req req;
     struct virt_bl_request_resource_rsp rsp;
@@ -298,20 +293,25 @@ static int bst_backlight_internal_init(void)
 
     mutex_init(&virt_bl_dev_list_lock);
     INIT_LIST_HEAD(&virt_bl_dev_list);
-
+#ifdef CONFIG_BST_C1200_ADAS
+    ipc_client_data.com_data.pid = CPU_4;
+#elif defined(CONFIG_BST_C1200_IVI)
+    ipc_client_data.com_data.pid = CPU_0;
+#else
+    ipc_client_data.com_data.pid = CPUMP2_0;
+#endif
 	ipc_client = BacklightClient_init(&ipc_client_data);
 	if (!ipc_client) {
         pr_err("init backlight client fail.\n");
         return -EINVAL;
     }
 
+    ipc_client->backlight_client.register_avail_changed(on_server_status_changed, NULL);
 	ret = ipc_client->start();
     if (ret < 0) {
         pr_err("start backlight client failed!:%d\n", ret);
         return -EINVAL;
     }
-
-    ipc_client->backlight_client.register_avail_changed(on_server_status_changed, NULL);
     pr_info("start backlight client!\n");
     return 0;
 }

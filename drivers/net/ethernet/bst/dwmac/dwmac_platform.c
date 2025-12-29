@@ -434,7 +434,8 @@ struct plat_stmmacenet_data *bstgmac_probe_config_dt(struct platform_device
 	if (of_property_read_u32(np, "max-speed", &plat->max_speed))
 		plat->max_speed = -1;
 
-	of_property_read_u32(np, "ethernet-id", &plat->bus_id);
+	if (of_property_read_u32(np, "ethernet-id", &plat->bus_id))
+		plat->bus_id = 0;
 
 	/* Default to phy auto-detection */
 	plat->phy_addr = -1;
@@ -450,9 +451,11 @@ struct plat_stmmacenet_data *bstgmac_probe_config_dt(struct platform_device
 			return ERR_PTR(rc);
 	//}
 
-	of_property_read_u32(np, "tx-fifo-depth", &plat->tx_fifo_size);
+	if (of_property_read_u32(np, "tx-fifo-depth", &plat->tx_fifo_size))
+		plat->tx_fifo_size = 4096;
 
-	of_property_read_u32(np, "rx-fifo-depth", &plat->rx_fifo_size);
+	if (of_property_read_u32(np, "rx-fifo-depth", &plat->rx_fifo_size))
+		plat->rx_fifo_size = 4096;
 
 	plat->force_sf_dma_mode =
 	    of_property_read_bool(np, "snps,force_sf_dma_mode");
@@ -514,8 +517,10 @@ struct plat_stmmacenet_data *bstgmac_probe_config_dt(struct platform_device
 	of_property_read_u32(np, "snps,pbl", &dma_cfg->pbl);
 	if (!dma_cfg->pbl)
 		dma_cfg->pbl = DEFAULT_DMA_PBL;
-	of_property_read_u32(np, "snps,txpbl", &dma_cfg->txpbl);
-	of_property_read_u32(np, "snps,rxpbl", &dma_cfg->rxpbl);
+	if (of_property_read_u32(np, "snps,txpbl", &dma_cfg->txpbl))
+		dma_cfg->txpbl = 0;
+	if (of_property_read_u32(np, "snps,rxpbl", &dma_cfg->rxpbl))
+		dma_cfg->rxpbl = 0;
 	dma_cfg->pblx8 = !of_property_read_bool(np, "snps,no-pbl-x8");
 
 	dma_cfg->aal = of_property_read_bool(np, "snps,aal");
@@ -523,7 +528,9 @@ struct plat_stmmacenet_data *bstgmac_probe_config_dt(struct platform_device
 	dma_cfg->mixed_burst = of_property_read_bool(np, "snps,mixed-burst");
 
 	dma_cfg->dma_int_mode = DMA_INT_M_0;
-	of_property_read_u32(np, "bst,dma_int_mode", &dma_cfg->dma_int_mode);
+	if (of_property_read_u32(np, "bst,dma_int_mode", &dma_cfg->dma_int_mode))
+		dma_cfg->dma_int_mode = DMA_INT_M_1;
+
 	if (dma_cfg->dma_int_mode >= DMA_INT_M_MAX) {
 		dev_warn(&pdev->dev,
 			 "bst,dma_int_mode:%d invalid ,use DMA_INT_M_0\n",
@@ -539,7 +546,8 @@ struct plat_stmmacenet_data *bstgmac_probe_config_dt(struct platform_device
 		    ("force_sf_dma_mode is ignored if force_thresh_dma_mode is set.");
 	}
 
-	of_property_read_u32(np, "snps,ps-speed", &plat->mac_port_sel_speed);
+	if (of_property_read_u32(np, "snps,ps-speed", &plat->mac_port_sel_speed))
+		plat->mac_port_sel_speed = 10000;
 
 	plat->axi = bstgmac_axi_setup(pdev);
 
@@ -588,18 +596,19 @@ pr_err("%s line %d\n", __func__, __LINE__);
 		plat->stmmac_rst = NULL;
 	}
 	pr_err("%s line %d\n", __func__, __LINE__);
-#else
-plat->clk_ptp_rate = 125000000;
-#endif
+
 	return plat;
 
-#if 00
 error_hw_init:
 	clk_disable_unprepare(plat->pclk);
 error_pclk_get:
 	clk_disable_unprepare(plat->stmmac_clk);
-#endif
+
 	return ERR_PTR(-EPROBE_DEFER);
+#else
+	plat->clk_ptp_rate = 125000000;
+#endif
+	return plat;
 }
 EXPORT_SYMBOL_GPL(bstgmac_probe_config_dt);
 
@@ -660,7 +669,7 @@ int bstgmac_get_platform_resources(struct platform_device *pdev,
 		}
 		return bstgmac_res->irq;
 	}
-
+#if 0
 	bstgmac_res->sfty_uc_irq = platform_get_irq_byname(pdev, "sfty_ue_irq");
 	if (bstgmac_res->sfty_uc_irq < 0) {
 		if (bstgmac_res->sfty_uc_irq == -EPROBE_DEFER)
@@ -671,6 +680,7 @@ int bstgmac_get_platform_resources(struct platform_device *pdev,
 		if (bstgmac_res->sfty_ce_irq == -EPROBE_DEFER)
 			return -EPROBE_DEFER;
 	}
+#endif
 	if (of_device_is_compatible(np, "bst,dw-eqos-eth")
 		|| of_device_is_compatible(np, "bst,dwxgmac")) {
 		bstgmac_res->lpi_irq = platform_get_irq_byname(pdev, "eth_lpi");
@@ -718,9 +728,9 @@ int bstgmac_get_platform_resources(struct platform_device *pdev,
 		}
 	}
 
-	bstgmac_res->wdata_ucerr_irq = platform_get_irq_byname(pdev, "wdata_ucerr_irq");
+	//bstgmac_res->wdata_ucerr_irq = platform_get_irq_byname(pdev, "wdata_ucerr_irq");
 
-	bstgmac_res->paddr_parity_irq = platform_get_irq_byname(pdev, "paddr_parity_irq");
+	//bstgmac_res->paddr_parity_irq = platform_get_irq_byname(pdev, "paddr_parity_irq");
 
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 #ifdef CONFIG_UIO
@@ -767,8 +777,8 @@ void bstgmac_pltfr_shutdown(struct platform_device *pdev)
 	struct bstgmac_priv *priv = netdev_priv(ndev);
 	struct plat_stmmacenet_data *plat = priv->plat;
 
-	netdev_info(priv->dev, "%s", __func__);
-
+	pr_err("%s start", __func__);
+	
 	bstgmac_dvr_remove(&pdev->dev);
 #ifdef CONFIG_UIO
 	if (priv->info) {
@@ -781,6 +791,8 @@ void bstgmac_pltfr_shutdown(struct platform_device *pdev)
 		plat->exit(pdev, plat->bsp_priv);
 
 	bstgmac_remove_config_dt(pdev, plat);
+
+	pr_err("%s end", __func__);
 }
 EXPORT_SYMBOL_GPL(bstgmac_pltfr_shutdown);
 
@@ -822,7 +834,6 @@ static int bstgmac_pltfr_resume(struct device *dev)
 	if (priv->plat->init)
 		priv->plat->init(pdev, priv->plat->bsp_priv);
 
-	mdelay(4000);
 	return bstgmac_resume(dev);
 }
 #endif /* CONFIG_PM_SLEEP */

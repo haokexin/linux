@@ -6,7 +6,13 @@ define com.bst.ipc.deployment for provider as bstn_client {
     SrcEndID = CPU_3
     FID = DEF
     SID = 10
+    EnableRouterRealtimeSched = true
+    RouterPriority = 99
     instance com.bst.ipc.coreip.net {
         DstEndID = NET_0
+    }
+    
+    instance com.bst.ipc.coreip.net_safety {
+        DstEndID = SAFETY_0
     }
 }

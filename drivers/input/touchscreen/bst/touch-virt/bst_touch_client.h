@@ -1,27 +1,36 @@
-/* SPDX-License-Identifier: GPL-2.0 OR BSD-3-Clause
+/* SPDX-License-Identifier: GPL-2.0 OR Apache 2.0
  *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2 of the License, or
- * (at your option) any later version.
+ * Copyright (c) 2024 Black Sesame Technologies
  *
- * This program is also distributed under the terms of the BSD 3-Clause
+ * This program is also distributed under the terms of the Apache 2.0
  * License.
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
- * Copyright (C) 2023 Black Sesame Technologies. Inc.
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 
-/* This file is auto generated for message box v1.1.0.
+/* This file is auto generated for message box v2.0.0.
  * All manual modifications will be LOST by next generation.
  * It is recommended NOT modify it.
- * Generator Version: francaidl 797e374 msgbx_ipc c468e33
  */
 
 #ifndef BST_TOUCH_CLIENT_H
 #define BST_TOUCH_CLIENT_H
 
 #define IPC_RTE_KERNEL
+#ifdef IPC_RTE_KERNEL
+#include <bst/ipc_app_client_utils.h>
+#else
 #include "ipc_app_client_utils.h"
+#endif
 #include "bst_touch_datatype.h"
 
 #ifdef __cplusplus
@@ -81,6 +90,25 @@ typedef void (*bst_touch_set_touch_calibration_callback_t)(
  */
 typedef void (*bst_touch_get_touch_calibration_callback_t)(
 				const bst_touch_calibration_info_t *cali_info,
+				const bst_touch_ErrorEnum_t err,
+				void *ext,
+				const ext_info_t *info
+				);
+
+/**
+ * Callback function for touch_debug_cmd_async method.
+ *
+ * @param result_str The output argument returned by touch_debug_cmd_async.
+ * @param err The error code returned by the method.
+ * @param ext The user-defined data passed to the method.
+ * @param info The extended information, containing uuid and timestamp.
+ * @note all the data are stored in ext_buf passed to async call.
+ * If ext_buf is NULL, internal buffer will be used.
+ * Please note that, the internal buffer is shared by all callbacks.
+ * The data MAY CHANGED after leaving the callback function.
+ */
+typedef void (*bst_touch_touch_debug_cmd_callback_t)(
+				const char *result_str,
 				const bst_touch_ErrorEnum_t err,
 				void *ext,
 				const ext_info_t *info
@@ -244,6 +272,42 @@ struct _bst_touch_client_t {
 					des_buf_t *ext_buf
 					);
 
+	#ifndef IPC_RTE_BAREMETAL
+	/**
+	 * Synchronously call the hello method.
+	 *
+	 * @param cmd_str The input argument of method touch_debug_cmd.
+	 * @param result_str The output argument of method touch_debug_cmd.
+	 * @param err The error code returned by the method.
+	 * @param timeout_ms The timeout for the method call in milliseconds, less or equal to 0 means wait forever.
+	 * @param ext_buf The buffer to store the user-defined data.
+	 * @return 0 if success, negative if fail.
+	 */
+	int32_t (*touch_debug_cmd_sync)(
+					const char *cmd_str,
+					char **result_str,
+					bst_touch_ErrorEnum_t *err,
+					int64_t timeout_ms,
+					des_buf_t *ext_buf
+					);
+	#endif
+
+	/**
+	 * Asynchronously call the touch_debug_cmd method.
+	 *
+	 * @param cmd_str The input argument of method touch_debug_cmd.
+	 * @param cb The callback function to be called when the method returns.
+	 * @param ext The user-defined data passed to the method.
+	 * @param ext_buf The buffer to store the user-defined data.
+	 * @return 0 if success, negative if fail.
+	 */
+	int32_t (*touch_debug_cmd_async)(
+					const char *cmd_str,
+					bst_touch_touch_debug_cmd_callback_t cb,
+					void *ext,
+					des_buf_t *ext_buf
+					);
+
 	/**
 	 * Subscribe to the location_info broadcast.
 	 *
@@ -256,6 +320,10 @@ struct _bst_touch_client_t {
 	 * If ext_buf is NULL, internal buffer will be used.
 	 * Please note that, the internal buffer is shared by all callbacks.
 	 * The data MAY CHANGED after leaving the callback function.
+	 * @note subscribe multiple times will result in multiple callbacks, while
+	 * the broadcast registry will be overwritten by the last subscription. This
+	 * means the cb, ext, ext_buf will be overwritten by the last subscription.
+	 * cb2 and ext2 will not be affected.
 	 * @return 0 if success, negative if fail.
 	 */
 	int32_t (*location_info_sub)(
@@ -272,6 +340,9 @@ struct _bst_touch_client_t {
 	 * @param cb The callback function called when the unsubscription is complete.
 	 * @param ext The user-defined data passed to the callback.
 	 * @return 0 if success, negative if fail.
+	 * @note if the subscription is not found, return -1.
+	 * @note unsubscribe multiple times will result in multiple callbacks.
+	 * cb and ext will not be affected by multiple unsubscriptions.
 	 */
 	int32_t (*location_info_unsub)(broadcast_sub_unsub_callback_t cb, void *ext);
 
@@ -281,7 +352,7 @@ struct _bst_touch_client_t {
 	 * @param des The received message package.
 	 * @return 0 if success, negative if fail.
 	 */
-	int32_t (*dispatch_broadcast)(serdes_t *des);
+	int32_t (*dispatch_broadcast)(des_buf_t *des);
 
 	/**
 	 * Dispatch reply messages.
@@ -289,7 +360,7 @@ struct _bst_touch_client_t {
 	 * @param des The received message package.
 	 * @return 0 if success, negative if fail.
 	 */
-	int32_t (*dispatch_reply)(serdes_t *des);
+	int32_t (*dispatch_reply)(des_buf_t *des);
 };
 #define bst_touch_client_t struct _bst_touch_client_t
 
@@ -298,7 +369,16 @@ struct _bst_touch_client_t {
  */
 struct _bst_touch_client_ext_t {
 	uint8_t cid;
-	uint8_t res[7];
+	uint8_t ccid;
+	uint8_t status;
+	uint8_t res[5];
+	uint64_t cid_mask;
+	avail_changed_callback_t avail_changed_cb;
+	void *avail_ext;
+	callback_registration_t client_request_location_init_registry[IPC_TOKEN_NUM];
+	callback_registration_t set_touch_calibration_registry[IPC_TOKEN_NUM];
+	callback_registration_t get_touch_calibration_registry[IPC_TOKEN_NUM];
+	callback_registration_t touch_debug_cmd_registry[IPC_TOKEN_NUM];
 	callback_registration_t location_info_registry;
 };
 #define bst_touch_client_ext_t struct _bst_touch_client_ext_t

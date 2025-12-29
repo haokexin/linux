@@ -394,7 +394,7 @@ static void svc_i3c_slave_flush_rxfifo(struct svc_i3c_slave *slave)
 static void svc_i3c_slave_rx_recv_handler(struct svc_i3c_slave *slave)
 {
 	u8 rxCount, rxTotal = 0;
-	u8 rxBuf[8];
+	u8 rxBuf[64];
 	int i = 0;
 
 	rxCount = SVC_I3C_SDATACTRL_RXCOUNT(readl(slave->regs + SVC_I3C_SDATACTRL));
@@ -523,6 +523,9 @@ static int svc_i3c_slave_probe(struct platform_device *pdev)
 	// if (ret)
 	// 	return ret;
 
+	slave->slave_queue = create_workqueue("slave_dynaddr_queue");
+	INIT_WORK(&slave->dynaddr_work, svc_i3c_slave_dynaddr_work);
+
 	ret = devm_request_irq(dev, slave->irq, svc_i3c_slave_irq_handler,
 			       IRQF_NO_SUSPEND, "svc-i3c-sirq", slave);
 
@@ -533,11 +536,8 @@ static int svc_i3c_slave_probe(struct platform_device *pdev)
 	pm_runtime_set_active(&pdev->dev);
 	pm_runtime_enable(&pdev->dev);
 
-	if(1){
-		svc_i3c_slave_reset(slave);
-		slave->slave_queue = create_workqueue("slave_dynaddr_queue");
-		INIT_WORK(&slave->dynaddr_work, svc_i3c_slave_dynaddr_work);
-	}
+	svc_i3c_slave_reset(slave);
+
 	pm_runtime_mark_last_busy(&pdev->dev);
 	pm_runtime_put_autosuspend(&pdev->dev);
 	return 0;
@@ -545,8 +545,10 @@ static int svc_i3c_slave_probe(struct platform_device *pdev)
 
 static int svc_i3c_slave_remove(struct platform_device *pdev)
 {
+	struct svc_i3c_slave *slave = platform_get_drvdata(pdev);
 	pm_runtime_dont_use_autosuspend(&pdev->dev);
 	pm_runtime_disable(&pdev->dev);
+	cancel_work_sync(&slave->dynaddr_work);
 	return 0;
 }
 

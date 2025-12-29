@@ -284,7 +284,7 @@ int main(int argc, char *argv[])
 	struct msgtemplate msg;
 
 	while (!forking) {
-		c = getopt(argc, argv, "m:vr:");
+		c = getopt(argc, argv, "m:w:vr:");
 		if (c < 0)
 			break;
 

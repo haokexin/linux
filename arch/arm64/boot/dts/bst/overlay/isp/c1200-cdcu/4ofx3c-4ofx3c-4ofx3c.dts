@@ -8,94 +8,86 @@
 
 &isp {
 	slab = "isp/common/slab-4x3c-4x3c-4x3c.bin";
+	usage = "Stability, performance test";
 };
-&csi0 {
-	status = "okay";
+&fsync0 {
+	tx-fps = <30>;
 };
-&csi1 {
-	status = "okay";
+&fsync1 {
+	tx-fps = <30>;
 };
-&csi2 {
-	status = "okay";
+&fsync2 {
+	tx-fps = <30>;
 };
 &deser0 {
-	maxim,linkrx-rate = <3 3 3 3>;
-	trigger-fps = <30>;
+	fsync-fps = <30>;
+};
+&deser0_rx0 {
+	rx-rate = <3>;
 };
 &deser1 {
-	trigger-fps = <30>;
+	fsync-fps = <30>;
 };
 &deser2 {
-	trigger-fps = <30>;
-};
-&isp {
-	isp-fsync@0 {
-		tx-fps = <30>;
-	};
-	isp-fsync@1 {
-		tx-fps = <30>;
-	};
-	isp-fsync@2 {
-		tx-fps = <30>;
-	};
+	fsync-fps = <30>;
 };
 &camera0 {
-	#include "../cameras/ox3c_raw14_of_1920x1080.dtsi"
-	view0-fmt = <5>;
+	#include "../cameras/ox03c_raw14_of_1920x1080.dtsi"
+	sensor-fps = <30>;
 	status = "okay";
 };
 &camera1 {
-	#include "../cameras/ox3c_raw14_of_1920x1080.dtsi"
-	view0-fmt = <5>;
+	#include "../cameras/ox03c_raw14_of_1920x1080.dtsi"
+	sensor-fps = <30>;
 	status = "okay";
 };
 &camera2 {
-	#include "../cameras/ox3c_raw14_of_1920x1080.dtsi"
-	view0-fmt = <5>;
+	#include "../cameras/ox03c_raw14_of_1920x1080.dtsi"
+	sensor-fps = <30>;
 	status = "okay";
 };
 &camera3 {
-	#include "../cameras/ox3c_raw14_of_1920x1080.dtsi"
-	view0-fmt = <5>;
+	#include "../cameras/ox03c_raw14_of_1920x1080.dtsi"
+	sensor-fps = <30>;
 	status = "okay";
 };
 &camera4 {
-	#include "../cameras/ox3c_raw14_of_1920x1080.dtsi"
-	view0-fmt = <5>;
+	#include "../cameras/ox03c_raw14_of_1920x1080.dtsi"
+	sensor-fps = <30>;
 	status = "okay";
 };
 &camera5 {
-	#include "../cameras/ox3c_raw14_of_1920x1080.dtsi"
-	view0-fmt = <5>;
+	#include "../cameras/ox03c_raw14_of_1920x1080.dtsi"
+	sensor-fps = <30>;
 	status = "okay";
 };
 &camera6 {
-	#include "../cameras/ox3c_raw14_of_1920x1080.dtsi"
-	view0-fmt = <5>;
+	#include "../cameras/ox03c_raw14_of_1920x1080.dtsi"
+	sensor-fps = <30>;
 	status = "okay";
 };
 &camera7 {
-	#include "../cameras/ox3c_raw14_of_1920x1080.dtsi"
-	view0-fmt = <5>;
+	#include "../cameras/ox03c_raw14_of_1920x1080.dtsi"
+	sensor-fps = <30>;
 	status = "okay";
 };
 &camera8 {
-	#include "../cameras/ox3c_raw14_of_1920x1080.dtsi"
-	view0-fmt = <5>;
+	#include "../cameras/ox03c_raw14_of_1920x1080.dtsi"
+	sensor-fps = <30>;
 	status = "okay";
 };
 &camera9 {
-	#include "../cameras/ox3c_raw14_of_1920x1080.dtsi"
-	view0-fmt = <5>;
+	#include "../cameras/ox03c_raw14_of_1920x1080.dtsi"
+	sensor-fps = <30>;
 	status = "okay";
 };
 &camera10 {
-	#include "../cameras/ox3c_raw14_of_1920x1080.dtsi"
-	view0-fmt = <5>;
+	#include "../cameras/ox03c_raw14_of_1920x1080.dtsi"
+	sensor-fps = <30>;
 	status = "okay";
 };
 &camera11 {
-	#include "../cameras/ox3c_raw14_of_1920x1080.dtsi"
-	view0-fmt = <5>;
+	#include "../cameras/ox03c_raw14_of_1920x1080.dtsi"
+	sensor-fps = <30>;
 	status = "okay";
 };

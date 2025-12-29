@@ -36,10 +36,9 @@ static void bst_lwnn_common_vm_close(struct vm_area_struct *vma)
 }
 
 const struct vm_operations_struct bst_lwnn_common_vm_ops = {
-	.open  = bst_lwnn_common_vm_open,
+	.open = bst_lwnn_common_vm_open,
 	.close = bst_lwnn_common_vm_close,
 };
-
 
 /**********************************************************************
 *
@@ -51,7 +50,7 @@ static unsigned long bst_lwnn_dma_get_contiguous_size(struct sg_table *sgt)
 	unsigned int i;
 	unsigned long size;
 
-	size     = 0;
+	size = 0;
 	expected = sg_dma_address(sgt->sgl);
 
 	for_each_sgtable_dma_sg(sgt, s, i) {
@@ -76,7 +75,7 @@ static void *bst_lwnn_dma_vaddr(void *buf_priv)
 		return buf->vaddr;
 
 	if (buf->db_attach) {
-		struct iosys_map map;
+		struct iosys_map map = { 0 };
 
 		if (!dma_buf_vmap(buf->db_attach->dmabuf, &map))
 			buf->vaddr = map.vaddr;
@@ -88,41 +87,45 @@ static void *bst_lwnn_dma_vaddr(void *buf_priv)
 
 static unsigned int bst_lwnn_dma_num_users(void *buf_priv)
 {
-	return refcount_read(&(((struct bst_lwnn_memblock *)(buf_priv))->refcount));
+	return refcount_read(
+		&(((struct bst_lwnn_memblock *)(buf_priv))->refcount));
 }
 
 static void bst_lwnn_dma_prepare(void *buf_priv)
 {
 	struct bst_lwnn_memblock *buf;
-	struct sg_table      *sgt;
+	struct sg_table *sgt = NULL;
 
 	buf = (struct bst_lwnn_memblock *)buf_priv;
-	sgt = buf->dma_sgt;
+	sgt = buf->sgt_base;
 
-	if (!sgt)
+	if (IS_ERR_OR_NULL(sgt)) {
+		pr_err("%s: invalid sg_table", __func__);
 		return;
+	}
 
-	dma_sync_sgtable_for_device(buf->dev, sgt, buf->dma_dir);
-	pr_debug("%s: dma_addr[0x%llx], dma_len[%u], dma_dir[%d]",
-		__func__, sg_dma_address(sgt->sgl), sg_dma_len(sgt->sgl), buf->dma_dir);
+	dma_sync_sgtable_for_device(buf->dev, sgt, DMA_TO_DEVICE);
+	pr_debug("%s: dma_addr[0x%llx], dma_len[%u], dma_dir[%d]", __func__,
+		 sg_dma_address(sgt->sgl), sg_dma_len(sgt->sgl), buf->dma_dir);
 }
 
 static void bst_lwnn_dma_finish(void *buf_priv)
 {
 	struct bst_lwnn_memblock *buf;
-	struct sg_table     *sgt;
+	struct sg_table *sgt = NULL;
 
 	buf = (struct bst_lwnn_memblock *)buf_priv;
-	sgt = buf->dma_sgt;
+	sgt = buf->sgt_base;
 
-	if (!sgt)
+	if (IS_ERR_OR_NULL(sgt)) {
+		pr_err("%s: invalid sg_table", __func__);
 		return;
+	}
 
-	dma_sync_sgtable_for_cpu(buf->dev, sgt, buf->dma_dir);
-	pr_debug("%s: dma_addr[0x%llx], dma_len[%u], dma_dir[%d]",
-		__func__, sg_dma_address(sgt->sgl), sg_dma_len(sgt->sgl), buf->dma_dir);
+	dma_sync_sgtable_for_cpu(buf->dev, sgt, DMA_FROM_DEVICE);
+	pr_debug("%s: dma_addr[0x%llx], dma_len[%u], dma_dir[%d]", __func__,
+		 sg_dma_address(sgt->sgl), sg_dma_len(sgt->sgl), buf->dma_dir);
 }
-
 
 /**********************************************************************
 *               callbacks for MMAP buffers
@@ -131,14 +134,14 @@ static void bst_lwnn_dma_put(void *buf_priv)
 {
 	struct bst_lwnn_memblock *buf = buf_priv;
 
-	pr_debug("%s: ref[%d]", __func__,
-		refcount_read(&buf->refcount));
+	pr_debug("%s: ref[%d]", __func__, refcount_read(&buf->refcount));
 	if (!refcount_dec_and_test(&buf->refcount))
 		return;
 
 	pr_debug("%s: dma_addr[0x%llx], size[%lu], ref[%d]", __func__,
-		buf->dma_addr, buf->size, refcount_read(&buf->refcount));
+		 buf->dma_addr, buf->size, refcount_read(&buf->refcount));
 	if (buf->sgt_base) {
+		// dma_unmap_sgtable(buf->dev, buf->sgt_base, buf->dma_dir, DMA_ATTR_SKIP_CPU_SYNC);
 		sg_free_table(buf->sgt_base);
 		kfree(buf->sgt_base);
 	}
@@ -149,8 +152,9 @@ static void bst_lwnn_dma_put(void *buf_priv)
 }
 
 static void *bst_lwnn_dma_alloc(struct device *dev, unsigned long attrs,
-			   unsigned long size, enum dma_data_direction dma_dir,
-			   gfp_t gfp_flags)
+				unsigned long size,
+				enum dma_data_direction dma_dir,
+				gfp_t gfp_flags)
 {
 	struct bst_lwnn_memblock *buf;
 
@@ -183,31 +187,36 @@ static void *bst_lwnn_dma_alloc(struct device *dev, unsigned long attrs,
 	buf->handler.arg = buf;
 
 	refcount_set(&buf->refcount, 1);
-	pr_debug(
-		"%s: dma_addr[0x%llx], size[%lu], ref[%d]", __func__,
-		buf->dma_addr, buf->size, refcount_read(&buf->refcount)
-	);
+	pr_debug("%s: dma_addr[0x%llx], size[%lu], ref[%d]", __func__,
+		 buf->dma_addr, buf->size, refcount_read(&buf->refcount));
 
 	return buf;
 }
 
-
 static int bst_lwnn_dma_mmap(void *buf_priv, struct vm_area_struct *vma)
 {
 	struct bst_lwnn_memblock *buf = buf_priv;
+	struct sg_table *table = NULL;
+	struct sg_page_iter piter;
+	unsigned long addr = vma->vm_start;
 	int ret;
 
 	if (!buf) {
 		printk(KERN_ERR "No buffer to map\n");
 		return -EINVAL;
 	}
+	table = buf->sgt_base;
 
-	ret = dma_mmap_attrs(buf->dev, vma, buf->cookie, buf->dma_addr,
-			     buf->size, buf->attrs);
+	for_each_sgtable_page(table, &piter, vma->vm_pgoff) {
+		struct page *page = sg_page_iter_page(&piter);
+		ret = remap_pfn_range(vma, addr, page_to_pfn(page), PAGE_SIZE,
+				      vma->vm_page_prot);
 
-	if (ret) {
-		pr_err("Failed to dma mmap, error: %d\n", ret);
-		return ret;
+		if (ret)
+			return ret;
+		addr += PAGE_SIZE;
+		if (addr >= vma->vm_end)
+			break;
 	}
 
 	vm_flags_set(vma, VM_DONTEXPAND | VM_DONTDUMP);
@@ -216,16 +225,12 @@ static int bst_lwnn_dma_mmap(void *buf_priv, struct vm_area_struct *vma)
 
 	vma->vm_ops->open(vma);
 
-	pr_debug(
-		"%s: dma_addr[0x%llx], size[%lu], user_vaddr[0x%lx], ref[%d]",
-		__func__, buf->dma_addr, buf->size, vma->vm_start,
-		refcount_read(&buf->refcount)
-	);
+	pr_debug("%s: dma_addr[0x%llx], size[%lu], user_vaddr[0x%lx], ref[%d]",
+		 __func__, buf->dma_addr, buf->size, vma->vm_start,
+		 refcount_read(&buf->refcount));
 
 	return 0;
 }
-
-
 
 /*********************************************************************
  *                     DMABUF ops for exporters
@@ -235,8 +240,9 @@ struct bst_lwnn_dma_attachment {
 	enum dma_data_direction dma_dir;
 };
 
-static int bst_lwnn_dma_dmabuf_ops_attach(struct dma_buf *dbuf,
-				     struct dma_buf_attachment *dbuf_attach)
+static int
+bst_lwnn_dma_dmabuf_ops_attach(struct dma_buf *dbuf,
+			       struct dma_buf_attachment *dbuf_attach)
 {
 	struct bst_lwnn_dma_attachment *attach;
 	unsigned int i;
@@ -244,7 +250,7 @@ static int bst_lwnn_dma_dmabuf_ops_attach(struct dma_buf *dbuf,
 	struct sg_table *sgt;
 	struct bst_lwnn_memblock *buf;
 	int ret;
-	buf    = (struct bst_lwnn_memblock *)dbuf->priv;
+	buf = (struct bst_lwnn_memblock *)dbuf->priv;
 	attach = kzalloc(sizeof(*attach), GFP_KERNEL);
 	if (!attach)
 		return -ENOMEM;
@@ -270,21 +276,20 @@ static int bst_lwnn_dma_dmabuf_ops_attach(struct dma_buf *dbuf,
 	attach->dma_dir = DMA_NONE;
 	dbuf_attach->priv = attach;
 
-	pr_debug("%s: %s attach", __func__,
-		dev_name(dbuf_attach->dev));
+	pr_debug("%s: %s attach", __func__, dev_name(dbuf_attach->dev));
 
 	return 0;
 }
 
 static void bst_lwnn_dma_dmabuf_ops_detach(struct dma_buf *dbuf,
-				      struct dma_buf_attachment *db_attach)
+					   struct dma_buf_attachment *db_attach)
 {
 	struct bst_lwnn_dma_attachment *attach;
 	struct bst_lwnn_memblock *buf;
 	struct sg_table *sgt;
 
 	attach = db_attach->priv;
-	buf    = dbuf->priv;
+	buf = dbuf->priv;
 	pr_debug("%s: %s detach", __func__, dev_name(db_attach->dev));
 
 	if (!attach)
@@ -309,7 +314,7 @@ static void bst_lwnn_dma_dmabuf_ops_detach(struct dma_buf *dbuf,
 
 static struct sg_table *
 bst_lwnn_dma_dmabuf_ops_map(struct dma_buf_attachment *db_attach,
-		       enum dma_data_direction dma_dir)
+			    enum dma_data_direction dma_dir)
 {
 	struct bst_lwnn_dma_attachment *attach = db_attach->priv;
 	/* stealing dmabuf mutex to serialize map/unmap operations */
@@ -347,18 +352,16 @@ bst_lwnn_dma_dmabuf_ops_map(struct dma_buf_attachment *db_attach,
 
 	mutex_unlock(lock);
 
-	pr_debug("%s: %s map attach", __func__,
-		dev_name(db_attach->dev));
+	pr_debug("%s: %s map attach", __func__, dev_name(db_attach->dev));
 
 	return sgt;
 }
 
 static void bst_lwnn_dma_dmabuf_ops_unmap(struct dma_buf_attachment *db_attach,
-				     struct sg_table *sgt,
-				     enum dma_data_direction dma_dir)
+					  struct sg_table *sgt,
+					  enum dma_data_direction dma_dir)
 {
-	pr_debug("%s: %s unmap attach", __func__,
-		dev_name(db_attach->dev));
+	pr_debug("%s: %s unmap attach", __func__, dev_name(db_attach->dev));
 }
 
 static void bst_lwnn_dma_dmabuf_ops_release(struct dma_buf *dbuf)
@@ -370,18 +373,20 @@ static void bst_lwnn_dma_dmabuf_ops_release(struct dma_buf *dbuf)
 
 static int
 bst_lwnn_dma_dmabuf_ops_begin_cpu_access(struct dma_buf *dbuf,
-				    enum dma_data_direction direction)
+					 enum dma_data_direction direction)
 {
 	return 0;
 }
 
-static int bst_lwnn_dma_dmabuf_ops_end_cpu_access(struct dma_buf *dbuf,
-					     enum dma_data_direction direction)
+static int
+bst_lwnn_dma_dmabuf_ops_end_cpu_access(struct dma_buf *dbuf,
+				       enum dma_data_direction direction)
 {
 	return 0;
 }
 
-static int bst_lwnn_dma_dmabuf_ops_vmap(struct dma_buf *dbuf, struct iosys_map *map)
+static int bst_lwnn_dma_dmabuf_ops_vmap(struct dma_buf *dbuf,
+					struct iosys_map *map)
 {
 	struct bst_lwnn_memblock *buf = dbuf->priv;
 	void *vaddr;
@@ -396,7 +401,7 @@ static int bst_lwnn_dma_dmabuf_ops_vmap(struct dma_buf *dbuf, struct iosys_map *
 }
 
 static int bst_lwnn_dma_dmabuf_ops_mmap(struct dma_buf *dbuf,
-				   struct vm_area_struct *vma)
+					struct vm_area_struct *vma)
 {
 	return bst_lwnn_dma_mmap(dbuf->priv, vma);
 }
@@ -435,11 +440,17 @@ static struct sg_table *bst_lwnn_dma_get_base_sgt(struct bst_lwnn_memblock *buf)
 	return sgt;
 }
 
-static struct dma_buf *bst_lwnn_dma_get_dmabuf(void *buf_priv, unsigned long flags)
+static struct dma_buf *bst_lwnn_dma_get_dmabuf(void *buf_priv,
+					       unsigned long flags)
 {
+	// int ret;
 	struct bst_lwnn_memblock *buf = buf_priv;
 	struct dma_buf *dbuf;
 	DEFINE_DMA_BUF_EXPORT_INFO(exp_info);
+	dma_addr_t dma_addr = buf->dma_addr;
+	struct sg_table *sgt = NULL;
+	struct scatterlist *sgl = NULL;
+	int i = 0;
 
 	exp_info.ops = &bst_lwnn_dma_dmabuf_ops;
 	exp_info.size = buf->size;
@@ -454,6 +465,23 @@ static struct dma_buf *bst_lwnn_dma_get_dmabuf(void *buf_priv, unsigned long fla
 		return ERR_PTR(-EINVAL);
 	}
 
+	/* dma_map_sgtable() will alloc new iova. One dma buffer wastes two iova 
+		virtual spaces. Here, don't need to map again. */
+#if 1
+	sgt = buf->sgt_base;
+	for_each_sgtable_sg(sgt, sgl, i) {
+		sg_dma_address(sgl) = dma_addr;
+		sg_dma_len(sgl) = sgl->length;
+		dma_addr += sgl->length;
+	}
+#else
+	ret = dma_map_sgtable(buf->dev, buf->sgt_base,buf->dma_dir, DMA_ATTR_SKIP_CPU_SYNC);
+	if (ret < 0) {
+		dev_err(buf->dev, "Failed to map sgt: %d\n", ret);
+		return ERR_PTR(ret);
+	}
+#endif
+
 	dbuf = dma_buf_export(&exp_info);
 	if (IS_ERR(dbuf)) {
 		pr_err("Failed to export dmabuf");
@@ -464,7 +492,7 @@ static struct dma_buf *bst_lwnn_dma_get_dmabuf(void *buf_priv, unsigned long fla
 	refcount_inc(&buf->refcount);
 
 	pr_debug("%s: dma_addr[0x%llx], size[%lu], ref[%d]", __func__,
-		buf->dma_addr, buf->size, refcount_read(&buf->refcount));
+		 buf->dma_addr, buf->size, refcount_read(&buf->refcount));
 
 	return dbuf;
 }
@@ -488,7 +516,8 @@ static int bst_lwnn_dma_map_dmabuf(void *mem_priv)
 		pr_err("Dmabuf buffer is already pinned");
 		return 0;
 	}
-	pr_debug("buf->db_attach: 0x%llx, buf->dma_dir: %d", (unsigned long long)buf->db_attach, buf->dma_dir);
+	pr_debug("buf->db_attach: 0x%llx, buf->dma_dir: %d",
+		 (unsigned long long)buf->db_attach, buf->dma_dir);
 	/* get the associated scatterlist for this buffer */
 	sgt = dma_buf_map_attachment(buf->db_attach, buf->dma_dir);
 	if (IS_ERR(sgt)) {
@@ -500,8 +529,8 @@ static int bst_lwnn_dma_map_dmabuf(void *mem_priv)
 	/* checking if dmabuf is big enough to store contiguous chunk */
 	contig_size = bst_lwnn_dma_get_contiguous_size(sgt);
 	if (contig_size < buf->size) {
-		pr_err("Contiguous chunk is too small %lu/%lu\n",
-			contig_size, buf->size);
+		pr_err("Contiguous chunk is too small %lu/%lu\n", contig_size,
+		       buf->size);
 		dma_buf_unmap_attachment(buf->db_attach, sgt, buf->dma_dir);
 		return -EFAULT;
 	}
@@ -510,8 +539,8 @@ static int bst_lwnn_dma_map_dmabuf(void *mem_priv)
 	buf->dma_sgt = sgt;
 	buf->vaddr = NULL;
 
-	pr_debug("%s: dma_addr[0x%llx], size[%lu]", __func__,
-		buf->dma_addr, buf->size);
+	pr_debug("%s: dma_addr[0x%llx], size[%lu]", __func__, buf->dma_addr,
+		 buf->size);
 
 	return 0;
 }
@@ -521,8 +550,8 @@ static void bst_lwnn_dma_unmap_dmabuf(void *mem_priv)
 	struct bst_lwnn_memblock *buf = mem_priv;
 	struct sg_table *sgt = buf->dma_sgt;
 
-	pr_debug("%s: dma_addr[0x%llx], size[%lu]", __func__,
-		buf->dma_addr, buf->size);
+	pr_debug("%s: dma_addr[0x%llx], size[%lu]", __func__, buf->dma_addr,
+		 buf->size);
 
 	if (WARN_ON(!buf->db_attach)) {
 		pr_err("Trying to unpin a not attached buffer");
@@ -559,9 +588,10 @@ static void bst_lwnn_dma_detach_dmabuf(void *mem_priv)
 	kfree(buf);
 }
 
-static void *bst_lwnn_dma_attach_dmabuf(struct device *dev, struct dma_buf *dbuf,
-				   unsigned long size,
-				   enum dma_data_direction dma_dir)
+static void *bst_lwnn_dma_attach_dmabuf(struct device *dev,
+					struct dma_buf *dbuf,
+					unsigned long size,
+					enum dma_data_direction dma_dir)
 {
 	struct bst_lwnn_memblock *buf;
 	struct dma_buf_attachment *dba;

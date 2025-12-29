@@ -90,9 +90,11 @@ struct dw_i2s_dev {
 	resource_size_t phy_base;
 	struct clk *clk;
 	struct dentry *debugfs;
+	struct pinctrl *pin;
 	int active;
 	int lsp_crm;
 	int sequence;
+	int multichan_value;
 	unsigned int capability;
 	unsigned int quirks;
 	unsigned int i2s_reg_comp1;

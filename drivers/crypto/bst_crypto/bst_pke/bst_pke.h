@@ -225,12 +225,13 @@ int bst_rsa_set_priv_key(struct crypto_akcipher *tfm, const void *key,
 int bst_rsa_set_pub_key(struct crypto_akcipher *tfm, const void *key,
 						unsigned int keylen);
 unsigned int bst_rsa_max_size(struct crypto_akcipher *tfm);
+int bst_rsa_init_tfm(struct crypto_akcipher *tfm);
 void bst_rsa_exit_tfm(struct crypto_akcipher *tfm);
 
 uint32_t pke_sm2_sign(const struct pke_ec_curve *curve, uint8_t E[32],
 					  uint8_t rand_k[32], uint8_t pri_key[32], uint8_t signature[64]);
 uint32_t pke_sm2_verify(const struct pke_ec_curve *sm2_curve, uint8_t E[32],
-						uint8_t pubKey[65], uint8_t signature[64]);
+						uint8_t pub_key[65], uint8_t signature[64]);
 int bst_sm2_verify(struct akcipher_request *req);
 int bst_sm2_sign(struct akcipher_request *req);
 int bst_sm2_set_pub_key(struct crypto_akcipher *tfm,
@@ -252,4 +253,6 @@ int bst_ecdsa_set_priv_key(struct crypto_akcipher *tfm, const void *key, unsigne
 unsigned int bst_ecdsa_max_size(struct crypto_akcipher *tfm);
 int bst_ecdsa_init_tfm(struct crypto_akcipher *tfm);
 void bst_ecdsa_exit_tfm(struct crypto_akcipher *tfm);
+extern void pke_enable_interrupt(void);
+extern void pke_disable_interrupt(void);
 #endif

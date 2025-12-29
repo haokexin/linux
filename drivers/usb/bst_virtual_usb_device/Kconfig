@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: GPL-2.0+
 config USB_BST_VIRT_DEVICE
       tristate "Virtual USB host device driver"
-      select BST_VIRT_USB_MSG
+      depends on USB_BST_VIRT_MSG
       help
           This option enables the building of the Virtual USB host device driver,
           which provides support for a virtual USB device over the msgbox interface.

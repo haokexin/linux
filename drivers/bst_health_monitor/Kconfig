@@ -1,0 +1,44 @@
+# SPDX-License-Identifier: GPL-2.0-only
+#
+# BST Health Monitor
+#
+
+menuconfig BST_HEALTH_MONITOR
+	bool "BST Health Monitor"
+	default y
+	help
+	  This selects the function of health monitor for kernel.
+	  Health monitor can check the heart beat from a service task from
+	  userspace and manage the heart beat from kernel to core R5.
+	  And it also decides where the task should be restarted or not.
+
+if BST_HEALTH_MONITOR
+
+config HEALTH_MONITOR_MODULE
+	tristate "BST Health Monitor Module"
+	default m
+	help
+	  This selects the module of health monitor for kernel.
+	  It includes some function as fallowing:
+	  1. Sending dtc to core R5.
+
+config HEALTH_MONITOR_PID
+	int
+	depends on BST_HEALTH_MONITOR
+	default 22 if BST_C1200_ADAS
+	default 18 if BST_C1200_IVI
+	default 33 if BST_C1200_DB
+
+config HEALTH_MONITOR_SID
+	int
+	depends on BST_HEALTH_MONITOR
+	default 5 if BST_C1200_ADAS || BST_C1200_IVI
+	default 5 if BST_C1200_DB
+
+config HEALTH_MONITOR_FID
+	int
+	default 3 if BST_C1200_ADAS 
+	default 3 if BST_C1200_IVI
+	default 1 if BST_C1200_DB
+
+endif

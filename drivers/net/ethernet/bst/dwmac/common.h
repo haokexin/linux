@@ -56,7 +56,7 @@
 
 #define BSTGMAC0_BUS_ID         0
 #define BSTGMAC1_BUS_ID         1
-#define BSTGMAC_CORE_NUM        3
+#define BSTGMAC_CORE_NUM        1
 #define BSTGMAC_RXCHAN_NUM      4
 #define BSTGMAC_RXMEM_THRE      (DMA_RX_SIZE)
 #define BSTGMAC_RXMEM_MAX       (BSTGMAC_RXMEM_THRE * 2) /* must *2 */
@@ -71,7 +71,8 @@
 
 #define BSTMAC_DIRECT_CMN		1
 #define BSTMAC_CMN_ADDR_OFFSET		BIT(36)
-
+#define BSTMAC_MEM_NOFLUSH_CACHE	0
+#define BSTMAC_DESC_CACHE			1	
 /* Extra statistic and debug information exposed by ethtool */
 struct bstgmac_extra_stats {
 	/* Transmit errors */
@@ -285,12 +286,16 @@ struct bstgmac_safety_stats {
 #define MAX_DMA_RIWT		0xff
 #define MIN_DMA_RIWT		0x20
 #define DEF_DMA_RIWT		0xa0
+
+/* Msgbox parameters */
+#define BSTGMAC_MSGBOX_MAX_CNT 5
+
 /* Tx coalesce parameters */
 #define BSTGMAC_COAL_TX_TIMER	1000
 #define BSTGMAC_MAX_COAL_TX_TICK	100000
 #define BSTGMAC_TX_MAX_FRAMES	256
 #define BSTGMAC_TX_FRAMES	16
-#define BSTGMAC_RX_FRAMES	0
+#define BSTGMAC_RX_FRAMES	128
 
 /* ASP types */
 enum asp_types {
@@ -517,7 +522,7 @@ struct mac_device_info {
 	const struct bstgmac_mode_ops *mode;
 	const struct bstgmac_hwtimestamp *ptp;
 	const struct bstgmac_tc_ops *tc;
-	const struct bstgmac_priv *priv;
+	struct bstgmac_priv *priv;
 	const struct bstgmac_mmc_ops *mmc;
 	const struct mdio_xpcs_ops *xpcs;
 	struct mdio_xpcs_args xpcs_args;

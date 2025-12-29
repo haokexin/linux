@@ -9,6 +9,28 @@
 #include <linux/dma-map-ops.h>
 #include "usb_bst_virt_device.h"
 
+static int kill_process_by_name(const char *name)
+{
+	struct task_struct *task;
+
+	read_lock(&tasklist_lock);
+	for_each_process(task) {
+		if (strcmp(task->comm, name) == 0) {
+			get_task_struct(task);
+			read_unlock(&tasklist_lock);
+
+			send_sig(SIGKILL, task, 0);
+			pr_debug("Killed process: %s (PID: %d)\n", name, task->pid);
+
+			put_task_struct(task);
+			return 0;
+		}
+	}
+	read_unlock(&tasklist_lock);
+	return -1;
+}
+
+
 extern struct usb_driver virtual_usb_driver;
 int g_system_id;
 /* Get a minor range for your devices from the usb maintainer */
@@ -76,23 +98,6 @@ static int virtual_usb_release(struct inode *inode, struct file *file)
 	return 0;
 }
 
-static int virtual_usb_flush(struct file *file, fl_owner_t id)
-{
-	struct usb_virtual_device *dev;
-	int res;
-
-	dev = file->private_data;
-	if (dev == NULL)
-		return -ENODEV;
-
-	/* wait for io to stop */
-	mutex_lock(&dev->io_mutex);
-	virtual_usb_draw_down(dev);
-
-	mutex_unlock(&dev->io_mutex);
-
-	return res;
-}
 
 static ssize_t virtual_usb_read(struct file *file, char *buffer, size_t count,
 				loff_t *ppos)
@@ -141,13 +146,10 @@ char cnxn[24] = {
 
 char id[9] = { 0x68, 0x6F, 0x73, 0x74, 0x3A, 0x3A, 0x42, 0x43, 0x54 };
 
-char err_info[8] = {
-	0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88
-};
 
 void usb_local_send_adb_err(struct usb_virtual_device *vdev)
 {
-	usb_local_bulk_out_submit(vdev, err_info, 8);
+	kill_process_by_name("adbd");
 }
 
 void usb_local_send_adb_cnxn_id(struct usb_virtual_device *vdev)
@@ -210,8 +212,8 @@ static ssize_t virtual_usb_write(struct file *file, const char *user_buffer,
 				 size_t count, loff_t *ppos)
 {
 	struct usb_virtual_device *vdev = NULL;
-	size_t writesize = min_t(size_t, count, MAX_TRANSFER);
-	char cmd[16] = "";
+	char cmd[512] = "";
+	size_t writesize = min_t(size_t, count, sizeof(cmd));
 
 	vdev = file->private_data;
 
@@ -234,7 +236,17 @@ static ssize_t virtual_usb_write(struct file *file, const char *user_buffer,
 		usb_send_pid_device_msg(vdev, USB_VIRT_DEVICE_CMD_ACTIVE, CPU_0);
 	else if (!strncmp(cmd, "switch adas", 11))
 		usb_send_pid_device_msg(vdev, USB_VIRT_DEVICE_CMD_ACTIVE, CPU_4);
-
+	else if (!strncmp(cmd, "sn ", 3)) {
+		if (writesize > 4)
+			usb_send_buf_device_msg(vdev, USB_VIRT_DEVICE_CMD_SET_SN, cmd + 3, writesize - 4);//del len[sn \n]
+	} else if (!strncmp(cmd, "reconnect_sn ", 13)) {
+		if (writesize > 14) {
+			usb_send_buf_device_msg(vdev, USB_VIRT_DEVICE_CMD_SET_SN, cmd + 13, writesize - 14);
+			mdelay(10);
+			usb_send_device_msg(vdev, USB_VIRT_DEVICE_CMD_RECONNECT);
+		}
+	} else if (!strncmp(cmd, "reconnect", 9))
+		usb_send_device_msg(vdev, USB_VIRT_DEVICE_CMD_RECONNECT);
 	return writesize;
 exit:
 	dev_err(&vdev->udev->dev, "write error\n");
@@ -247,7 +259,6 @@ static const struct file_operations virtual_usb_fops = {
 	.write = virtual_usb_write,
 	.open = virtual_usb_open,
 	.release = virtual_usb_release,
-	.flush = virtual_usb_flush,
 	.llseek = noop_llseek,
 };
 

@@ -1,0 +1,25 @@
+#include <dt-bindings/media/bst-isp.h>
+
+compatible = "bst,custom_camera";
+sensor-addr = <0x1a>;
+data-type = <DT_YUV422_8B>;
+sensor-fps = <20>;
+reg-width = <WORD_REG_BYTE_VAL>;
+
+ser-fsync-tx-pin = <8>;
+ser-addr = <0x40>;
+ser-init =
+	<0x0002 0x03>, // Disable channel Z first
+	<0x03F0 0x59>, // Enable pre-defined reference generation PLL(24M/ALT)
+	<0x0570 0x0C>, // MFP3 rise and fall slowest, MFP4 rise and fall fastest
+	<0x0041 0x76>, // I2C-to-I2C master 980Kbps, 32ms' timeout
+	<0x0003 0x03>, // Route RCLK to MFP4, Reference PLL output
+	<0x0006 0xB0>, // Enable RCLK output, enable I2C
+	<0x02D3 0x90>,
+	<0x0318 0x5E>; // Route data type 0x1E(DT_YUV422_8B) to pipe Z
+
+ser-pre-stream-on =
+	<0x0330 0x80>, // Reset MIPI RX
+	<0x0331 0x30>, // 4 data lanes, disable deskew, extended VC
+	<0x0330 0x00>, // Release MIPI RX, continuous clock, disable VC mapping, 1x4lane mode
+	<0x0002 0x43>; // Enable channel Z

@@ -386,7 +386,7 @@ long divider_round_rate_parent(struct clk_hw *hw, struct clk_hw *parent,
 			       const struct clk_div_table *table,
 			       u8 width, unsigned long flags)
 {
-	struct clk_rate_request req;
+	struct clk_rate_request req={0};
 	int ret;
 
 	clk_hw_init_rate_request(hw, &req, rate);

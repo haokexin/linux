@@ -1,4 +1,5 @@
-/* SPDX-License-Identifier: GPL-2.0+
+// SPDX-License-Identifier: GPL-2.0+
+/*
  *
  * Copyright (c) 2024 Black Sesame Technologies
  */
@@ -15,13 +16,15 @@
 #include "bstn.h"
 /******************************************************/
 
-static int bstn_probe (struct platform_device *pdev);
+static int bstn_probe(struct platform_device *pdev);
 static int bstn_remove(struct platform_device *pdev);
 static void bstn_shutdown(struct platform_device *pdev);
 
 // globle data define
 static const struct of_device_id bstn_of_match[] = {
-	{.compatible = "bst,bstn",},
+	{
+		.compatible = "bst,bstn",
+	},
 	{},
 };
 
@@ -35,12 +38,16 @@ static struct platform_driver bstn_driver = {
 		   },
 };
 
-int bstn_msg_interface = 1;	/* 0: BSTN_MSG_INTERFACE_IPC, 1: BSTN_MSG_INTERFACE_MSGBOX */
-int bstn_mem_usingsmmu = 0; /* 0: disable smmu, 1: enable smmu (status same with dtb) */
+int bstn_msg_interface =
+	1; /* 0: BSTN_MSG_INTERFACE_IPC, 1: BSTN_MSG_INTERFACE_MSGBOX */
+int bstn_mem_usingsmmu =
+	0; /* 0: disable smmu, 1: enable smmu (status same with dtb) */
 module_param(bstn_msg_interface, int, S_IRUGO);
 module_param(bstn_mem_usingsmmu, int, S_IRUGO);
-MODULE_PARM_DESC(bstn_msg_interface, "msg interface use 0(ipc) 1(msgbox,default)");
-MODULE_PARM_DESC(bstn_mem_usingsmmu, "smmu status: 0(disable), 1(enable,default)");
+MODULE_PARM_DESC(bstn_msg_interface,
+		 "msg interface use 0(ipc) 1(msgbox,default)");
+MODULE_PARM_DESC(bstn_mem_usingsmmu,
+		 "smmu status: 0(disable), 1(enable,default)");
 
 /*******************************************************************************
  * BSTN Driver Interface
@@ -90,8 +97,8 @@ static int bstn_probe(struct platform_device *pdev)
 		return ret;
 	}
 
-	pbstn =
-	    devm_kzalloc(&pdev->dev, sizeof(struct bstn_device), GFP_KERNEL);
+	pbstn = devm_kzalloc(&pdev->dev, sizeof(struct bstn_device),
+			     GFP_KERNEL);
 	if (pbstn == NULL) {
 		return -ENOMEM;
 	}
@@ -101,7 +108,8 @@ static int bstn_probe(struct platform_device *pdev)
 	mutex_init(&pbstn->mutex);
 
 	//init bstn memory manager
-	pbstn->mem_manager.enable_smmu = (bstn_mem_usingsmmu == 1) ? true : false;
+	pbstn->mem_manager.enable_smmu = (bstn_mem_usingsmmu == 1) ? true :
+								     false;
 	ret = bstn_mem_manager_init(pbstn);
 	if (ret < 0) {
 		BSTN_DEV_ERR(&pbstn->pdev->dev,
@@ -141,7 +149,6 @@ static int bstn_probe(struct platform_device *pdev)
 	pbstn->msg_manager.ipc_session_id = -1;
 	pbstn->msg_manager.msgbx_client = NULL;
 	pbstn->msg_manager.req_bufs = NULL;
-	pbstn->msg_manager.msg_info = NULL;
 	pbstn->msg_manager.msg_receiver_task = NULL;
 	pbstn->msg_manager.msg_sw_bister_task = NULL;
 
@@ -203,17 +210,19 @@ static int bstn_remove(struct platform_device *pdev)
                 for personal exploration)
  * @return      Void
  */
-static void bstn_shutdown(struct platform_device *pdev) {
-	struct bstn_device *pbstn = platform_get_drvdata(pdev);
-
-	bstn_firmware_stall(pbstn);
-	BSTN_STAGE_PRINTK("bstn shutdown");
+static void bstn_shutdown(struct platform_device *pdev)
+{
+	int ret = bstn_remove(pdev);
+	BSTN_STAGE_PRINTK("bstn shutdown:%d", ret);
 	return;
 }
 
 // register the BSTN driver on platform bus
 static int __init bstn_driver_init(void)
 {
+	BSTN_STAGE_PRINTK("BSTN version:%s,%s", _GIT_MSG_, _GIT_DATE_);
+	BSTN_STAGE_PRINTK("BSTN build:  %s,%s", __DATE__, __TIME__);
+
 	return (platform_driver_register(&bstn_driver));
 }
 
@@ -229,7 +238,7 @@ module_init(bstn_driver_init);
 module_exit(bstn_driver_exit);
 
 MODULE_AUTHOR("BST Ltd.");
-MODULE_DESCRIPTION
-    ("BSTN: Linux device driver for Black Sesame Technologies Neural Network IP");
+MODULE_DESCRIPTION(
+	"BSTN: Linux device driver for Black Sesame Technologies Neural Network IP");
 MODULE_LICENSE("GPL");
 MODULE_IMPORT_NS(DMA_BUF);

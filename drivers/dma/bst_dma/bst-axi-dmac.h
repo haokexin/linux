@@ -29,6 +29,8 @@ enum{
 #define SW2SOC_INTR_SEL3_0   0x600
 #define SW2SOC_INTR_SEL7_4   0x604
 #define SWDMA_TO_SOCINTER    0
+
+#define BLOCK_TRF_INT_MODE    15
 extern unsigned long bst_sip_special_address_rw(u_int64_t x1, u_int64_t x2, u_int64_t x3);
 struct bst_axi_dma_hcfg {
 	u32	nr_channels;
@@ -65,6 +67,10 @@ struct axi_dma_chan {
 	bool				cyclic;
 	/* these other elements are all protected by vc.lock */
 	bool				is_paused;
+
+	u64 block_num;
+
+	unsigned long flags;
 };
 
 struct bst_axi_dma {

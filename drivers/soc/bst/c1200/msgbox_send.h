@@ -4,7 +4,7 @@
 #include <bst/ipc_app_client_utils.h>
 #include <bst/ipc_app_common.h>
 #include <bst/ipc_trans_layer.h>
-#include <bst/ipc_trans_common.h>
+#include "ipc_trans_common.h"
 
 #ifndef __MSGBOX_SEND_H__
 #define __MSGBOX_SEND_H__

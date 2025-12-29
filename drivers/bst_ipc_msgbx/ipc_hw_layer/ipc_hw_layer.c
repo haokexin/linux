@@ -1,24 +1,31 @@
-// SPDX-License-Identifier: GPL-2.0 OR BSD-3-Clause
-/* This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2 of the License, or
- * (at your option) any later version.
+/* SPDX-License-Identifier: GPL-2.0 OR Apache 2.0
  *
- * This program is also distributed under the terms of the BSD 3-Clause
+ * Copyright (c) 2024 Black Sesame Technologies
+ *
+ * This program is also distributed under the terms of the Apache 2.0
  * License.
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
- * Copyright (C) 2023 Black Sesame Technologies. Inc.
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 #include <bst/ipc_hw_layer.h>
 #include <bst/ipc_hw_impl.h>
-#include "../ipc_trans_layer/src/ipc_trans_runtime.h"
+#include "./msgbx_impl/ipc_hw_miscdev.h"
 
 /* this is ipc hw_layer msgbx implementation. In this file, which provide
  * API for upper layer and compabitility to different hardware ipc mechanism.
  */
 /********************* local variables ***************************/
 static libipc_hw_compat_ops_t g_hw_ctl_ops;
-static err_msg_callback err_cb;
+static err_msg_ntf err_cb;
 static recv_ntf recv_cb;
 
 // ipc hw layer local function
@@ -33,46 +40,37 @@ int32_t ipc_hw_register_ops(const libipc_hw_compat_ops_t *ops)
 EXPORT_SYMBOL(ipc_hw_register_ops);
 
 // ipc hw layer api implementation
-int32_t ipc_hw_layer_init(const uint8_t cpuid, const ipc_init_params_t *ipc_param, msgbx_hw_info_t *hw_info)
+int32_t ipc_hw_layer_init(const uint8_t endid, const ipc_init_params_t *ipc_param, msgbx_hw_info_t *hw_info)
 {
 	// step1: register ops
 	int32_t ret = -1;
 
-	ret = ipc_hw_register_ops(&g_ipc_end_array[cpuid]->ops);
+	ret = ipc_hw_register_ops(&ipc_hw_ops);
 	if (ret < 0)
 		return -1;
 
 	// step2: get info from hw
-	ret = g_hw_ctl_ops.ipc_hw_get_info(cpuid, hw_info);
+	ret = g_hw_ctl_ops.ipc_hw_get_info(endid, hw_info);
 	if (ret < 0)
 		return -2;
 
 	// step3: init hardware
-	ret = g_hw_ctl_ops.ipc_hw_init(cpuid, ipc_param);
+	ret = g_hw_ctl_ops.ipc_hw_init(endid, ipc_param);
 	if (ret < 0)
 		return -3;
 
 	// step4: state mgt enable
-#ifdef IPC_STATE_MGT_ENABLE
-	if (ipc_param->msgbx_end_mgt_flag != 0) {
-		ret = g_hw_ctl_ops.ipc_hw_sts_mgt_enble(cpuid, ipc_param->msgbx_end_mgt_flag);
+	if(hw_info->mbx_end_id == CPU_7 || hw_info->mbx_end_id == CPUMP2_0) {
+		ret = g_hw_ctl_ops.ipc_hw_fmu_mgt_enble(endid, MSG_END_MGT_CONFIG);
 		if (ret < 0)
 			return -4;
 	}
-#endif
 
 	return 0;
 }
 
 int32_t ipc_hw_layer_deinit(const uint8_t cpuid)
 {
-#ifdef IPC_STATE_MGT_ENABLE
-	int32_t ret = -1;
-
-	ret = g_hw_ctl_ops.ipc_hw_sts_mgt_disable(cpuid);
-	if (ret < 0)
-		return ret;
-#endif
 	return g_hw_ctl_ops.ipc_hw_deinit(cpuid);
 }
 
@@ -92,9 +90,9 @@ int32_t ipc_hw_layer_recv_ntf_register(void *addr, recv_ntf recv_func)
 }
 EXPORT_SYMBOL(ipc_hw_layer_recv_ntf_register);
 
-int32_t ipc_hw_layer_get_msg(const uint8_t cpuid, rw_msg_t *msg, const uint8_t fid)
+int32_t ipc_hw_layer_get_msg(const uint8_t endid, rw_msg_t *msg, const uint8_t fid)
 {
-	return g_hw_ctl_ops.ipc_hw_get_msg(cpuid, msg, fid);
+	return g_hw_ctl_ops.ipc_hw_get_msg(endid, fid, msg);
 }
 EXPORT_SYMBOL(ipc_hw_layer_get_msg);
 
@@ -111,12 +109,12 @@ EXPORT_SYMBOL(ipc_hw_layer_send_msg);
 
 int32_t ipc_hw_recv_msg_notify(const uint8_t cpuid, const uint8_t fid, const rw_msg_t *msg)
 {
-#ifdef CONFIG_C1200_SLT
-	if (msg->header.typ ==  MSGBX_MSG_TYPE_USERDEFINED && msg->header.cmd == 0) {
+#if defined(CONFIG_C1200_SLT) || defined(CONFIG_C1200_MASS)
+	if (msg->header.typ ==  MSGBX_MSG_TYPE_HARDWARE && msg->header.cmd == 255) {
 		ipc_trans_complete_test(fid, msg);
 		return 0;
 	}
-	if (msg->header.typ ==  MSGBX_MSG_TYPE_USERDEFINED && msg->header.cmd == 1) {
+	if (msg->header.typ ==  MSGBX_MSG_TYPE_USERDEFINED && msg->header.cmd == 255) {
 		rw_msg_t sepc_msg = *msg;
 		sepc_msg.payload[0] = fid << 4;	 // spec: high 32 bit store self irq number
 		((recv_ntf)recv_cb)(g_ipc_end_array[cpuid], fid, &sepc_msg);
@@ -129,19 +127,19 @@ int32_t ipc_hw_recv_msg_notify(const uint8_t cpuid, const uint8_t fid, const rw_
 	return 0;
 }
 
-int32_t ipc_hw_err_msg_notify(const uint8_t cpuid, const uint8_t fid)
+int32_t ipc_hw_err_msg_notify(const uint8_t endid, const uint8_t fid, const msgbx_err_code_t code)
 {
 #ifdef IPC_STATE_MGT_ENABLE
 	// get err msg and call function
-	msgbx_err_msg_t err_msg = { 0 };
-
-	g_hw_ctl_ops.ipc_hw_get_err_msg(cpuid, fid, &err_msg);
-	if (err_cb != NULL)
-		((err_msg_callback)err_cb)(g_ipc_end_array[cpuid], &err_msg);
+	msgbx_err_msg_t err_msg;
+	err_msg.fid = fid;
+	err_msg.err_code = code;
+	if (err_cb != NULL) {
+		((err_msg_ntf)err_cb)(g_ipc_end_array[endid], &err_msg);
+	}
 #endif
 	return 0;
 }
-
 
 // filtering rule processing
 int32_t ipc_hw_layer_flt_init(const uint8_t cpuid, const msgbx_flt_cfg_t *cfg)
@@ -157,7 +155,6 @@ EXPORT_SYMBOL(ipc_hw_layer_flt_init);
 
 int32_t ipc_hw_layer_flt_rule_set(const uint8_t cpuid, const uint8_t fid, msgbx_flt_rule_cfg_t *rule)
 {
-
 	// set rule to filter
 	return g_hw_ctl_ops.ipc_hw_set_flt_cfg(cpuid, fid, rule);
 }
@@ -176,16 +173,16 @@ int32_t ipc_hw_layer_flt_rule_clr(const uint8_t cpuid, const uint8_t fid)
 }
 EXPORT_SYMBOL(ipc_hw_layer_flt_rule_clr);
 
-int32_t ipc_hw_layer_err_msg_register(const uint8_t cpuid, err_msg_callback err_func)
+int32_t ipc_hw_layer_err_msg_register(const uint8_t cpuid, err_msg_ntf err_func)
 {
 	err_cb = err_func;
 	return 0;
 }
 EXPORT_SYMBOL(ipc_hw_layer_err_msg_register);
 
-int32_t ipc_hw_layer_err_hdl(const uint8_t cpuid, uint8_t type, uint8_t id, uint32_t hdl)
+int32_t ipc_hw_layer_err_hdl(const uint8_t endid, uint8_t id, uint32_t hdl)
 {
-	return g_hw_ctl_ops.ipc_hw_err_hdl(cpuid, type, id, hdl);
+	return g_hw_ctl_ops.ipc_hw_err_hdl(endid, id, hdl);
 }
 EXPORT_SYMBOL(ipc_hw_layer_err_hdl);
 
@@ -197,3 +194,45 @@ int32_t ipc_hw_layer_get_time(const uint8_t cpuid, uint64_t *timestamp)
 		return 0;
 }
 EXPORT_SYMBOL(ipc_hw_layer_get_time);
+
+int32_t ipc_hw_endmap_notify(const uint8_t endid, const sts_endmap_t *endmap)
+{
+	return 0;
+}
+EXPORT_SYMBOL(ipc_hw_endmap_notify);
+
+int32_t ipc_hw_layer_endmap_ntf_register(void *addr, endmap_ntf endmap_func)
+{
+	return 0;
+}
+EXPORT_SYMBOL(ipc_hw_layer_endmap_ntf_register);
+
+int32_t ipc_hw_layer_set_endmap(const uint8_t endid, const uint8_t idx, const uint8_t status)
+{
+	return 0;
+}
+EXPORT_SYMBOL(ipc_hw_layer_set_endmap);
+
+int32_t ipc_hw_layer_get_endmap(const uint8_t endid, sts_endmap_t *map)
+{
+	return 0;
+}
+EXPORT_SYMBOL(ipc_hw_layer_get_endmap);
+
+int32_t ipc_hw_layer_update_endmap(const uint8_t endid, const uint8_t updated_chipid)
+{
+	return 0;
+}
+EXPORT_SYMBOL(ipc_hw_layer_update_endmap);
+
+int32_t ipc_hw_layer_get_hw_counter(const uint8_t endid, const uint8_t fid, msgbox_hw_counter_t *hw_cnt)
+{
+	return 0;
+}
+EXPORT_SYMBOL(ipc_hw_layer_get_hw_counter);
+
+int32_t ipc_hw_layer_clr_hw_counter(const uint8_t endid, const uint8_t fid, const uint32_t clr_mask)
+{
+	return 0;
+}
+EXPORT_SYMBOL(ipc_hw_layer_clr_hw_counter);

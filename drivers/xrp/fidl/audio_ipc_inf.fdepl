@@ -1,0 +1,64 @@
+//xxx-inf.fdepl
+import "platform:/plugin/com.bst.os.idl/deployment/ipc_spec.fdepl"
+import "audio_ipc.fidl"
+
+define com.bst.ipc.deployment for interface com.bst.ipc.audio.audio_ipc {
+	MaxMethodNum = 20
+	MaxBroadcastNum = 5
+	method hello {
+		MethodID = 1
+	}
+	method slt_method {
+		MethodID = 2
+	}
+	method no_reply_method {
+		MethodID = 3
+	}
+	method xrp_shmem_addr_method {
+		MethodID = 4
+	}
+	method set_scenario {
+		MethodID = 5
+	}
+	method get_cur_scenario {
+		MethodID = 6
+	}
+
+	method audio_config {
+		MethodID = 7
+	}
+
+	method send_dma_buff_global_fd {
+		MethodID = 8
+	}
+
+	method data_ready_in_pingpong_buff {
+		MethodID = 9
+	}
+
+	method ctrl_cmd {
+		MethodID = 10
+	}
+
+	method start_stop_to_play {
+		MethodID = 11
+	}
+
+	broadcast heartbeat {
+		SubscribeMethodID = 20
+		UnsubscribeMethodID = 21
+		BroadcastID = 1
+	}
+
+	broadcast kws_triggered {
+		SubscribeMethodID = 22
+		UnsubscribeMethodID = 23
+		BroadcastID = 2
+	}
+
+	broadcast data_comsumed_event {
+		SubscribeMethodID = 24
+		UnsubscribeMethodID = 25
+		BroadcastID = 3
+	}
+}

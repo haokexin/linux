@@ -1,110 +1,227 @@
-&csi0_in {
-	remote-endpoint = <&deser0_out>;
-};
+#include <dt-bindings/media/bst-mdev.h>
 
-&csi1_in {
-	remote-endpoint = <&deser1_out>;
-};
-
-&csi2_in {
-	remote-endpoint = <&deser2_out>;
-};
-
-&i2cq0 {
+&i2cq2 {
 	#address-cells = <1>;
 	#size-cells = <0>;
+	spike = <0x10>;
+	status = "okay";
 
 	deser0: deser0 {
-		csi-link {
-			ports {
-				port {
-					clock-lanes = <0>;
-					data-lanes = <1 2 3 4>;
-					deser0_out: endpoint {
-						remote-endpoint = <&csi0_in>;
-					};
+		deser0_tx1: csi@1 {
+			id = <1>;
+			phy-if = <IF_DPHY>;
+			lane-num = <4>;
+			lane-speed = <2500>;
+			port {
+				deser0_out1: endpoint {
 				};
 			};
 		};
 
-		ports {
+		/* Un-comments these to set CSI2 as CPHY
+		deser0_tx2: csi@2 {
+			id = <2>;
+			phy-if = <IF_CPHY>;
+			lane-num = <3>;
+			lane-speed = <2000>;
+			port {
+				deser0_out2: endpoint {
+				};
+			};
+		};
+		*/
+
+		deser0_rx_ports: rx-ports {
 			#address-cells = <1>;
 			#size-cells = <0>;
-			port@0 {
+
+			deser0_rx0: port@0 {
 				reg = <0>;
-				deser0_in0: endpoint {
+				gmsl-ver = <GMSL2>;
+				rx-rate = <3>;
+				endpoint {
 					remote-endpoint = <&camera0_out>;
 				};
 			};
-			port@1 {
+			deser0_rx1: port@1 {
 				reg = <1>;
-				deser0_in1: endpoint {
+				gmsl-ver = <GMSL2>;
+				rx-rate = <3>;
+				endpoint {
 					remote-endpoint = <&camera1_out>;
 				};
 			};
-			port@2 {
+			deser0_rx2: port@2 {
 				reg = <2>;
-				deser0_in2: endpoint {
+				gmsl-ver = <GMSL2>;
+				rx-rate = <3>;
+				endpoint {
 					remote-endpoint = <&camera2_out>;
 				};
 			};
-			port@3 {
+			deser0_rx3: port@3 {
 				reg = <3>;
-				deser0_in3: endpoint {
+				gmsl-ver = <GMSL2>;
+				rx-rate = <3>;
+				endpoint {
 					remote-endpoint = <&camera3_out>;
 				};
 			};
 		};
 	};
 
-	camera0: camera@50 {
-		reg = <0x50>;
-		ser-alias-id = <0x40>;
-		sensor-alias-id = <0x50>;
+	camera0: camera@71 {
+		reg = <0x71>;
+		ser-alias = <0x11>;
+		sensor-alias = <0x71>;
 		status = "disabled";
 
 		port {
 			camera0_out: endpoint {
-				remote-endpoint = <&deser0_in0>;
 			};
 		};
 	};
 
-	camera1: camera@51 {
-		reg = <0x51>;
-		ser-alias-id = <0x41>;
-		sensor-alias-id = <0x51>;
+	camera1: camera@72 {
+		reg = <0x72>;
+		ser-alias = <0x12>;
+		sensor-alias = <0x72>;
 		status = "disabled";
 
 		port {
 			camera1_out: endpoint {
-				remote-endpoint = <&deser0_in1>;
 			};
 		};
 	};
 
-	camera2: camera@52 {
-		reg = <0x52>;
-		ser-alias-id = <0x42>;
-		sensor-alias-id = <0x52>;
+	camera2: camera@73 {
+		reg = <0x73>;
+		ser-alias = <0x13>;
+		sensor-alias = <0x73>;
 		status = "disabled";
 
 		port {
 			camera2_out: endpoint {
-				remote-endpoint = <&deser0_in2>;
 			};
 		};
 	};
 
-	camera3: camera@53 {
-		reg = <0x53>;
-		ser-alias-id = <0x43>;
-		sensor-alias-id = <0x53>;
+	camera3: camera@74 {
+		reg = <0x74>;
+		ser-alias = <0x14>;
+		sensor-alias = <0x74>;
 		status = "disabled";
 
 		port {
 			camera3_out: endpoint {
-				remote-endpoint = <&deser0_in3>;
+			};
+		};
+	};
+};
+
+&i2cq0 {
+	#address-cells = <1>;
+	#size-cells = <0>;
+	spike = <0x10>;
+	status = "okay";
+
+	deser1: deser1 {
+		deser1_tx1: csi@1 {
+			id = <1>;
+			phy-if = <IF_DPHY>;
+			lane-num = <4>;
+			lane-speed = <2500>;
+			/* Demo for PHY copy */
+			copy-to = <CSI2>;
+			port {
+				deser1_out1: endpoint{
+				};
+			};
+		};
+
+		deser1_rx_ports: rx-ports {
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			deser1_rx0: port@0 {
+				reg = <0>;
+				gmsl-ver = <GMSL2>;
+				rx-rate = <3>;
+				endpoint {
+					remote-endpoint = <&camera4_out>;
+				};
+			};
+			deser1_rx1: port@1 {
+				reg = <1>;
+				gmsl-ver = <GMSL2>;
+				rx-rate = <3>;
+				endpoint {
+					remote-endpoint = <&camera5_out>;
+				};
+			};
+			deser1_rx2: port@2 {
+				reg = <2>;
+				gmsl-ver = <GMSL2>;
+				rx-rate = <3>;
+				endpoint {
+					remote-endpoint = <&camera6_out>;
+				};
+			};
+			deser1_rx3: port@3 {
+				reg = <3>;
+				gmsl-ver = <GMSL2>;
+				rx-rate = <3>;
+				endpoint {
+					remote-endpoint = <&camera7_out>;
+				};
+			};
+		};
+	};
+
+	camera4: camera@71 {
+		reg = <0x71>;
+		ser-alias = <0x11>;
+		sensor-alias = <0x71>;
+		status = "disabled";
+
+		port {
+			camera4_out: endpoint {
+			};
+		};
+	};
+
+	camera5: camera@72 {
+		reg = <0x72>;
+		ser-alias = <0x12>;
+		sensor-alias = <0x72>;
+		status = "disabled";
+
+		port {
+			camera5_out: endpoint {
+			};
+		};
+	};
+
+	camera6: camera@73 {
+		reg = <0x73>;
+		ser-alias = <0x13>;
+		sensor-alias = <0x73>;
+		status = "disabled";
+
+		port {
+			camera6_out: endpoint {
+			};
+		};
+	};
+
+	camera7: camera@74 {
+		reg = <0x74>;
+		ser-alias = <0x14>;
+		sensor-alias = <0x74>;
+		status = "disabled";
+
+		port {
+			camera7_out: endpoint {
 			};
 		};
 	};
@@ -113,199 +230,130 @@
 &i2cq1 {
 	#address-cells = <1>;
 	#size-cells = <0>;
-
-	deser1: deser1 {
-		csi-link {
-			ports {
-				port {
-					clock-lanes = <0>;
-					data-lanes = <1 2 3 4>;
-					deser1_out: endpoint{
-						remote-endpoint = <&csi1_in>;
-					};
-				};
-			};
-		};
-
-		ports {
-			#address-cells = <1>;
-			#size-cells = <0>;
-			port@0 {
-				reg = <0>;
-				deser1_in0: endpoint {
-					remote-endpoint = <&camera4_out>;
-				};
-			};
-			port@1 {
-				reg = <1>;
-				deser1_in1: endpoint {
-					remote-endpoint = <&camera5_out>;
-				};
-			};
-			port@2 {
-				reg = <2>;
-				deser1_in2: endpoint {
-					remote-endpoint = <&camera6_out>;
-				};
-			};
-			port@3 {
-				reg = <3>;
-				deser1_in3: endpoint {
-					remote-endpoint = <&camera7_out>;
-				};
-			};
-		};
-	};
-
-	camera4: camera@54 {
-		reg = <0x54>;
-		ser-alias-id = <0x44>;
-		sensor-alias-id = <0x54>;
-		status = "disabled";
-
-		port {
-			camera4_out: endpoint {
-				remote-endpoint = <&deser1_in0>;
-			};
-		};
-	};
-
-	camera5: camera@55 {
-		reg = <0x55>;
-		ser-alias-id = <0x45>;
-		sensor-alias-id = <0x55>;
-		status = "disabled";
-
-		port {
-			camera5_out: endpoint {
-				remote-endpoint = <&deser1_in1>;
-			};
-		};
-	};
-
-	camera6: camera@56 {
-		reg = <0x56>;
-		ser-alias-id = <0x46>;
-		sensor-alias-id = <0x56>;
-		status = "disabled";
-
-		port {
-			camera6_out: endpoint {
-				remote-endpoint = <&deser1_in2>;
-			};
-		};
-	};
-
-	camera7: camera@57 {
-		reg = <0x57>;
-		ser-alias-id = <0x47>;
-		sensor-alias-id = <0x57>;
-		status = "disabled";
-
-		port {
-			camera7_out: endpoint {
-				remote-endpoint = <&deser1_in3>;
-			};
-		};
-	};
-};
-
-&i2cq2 {
-	#address-cells = <1>;
-	#size-cells = <0>;
+	spike = <0x10>;
+	status = "okay";
 
 	deser2: deser2 {
-		csi-link {
-			ports {
-				port {
-					clock-lanes = <0>;
-					data-lanes = <1 2 3 4>;
-					deser2_out: endpoint{
-						remote-endpoint = <&csi2_in>;
-					};
+		deser2_tx1: csi@1 {
+			id = <1>;
+			phy-if = <IF_DPHY>;
+			lane-num = <4>;
+			lane-speed = <2500>;
+			port {
+				deser2_out1: endpoint{
 				};
 			};
 		};
 
-		ports {
+		deser2_rx_ports: rx-ports {
 			#address-cells = <1>;
 			#size-cells = <0>;
-			port@0 {
+
+			deser2_rx0: port@0 {
 				reg = <0>;
-				deser2_in0: endpoint {
+				gmsl-ver = <GMSL2>;
+				rx-rate = <3>;
+				endpoint {
 					remote-endpoint = <&camera8_out>;
 				};
 			};
-			port@1 {
+			deser2_rx1: port@1 {
 				reg = <1>;
-				deser2_in1: endpoint {
+				gmsl-ver = <GMSL2>;
+				rx-rate = <3>;
+				endpoint {
 					remote-endpoint = <&camera9_out>;
 				};
 			};
-			port@2 {
+			deser2_rx2: port@2 {
 				reg = <2>;
-				deser2_in2: endpoint {
+				gmsl-ver = <GMSL2>;
+				rx-rate = <3>;
+				endpoint {
 					remote-endpoint = <&camera10_out>;
 				};
 			};
-			port@3 {
+			deser2_rx3: port@3 {
 				reg = <3>;
-				deser2_in3: endpoint {
+				gmsl-ver = <GMSL2>;
+				rx-rate = <3>;
+				endpoint {
 					remote-endpoint = <&camera11_out>;
 				};
 			};
 		};
 	};
 
-	camera8: camera@58 {
-		reg = <0x58>;
-		ser-alias-id = <0x48>;
-		sensor-alias-id = <0x58>;
+	camera8: camera@71 {
+		reg = <0x71>;
+		ser-alias = <0x11>;
+		sensor-alias = <0x71>;
 		status = "disabled";
 
 		port {
 			camera8_out: endpoint {
-				remote-endpoint = <&deser2_in0>;
 			};
 		};
 	};
 
-	camera9: camera@59 {
-		reg = <0x59>;
-		ser-alias-id = <0x49>;
-		sensor-alias-id = <0x59>;
+	camera9: camera@72 {
+		reg = <0x72>;
+		ser-alias = <0x12>;
+		sensor-alias = <0x72>;
 		status = "disabled";
 
 		port {
 			camera9_out: endpoint {
-				remote-endpoint = <&deser2_in1>;
 			};
 		};
 	};
 
-	camera10: camera@5a {
-		reg = <0x5a>;
-		ser-alias-id = <0x4a>;
-		sensor-alias-id = <0x5a>;
+	camera10: camera@73 {
+		reg = <0x73>;
+		ser-alias = <0x13>;
+		sensor-alias = <0x73>;
 		status = "disabled";
 
 		port {
 			camera10_out: endpoint {
-				remote-endpoint = <&deser2_in2>;
 			};
 		};
 	};
 
-	camera11: camera@5b {
-		reg = <0x5b>;
-		ser-alias-id = <0x4b>;
-		sensor-alias-id = <0x5b>;
+	camera11: camera@74 {
+		reg = <0x74>;
+		ser-alias = <0x14>;
+		sensor-alias = <0x74>;
 		status = "disabled";
 
 		port {
 			camera11_out: endpoint {
-				remote-endpoint = <&deser2_in3>;
 			};
 		};
 	};
+};
+
+&csi0 {
+	func-irq-enable;
+	recoverable;
+	status = "okay";
+};
+&csi1 {
+	func-irq-enable;
+	recoverable;
+	status = "okay";
+};
+&csi2 {
+	func-irq-enable;
+	recoverable;
+	status = "okay";
+};
+&csi0_in {
+	remote-endpoint = <&deser0_out1>;
+};
+&csi1_in {
+	remote-endpoint = <&deser1_out1>;
+};
+&csi2_in {
+	remote-endpoint = <&deser2_out1>;
 };

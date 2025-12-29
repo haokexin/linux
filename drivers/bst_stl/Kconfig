@@ -1,0 +1,7 @@
+config BST_STL
+    tristate "Support for stl drivers"
+    depends on ARM64
+    help
+        BST stl test interface
+    default n
+

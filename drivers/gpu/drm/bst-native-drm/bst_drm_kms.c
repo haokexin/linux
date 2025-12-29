@@ -47,7 +47,8 @@ static irqreturn_t bst_kms_irq_handler(int irq, void *data)
 	u32 i;
 
 	memset(&evts, 0, sizeof(evts));
-	status = mdev->funcs->irq_handler(mdev, &evts);
+	if((mdev->funcs != NULL)&&(mdev->funcs->irq_handler != NULL))
+	    status = mdev->funcs->irq_handler(mdev, &evts);
 
 	bst_print_events(&evts, drm);
 
@@ -69,26 +70,31 @@ static struct drm_driver bst_kms_driver = {
 	.minor = 1,
 };
 
-static void bst_kms_atomic_wait_commit_hw_done_split(struct drm_atomic_state *state)
+static void bst_kms_atomic_commit_hw_done(struct drm_atomic_state *state)
 {
 	struct drm_device *dev = state->dev;
 	struct bst_kms_dev *kms = to_bdev(dev);
 	int i;
+	unsigned long flags;
+	int wait_flag = 0;
+
 
 	for (i = 0; i < kms->n_crtcs; i++) {
 		struct bst_crtc *bcrtc = &kms->crtcs[i];
-		if (bcrtc->base.state->active && bcrtc->base.state->event) {
-			bst_crtc_hw_flush(bcrtc);
-		}
-	}
 
-	for (i = 0; i < kms->n_crtcs; i++) {
-		struct bst_crtc *bcrtc = &kms->crtcs[i];
 		if (bcrtc->base.state->active) {
 			struct completion *flip_done = NULL;
-			if (bcrtc->base.state->event) {
+			wait_flag = 0;
+
+			spin_lock_irqsave(&dev->event_lock, flags);
+			if (bcrtc->base.state->event){
 				flip_done = bcrtc->base.state->event->base.completion;
-				bst_crtc_wait_for_hw_flip_done(bcrtc, flip_done);
+				wait_flag = 1;
+			}
+			spin_unlock_irqrestore(&dev->event_lock, flags);
+
+			if(1 == wait_flag) {
+				bst_crtc_flush_and_wait_for_flip_done(bcrtc, flip_done);
 			}
 		}
 	}
@@ -112,7 +118,7 @@ static void bst_kms_commit_tail(struct drm_atomic_state *old_state)
 
 	drm_atomic_helper_commit_modeset_enables(drm, old_state);
 
-	bst_kms_atomic_wait_commit_hw_done_split(old_state);
+	bst_kms_atomic_commit_hw_done(old_state);
 
 	drm_atomic_helper_wait_for_flip_done(drm, old_state);
 
@@ -339,6 +345,7 @@ void bst_kms_detach(struct bst_kms_dev *kms)
 	struct drm_device *drm = &kms->base;
 	struct bst_dev *mdev = drm->dev_private;
 
+	//devm_free_irq(drm->dev, mdev->irq, drm);
 	drm_dev_unregister(drm);
 	drm_kms_helper_poll_fini(drm);
 	drm_atomic_helper_shutdown(drm);

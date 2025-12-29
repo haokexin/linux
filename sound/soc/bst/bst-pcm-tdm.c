@@ -18,206 +18,62 @@
 #define PERIOD_BYTES_MIN	2048
 #define PERIODS_MIN		2
 
-#if 1
 #define dw_pcm_tx_fn(sample_bits) \
-static unsigned int dw_pcm_tx_##sample_bits(struct dw_tdm_dev *dev, \
-		struct snd_pcm_runtime *runtime, unsigned int tx_ptr, \
-		bool *period_elapsed) \
-{ \
-	int i,j; \
-	int chan_nr = dev->config.tx_chan_nr;\
-	const u##sample_bits(*p1)[1] = (void *)runtime->dma_area; \
-	const u##sample_bits(*p2)[2] = (void *)runtime->dma_area; \
-	const u##sample_bits(*p3)[3] = (void *)runtime->dma_area; \
-	const u##sample_bits(*p4)[4] = (void *)runtime->dma_area; \
-	const u##sample_bits(*p5)[5] = (void *)runtime->dma_area; \
-	const u##sample_bits(*p6)[6] = (void *)runtime->dma_area; \
-	const u##sample_bits(*p7)[7] = (void *)runtime->dma_area; \
-	const u##sample_bits(*p8)[8] = (void *)runtime->dma_area; \
-	unsigned int period_pos = tx_ptr % runtime->period_size; \
-\
-	if(chan_nr == 1) { \
+	static unsigned int dw_pcm_tx_##sample_bits( \
+		struct dw_tdm_dev *dev, \
+		struct snd_pcm_runtime * runtime, \
+		unsigned int tx_ptr, bool *period_elapsed)\
+	{ \
+		int i, j; \
+		int chan_nr = dev->config.tx_chan_nr; \
+		const u##sample_bits *pdata = (void *)runtime->dma_area; \
+		unsigned int period_pos = tx_ptr % runtime->period_size; \
+		\
 		for (i = 0; i < dev->fifo_th; i++) { \
-			for(j=0; j<chan_nr; j++){ \
-				iowrite32(p1[tx_ptr][j], dev->tdm_base + TDM_REG_TSLOT(j)); \
+			/*calculate the starting position of the
+			* current frame in buffer */ \
+			const u##sample_bits *frame_ptr = pdata + (tx_ptr * chan_nr); \
+			for (j = 0; j < chan_nr; j++) { \
+				/* write all slot data to tdm slot register*/ \
+				iowrite32(frame_ptr[j], \
+						dev->tdm_base + TDM_REG_TSLOT(j)); \
 			} \
+			/* update cache location */ \
 			period_pos++; \
 			if (++tx_ptr >= runtime->buffer_size) \
 				tx_ptr = 0; \
 		} \
-	} else if (chan_nr == 2) { \
-		for (i = 0; i < dev->fifo_th; i++) { \
-			for(j=0; j<chan_nr; j++){ \
-				iowrite32(p2[tx_ptr][j], dev->tdm_base + TDM_REG_TSLOT(j)); \
-			} \
-			period_pos++; \
-			if (++tx_ptr >= runtime->buffer_size) \
-				tx_ptr = 0; \
-		} \
-	} else if (chan_nr == 3) { \
-		for (i = 0; i < dev->fifo_th; i++) { \
-			for(j=0; j<chan_nr; j++){ \
-				iowrite32(p3[tx_ptr][j], dev->tdm_base + TDM_REG_TSLOT(j)); \
-			} \
-			period_pos++; \
-			if (++tx_ptr >= runtime->buffer_size) \
-				tx_ptr = 0; \
-		} \
-	} else if (chan_nr == 4) { \
-		for (i = 0; i < dev->fifo_th; i++) { \
-			for(j=0; j<chan_nr; j++){ \
-				iowrite32(p4[tx_ptr][j], dev->tdm_base + TDM_REG_TSLOT(j)); \
-			} \
-			period_pos++; \
-			if (++tx_ptr >= runtime->buffer_size) \
-				tx_ptr = 0; \
-		} \
-	} else if (chan_nr == 5) { \
-		for (i = 0; i < dev->fifo_th; i++) { \
-			for(j=0; j<chan_nr; j++){ \
-				iowrite32(p5[tx_ptr][j], dev->tdm_base + TDM_REG_TSLOT(j)); \
-			} \
-			period_pos++; \
-			if (++tx_ptr >= runtime->buffer_size) \
-				tx_ptr = 0; \
-		} \
-	} else if (chan_nr == 6) { \
-		for (i = 0; i < dev->fifo_th; i++) { \
-			for(j=0; j<chan_nr; j++){ \
-				iowrite32(p6[tx_ptr][j], dev->tdm_base + TDM_REG_TSLOT(j)); \
-			} \
-			period_pos++; \
-			if (++tx_ptr >= runtime->buffer_size) \
-				tx_ptr = 0; \
-		} \
-	} else if (chan_nr == 7) { \
-		for (i = 0; i < dev->fifo_th; i++) { \
-			for(j=0; j<chan_nr; j++){ \
-				iowrite32(p7[tx_ptr][j], dev->tdm_base + TDM_REG_TSLOT(j)); \
-			} \
-			period_pos++; \
-			if (++tx_ptr >= runtime->buffer_size) \
-				tx_ptr = 0; \
-		} \
-	} else if (chan_nr == 8) { \
-		for (i = 0; i < dev->fifo_th; i++) { \
-			for(j=0; j<chan_nr; j++){ \
-				iowrite32(p8[tx_ptr][j], dev->tdm_base + TDM_REG_TSLOT(j)); \
-			} \
-			period_pos++; \
-			if (++tx_ptr >= runtime->buffer_size) \
-				tx_ptr = 0; \
-		} \
-	} \
-	*period_elapsed = period_pos >= runtime->period_size; \
-	return tx_ptr; \
-}
-#else
-
-#define dw_pcm_tx_fn(sample_bits) \
-static unsigned int dw_pcm_tx_##sample_bits(struct dw_tdm_dev *dev, \
-		struct snd_pcm_runtime *runtime, unsigned int tx_ptr, \
-		bool *period_elapsed) \
-{ \
-	int chan_nr = dev->config.chan_nr;\
-	const u##sample_bits(*p)[chan_nr] = (void *)runtime->dma_area; \
-	unsigned int period_pos = tx_ptr % runtime->period_size; \
-	int i,j; \
-\
-	for (i = 0; i < dev->fifo_th; i++) { \
-		for(j=0; j<chan_nr; j++){ \
-			iowrite32(p[tx_ptr][j], dev->tdm_base + TDM_REG_TSLOT(j)); \
-		} \
-		iowrite32(p[tx_ptr][0], dev->tdm_base + TDM_REG_TSLOT(2)); \
-		iowrite32(p[tx_ptr][1], dev->tdm_base + TDM_REG_TSLOT(3)); \
-		iowrite32(p[tx_ptr][0], dev->tdm_base + TDM_REG_TSLOT(4)); \
-		iowrite32(p[tx_ptr][1], dev->tdm_base + TDM_REG_TSLOT(5)); \
-		iowrite32(p[tx_ptr][0], dev->tdm_base + TDM_REG_TSLOT(6)); \
-		iowrite32(p[tx_ptr][1], dev->tdm_base + TDM_REG_TSLOT(7)); \
-		period_pos++; \
-		if (++tx_ptr >= runtime->buffer_size) \
-			tx_ptr = 0; \
-	} \
-	*period_elapsed = period_pos >= runtime->period_size; \
-	return tx_ptr; \
-}
-
-#endif
+		*period_elapsed = (period_pos >= runtime->period_size); \
+		return tx_ptr; \
+	}
 
 #define dw_pcm_rx_fn(sample_bits) \
-static unsigned int dw_pcm_rx_##sample_bits(struct dw_tdm_dev *dev, \
-		struct snd_pcm_runtime *runtime, unsigned int rx_ptr, \
-		bool *period_elapsed) \
-{ \
-	int i,j; \
-	int chan_nr = dev->config.rx_chan_nr;\
-	u##sample_bits(*p1)[1] = (void *)runtime->dma_area; \
-	u##sample_bits(*p2)[2] = (void *)runtime->dma_area; \
-	u##sample_bits(*p3)[3] = (void *)runtime->dma_area; \
-	u##sample_bits(*p4)[4] = (void *)runtime->dma_area; \
-	u##sample_bits(*p5)[5] = (void *)runtime->dma_area; \
-	u##sample_bits(*p6)[6] = (void *)runtime->dma_area; \
-	unsigned int period_pos = rx_ptr % runtime->period_size; \
-\
-	if (chan_nr == 1) { \
+	static unsigned int dw_pcm_rx_##sample_bits( \
+		struct dw_tdm_dev *dev, struct snd_pcm_runtime *runtime, \
+		unsigned int rx_ptr, bool *period_elapsed) \
+	{ \
+		int i, j; \
+		int chan_nr = dev->config.rx_chan_nr; \
+		u##sample_bits *pdata = (void *)runtime->dma_area; \
+		unsigned int period_pos = rx_ptr % runtime->period_size; \
+		 \
 		for (i = 0; i < dev->fifo_th; i++) { \
+			/* calculate the starting position of the
+			* current frame in buffer */ \
+			u##sample_bits *frame_ptr = pdata + (rx_ptr * chan_nr); \
 			for (j = 0; j < chan_nr; j++) { \
-				p1[rx_ptr][j] = ioread32(dev->tdm_base + TDM_REG_RSLOT(j)); \
+				/* read all slot data to buffer */ \
+				frame_ptr[j] = ioread32(dev->tdm_base +	\
+							TDM_REG_RSLOT(j)); \
 			} \
+			/* update cache location */ \
 			period_pos++; \
 			if (++rx_ptr >= runtime->buffer_size) \
 				rx_ptr = 0; \
 		} \
-	} else if (chan_nr == 2) { \
-		for (i = 0; i < dev->fifo_th; i++) { \
-			for (j = 0; j < chan_nr; j++) { \
-				p2[rx_ptr][j] = ioread32(dev->tdm_base + TDM_REG_RSLOT(j)); \
-			} \
-			period_pos++; \
-			if (++rx_ptr >= runtime->buffer_size) \
-				rx_ptr = 0; \
-		} \
-	} else if (chan_nr == 3) {\
-		for (i = 0; i < dev->fifo_th; i++) { \
-			for (j = 0; j < chan_nr; j++) { \
-				p3[rx_ptr][j] = ioread32(dev->tdm_base + TDM_REG_RSLOT(j)); \
-			} \
-			period_pos++; \
-			if (++rx_ptr >= runtime->buffer_size) \
-				rx_ptr = 0; \
-		} \
-	} else if (chan_nr == 4) { \
-		for (i = 0; i < dev->fifo_th; i++) { \
-			for (j = 0; j < chan_nr; j++) { \
-				p4[rx_ptr][j] = ioread32(dev->tdm_base + TDM_REG_RSLOT(j)); \
-			} \
-			period_pos++; \
-			if (++rx_ptr >= runtime->buffer_size) \
-				rx_ptr = 0; \
-		} \
-	} else if (chan_nr == 5) {\
-		for (i = 0; i < dev->fifo_th; i++) { \
-			for (j = 0; j < chan_nr; j++) { \
-				p5[rx_ptr][j] = ioread32(dev->tdm_base + TDM_REG_RSLOT(j)); \
-			} \
-			period_pos++; \
-			if (++rx_ptr >= runtime->buffer_size) \
-				rx_ptr = 0; \
-		} \
-	} else if (chan_nr == 6) {\
-		for (i = 0; i < dev->fifo_th; i++) { \
-			for (j = 0; j < chan_nr; j++) { \
-				p6[rx_ptr][j] = ioread32(dev->tdm_base + TDM_REG_RSLOT(j)); \
-			} \
-			period_pos++; \
-			if (++rx_ptr >= runtime->buffer_size) \
-				rx_ptr = 0; \
-		} \
-	} \
- \
-	*period_elapsed = period_pos >= runtime->period_size; \
-	return rx_ptr; \
-}
+		*period_elapsed = (period_pos >= runtime->period_size); \
+		return rx_ptr; \
+	}
 
 dw_pcm_tx_fn(16);
 dw_pcm_tx_fn(32);
@@ -229,14 +85,14 @@ dw_pcm_rx_fn(32);
 
 static const struct snd_pcm_hardware dw_pcm_hardware = {
 	.info = SNDRV_PCM_INFO_INTERLEAVED |
-	    SNDRV_PCM_INFO_MMAP |
-	    SNDRV_PCM_INFO_MMAP_VALID | SNDRV_PCM_INFO_BLOCK_TRANSFER,
+		SNDRV_PCM_INFO_MMAP |
+		SNDRV_PCM_INFO_MMAP_VALID | SNDRV_PCM_INFO_BLOCK_TRANSFER,
 	.rates = SNDRV_PCM_RATE_32000 |
-	    SNDRV_PCM_RATE_44100 | SNDRV_PCM_RATE_48000,
+		SNDRV_PCM_RATE_44100 | SNDRV_PCM_RATE_48000,
 	.rate_min = 32000,
 	.rate_max = 48000,
 	.formats = SNDRV_PCM_FMTBIT_S16_LE |
-	    SNDRV_PCM_FMTBIT_S24_LE | SNDRV_PCM_FMTBIT_S32_LE,
+		SNDRV_PCM_FMTBIT_S24_LE | SNDRV_PCM_FMTBIT_S32_LE,
 	.channels_min = 2,
 	.channels_max = 2,
 	.buffer_bytes_max = BUFFER_BYTES_MAX,
@@ -265,12 +121,12 @@ static void dw_pcm_transfer(struct dw_tdm_dev *dev, bool push)
 		if (push) {
 			ptr = READ_ONCE(dev->tx_ptr);
 			new_ptr = dev->tx_fn(dev, substream->runtime, ptr,
-					     &period_elapsed);
+						 &period_elapsed);
 			cmpxchg(&dev->tx_ptr, ptr, new_ptr);
 		} else {
 			ptr = READ_ONCE(dev->rx_ptr);
 			new_ptr = dev->rx_fn(dev, substream->runtime, ptr,
-					     &period_elapsed);
+						 &period_elapsed);
 			cmpxchg(&dev->rx_ptr, ptr, new_ptr);
 		}
 
@@ -291,12 +147,12 @@ void dw_pcm_tdm_pop_rx(struct dw_tdm_dev *dev)
 }
 
 static int dw_pcm_open(struct snd_soc_component *component,
-		       struct snd_pcm_substream *substream)
+			   struct snd_pcm_substream *substream)
 {
 	struct snd_pcm_runtime *runtime = substream->runtime;
 	struct snd_soc_pcm_runtime *rtd = asoc_substream_to_rtd(substream);
 	struct dw_tdm_dev *dev =
-	    snd_soc_dai_get_drvdata(asoc_rtd_to_cpu(rtd, 0));
+		snd_soc_dai_get_drvdata(asoc_rtd_to_cpu(rtd, 0));
 
 	snd_soc_set_runtime_hwparams(substream, &dw_pcm_hardware);
 	snd_pcm_hw_constraint_integer(runtime, SNDRV_PCM_HW_PARAM_PERIODS);
@@ -313,8 +169,8 @@ static int dw_pcm_close(struct snd_soc_component *component,
 }
 
 static int dw_pcm_hw_params(struct snd_soc_component *component,
-			    struct snd_pcm_substream *substream,
-			    struct snd_pcm_hw_params *hw_params)
+				struct snd_pcm_substream *substream,
+				struct snd_pcm_hw_params *hw_params)
 {
 	struct snd_pcm_runtime *runtime = substream->runtime;
 	struct dw_tdm_dev *dev = runtime->private_data;
@@ -330,13 +186,17 @@ static int dw_pcm_hw_params(struct snd_soc_component *component,
 
 	switch (params_format(hw_params)) {
 	case SNDRV_PCM_FORMAT_S16_LE:
-		dev->tx_fn = dw_pcm_tx_16;
-		dev->rx_fn = dw_pcm_rx_16;
+		if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK)
+			dev->tx_fn = dw_pcm_tx_16;
+		else
+			dev->rx_fn = dw_pcm_rx_16;
 		break;
 	case SNDRV_PCM_FORMAT_S24_LE:
 	case SNDRV_PCM_FORMAT_S32_LE:
-		dev->tx_fn = dw_pcm_tx_32;
-		dev->rx_fn = dw_pcm_rx_32;
+		if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK)
+			dev->tx_fn = dw_pcm_tx_32;
+		else
+			dev->rx_fn = dw_pcm_rx_32;
 		break;
 	default:
 		dev_err(dev->dev, "invalid format\n");
@@ -397,13 +257,13 @@ static snd_pcm_uframes_t dw_pcm_pointer(struct snd_soc_component *component,
 }
 
 static int dw_pcm_new(struct snd_soc_component *component,
-		      struct snd_soc_pcm_runtime *rtd)
+			  struct snd_soc_pcm_runtime *rtd)
 {
 	size_t size = dw_pcm_hardware.buffer_bytes_max;
 
 	snd_pcm_set_managed_buffer_all(rtd->pcm,
-				       SNDRV_DMA_TYPE_CONTINUOUS,
-				       NULL, size, size);
+					   SNDRV_DMA_TYPE_CONTINUOUS,
+					   NULL, size, size);
 	return 0;
 }
 
@@ -420,5 +280,5 @@ static const struct snd_soc_component_driver dw_pcm_component = {
 int dw_tdm_pcm_register(struct platform_device *pdev)
 {
 	return devm_snd_soc_register_component(&pdev->dev, &dw_pcm_component,
-					       NULL, 0);
+						   NULL, 0);
 }

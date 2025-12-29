@@ -10,7 +10,10 @@
 #ifdef CONFIG_BST_GTC
 #include "bst_gtc_common.h"
 #endif
-
+u64 tx_ts = 0;
+#ifdef CONFIG_BST_C1200_ADAS
+extern int xgmac_mb_init;
+#endif
 //#define  DIVSEC 1000000000ULL
 
 /**
@@ -174,6 +177,80 @@ static int bstgmac_get_time(struct ptp_clock_info *ptp, struct timespec64 *ts)
 	return 0;
 }
 
+int bst_get_ts_from_xgmac(struct timespec64 *ts, struct ptp_system_timestamp *sts)
+{
+	struct bstgmac_priv *priv = gmac_priv_g[0];
+	unsigned long flags;
+	u64 ns = 0;
+
+	if ((readl(priv->ptpaddr + PTP_TCR) & 1) == 0) {
+		return -EINTR;
+	}
+#ifdef CONFIG_BST_C1200_ADAS
+	if (xgmac_mb_init == BSTMAC_MB_SUB_OK)
+		return -ENOENT;
+
+	if (xgmac_mb_init != BSTMAC_MB_SUB_DONE)
+		return -EPERM;
+#endif
+	spin_lock_irqsave(&priv->ptp_lock, flags);
+	bstgmac_get_systime(priv, priv->ptpaddr, &ns);
+	spin_unlock_irqrestore(&priv->ptp_lock, flags);
+
+	if (ts) {
+		*ts = ns_to_timespec64(ns);
+	}
+
+	if (sts) {
+		sts->pre_ts = ns_to_timespec64(ns + priv->time_offset);
+	}
+
+	return 0;
+}
+EXPORT_SYMBOL_GPL(bst_get_ts_from_xgmac);
+/**
+ * bstgmac_get_timex
+ *
+ * @ptp: pointer to ptp_clock_info structure
+ * @ts: holds the PHC timestamp
+ * @sts: if not NULL, it holds a pair of timestamps from the system clock
+ * Description: this function will read the current time from the
+ * hardware clock and store it in @ts.
+ */
+static int bstgmac_get_timex(struct ptp_clock_info *ptp, struct timespec64 *ts,
+			struct ptp_system_timestamp *sts)
+{
+	struct bstgmac_priv *priv =
+	    container_of(ptp, struct bstgmac_priv, ptp_clock_ops);
+	unsigned long flags;
+	u64 ns = 0;
+
+	if ((readl(priv->ptpaddr + PTP_TCR) & 1) == 0) {
+		pr_err("ptp clock uninitialized\n");
+		return -EINTR;
+	}
+
+	spin_lock_irqsave(&priv->ptp_lock, flags);
+	bstgmac_get_systime(priv, priv->ptpaddr, &ns);
+	spin_unlock_irqrestore(&priv->ptp_lock, flags);
+
+	if (ts) {
+		*ts = ns_to_timespec64(ns);
+	}
+
+	if (sts) {
+		sts->pre_ts = ns_to_timespec64(ns + priv->time_offset);
+	}
+#ifdef CONFIG_BST_C1200_ADAS
+	if (xgmac_mb_init != BSTMAC_MB_SUB_DONE) {
+		if (sts)
+			sts->pre_ts.tv_sec = 0;
+	}
+#endif
+
+	return 0;
+}
+
 /**
  * bstgmac_set_time
  *
@@ -242,19 +319,20 @@ int bstgmac_get_synctime(unsigned int gmac_idx, long long *sec, long *nsec)
 	struct bstgmac_priv *priv;
 	struct bstptp_ctl *ctl;
 
-	if (gmac_idx > BSTGMAC_CORE_NUM) {
+	if (gmac_idx >= BSTGMAC_CORE_NUM) {
 		pr_debug("invalid gmac idx is %d\n", gmac_idx);
 		return -EINVAL;
 	}
 
 	if (gmac_priv_g[gmac_idx]) {
 		priv = gmac_priv_g[gmac_idx];
+		if (!priv)
+			return -EPERM;
 		ctl = priv->ptpctl;
-
 		if (test_bit(BSTGMAC_DOWN, &priv->state))
 			return -EPERM;
 
-		if (priv && priv->ptpctl) {
+		if (priv->ptpctl) {
 			*sec = ctl->aux_snap.snap_time.tv_sec;
 			*nsec = ctl->aux_snap.snap_time.tv_nsec;
 			ctl->aux_snap.snap_time.tv_sec = 0;
@@ -321,8 +399,6 @@ void bstptp_extts_interrupt(int irq, struct bstgmac_priv *priv)
 	unsigned long flags;
 	struct bstptp_ctl *ctl = priv->ptpctl;
 	u32 reg_value = 0, aux_nan, sta_nan, nan, shift;
-	u64 tx_ts;
-	int ret;
 #ifdef CONFIG_BST_GTC
 	u32 work_flag = 0;
 #endif
@@ -359,12 +435,8 @@ void bstptp_extts_interrupt(int irq, struct bstgmac_priv *priv)
 			work_flag = 1;
 #endif
 		}
-		if ((ctl->aux_snap.status) && (reg_value & BIT(15))) { //tx timestamp captured
+		if ((reg_value & BIT(15))) { 
 			bstgmac_get_mac_tx_timestamp(priv, priv->hw, &tx_ts);	
-			ret = kfifo_in(&ctl->tx_ts_fifo, &tx_ts, sizeof(u64));
-			if (ret < sizeof(u64))
-				netdev_dbg(priv->dev, "aux snap kfifo is full\n");
-			
 		}
 	} else if (priv->plat->has_gmac4) {
 		aux_nan = readl(priv->ptpaddr + 0x48);
@@ -418,11 +490,11 @@ void bstptp_extts_interrupt(int irq, struct bstgmac_priv *priv)
 static int bstptp_extts_config(struct bstgmac_priv *priv,
 			       struct ptp_extts_request extts)
 {
-	int ret;
+	int ret = 0;
 	bool xmac;
 	u64 temp = 0;
 	struct timespec64 now;
-	u32 reg_value = 0, sec_inc = 0;
+	u32 reg_value = 0, sec_inc = 0, ts_ctrl;
 	void __iomem *ptp_reg = priv->ptpaddr;
 	struct bstptp_ctl *ctl = priv->ptpctl;
 
@@ -434,21 +506,9 @@ static int bstptp_extts_config(struct bstgmac_priv *priv,
 	writel(reg_value, priv->ioaddr + PTP_MAC_INTR_EN);
 
 	/* Init ptp cfg */
-	reg_value = readl(ptp_reg + PTP_TCR);
-	reg_value = reg_value | 0x203;
-	writel(reg_value, ptp_reg + PTP_TCR);
-
-	/* MAC_Sub_Second_Increment 0xb04 */
-	/* program Sub Second Increment reg */
-	bstgmac_config_sub_second_increment(priv,
-					    priv->ptpaddr,
-					    priv->plat->clk_ptp_rate, xmac,
-					    &sec_inc);
-	temp = div_u64(1000000000ULL, sec_inc);
-
-	/* Store sub second increment and flags for later use */
-	priv->sub_second_inc = sec_inc;
-	//priv->systime_flags = value;
+	ts_ctrl = readl(ptp_reg + PTP_TCR);
+	ts_ctrl = ts_ctrl | 0x203;
+	writel(ts_ctrl, ptp_reg + PTP_TCR);
 
 	/* Enable INxx interrupt */
 	if (extts.flags & PTP_ENABLE_FEATURE) {
@@ -485,6 +545,23 @@ static int bstptp_extts_config(struct bstgmac_priv *priv,
 		ctl->extintr = 0;
 		netdev_dbg(priv->dev, "bstptp config extts intr off\n");
 	}
+	if (priv->systime_flags & PTP_TCR_TSENA) {
+		pr_err("PTP has been initialized and will not be executing initialization this time\n");
+		return ret;
+	}
+
+	/* MAC_Sub_Second_Increment 0xb04 */
+	/* program Sub Second Increment reg */
+	bstgmac_config_sub_second_increment(priv,
+					    priv->ptpaddr,
+					    priv->plat->clk_ptp_rate, xmac,
+					    &sec_inc);
+	if (sec_inc)
+		temp = div_u64(1000000000ULL, sec_inc);
+
+	/* Store sub second increment and flags for later use */
+	priv->sub_second_inc = sec_inc;
+	priv->systime_flags = ts_ctrl;
 
 	/* calculate default added value:
 	 * formula is :
@@ -524,7 +601,7 @@ static int bstptp_extts_config(struct bstgmac_priv *priv,
 		}
 	}
 
-	return 0;
+	return ret;
 }
 
 static int bstptp_pps_config(struct bstgmac_priv *priv, int on)
@@ -619,6 +696,7 @@ static struct ptp_clock_info bstgmac_ptp_clock_ops = {
 	.adjfreq = bstgmac_adjust_freq,
 	.adjtime = bstgmac_adjust_time,
 	.gettime64 = bstgmac_get_time,
+	.gettimex64 = bstgmac_get_timex,
 	.settime64 = bstgmac_set_time,
 	.enable = bstgmac_enable,
 	.getsnapshot = bstgmac_get_snapshot,
@@ -652,11 +730,13 @@ void bstgmac_ptp_register(struct bstgmac_priv *priv)
 			priv->ptpctl->ptp1_reg = ioremap(BST_GMAC_1_BASE_ADDR + PTP_GMAC4_OFFSET, 200);
 		} else if (needs_xgmac) {
 			priv->ptpctl->ptp0_reg = ioremap(BST_XGMAC_BASE_ADDR + PTP_XGMAC_OFFSET, 200);
+			spin_lock_init(&priv->ptpctl->tx_ts_lock);
 		}
 	}
 
 	spin_lock_init(&priv->ptp_lock);
 	spin_lock_init(&priv->ptp_flex_lock);
+
 	priv->ptp_clock_ops = bstgmac_ptp_clock_ops;
 
 	priv->device->id = priv->plat->bus_id;
@@ -679,6 +759,8 @@ void bstgmac_ptp_register(struct bstgmac_priv *priv)
  */
 void bstgmac_ptp_unregister(struct bstgmac_priv *priv)
 {
+	priv->systime_flags = 0;
+
 	if (priv->ptpctl) {
 		if (priv->ptpctl->ptp0_reg)
 			iounmap(priv->ptpctl->ptp0_reg);
@@ -690,7 +772,7 @@ void bstgmac_ptp_unregister(struct bstgmac_priv *priv)
 	if (priv->ptp_clock) {
 		ptp_clock_unregister(priv->ptp_clock);
 		priv->ptp_clock = NULL;
-		pr_debug("Removed PTP HW clock successfully on %s\n",
+		pr_err("Removed PTP HW clock successfully on %s\n",
 			 priv->dev->name);
 	}
 }

@@ -35,7 +35,7 @@ static const char *const usb_modes[] = {
 	[USB_MODE_USB31] = "usb31",
 };
 
-#ifdef CONFIG_TYPEC
+#if defined(CONFIG_TYPEC) || defined(CONFIG_TYPEC_MODULE)
 static int usb_mux_set(struct typec_mux *mux, struct typec_mux_state *state)
 {
 	//struct bst_usb *ctx = typec_mux_get_drvdata(mux);
@@ -283,7 +283,7 @@ void bst_usb31_phy_init(struct bst_usb *phy)
 	reg |= (0x3<<1); //bit1: csr_u3phy_rst_n  bit2: csr_u2phy_rst_n internal usb reset
 	writel(reg, phy_base + USB31_CRM_CTRL);
 
-	mdelay(100);
+	mdelay(1);
 
 	if (phy->external_clk) {
 		reg = readl(phy_base + USB31PHY_REG_1);
@@ -318,7 +318,7 @@ void bst_usb31_phy_init(struct bst_usb *phy)
 		reg |= CSR_HOST_FORCE_GEN1_SPEED;
 		writel(reg, phy_base + USB31_HOST_CTRL0);
 	}
-
+	mdelay(50);
 	usb_typec_phy_init(phy);
 }
 
@@ -343,6 +343,22 @@ static int bst_usb_init(struct phy *x)
 	return 0;
 }
 
+
+static int bst_usb_reset(struct phy *x)
+{
+	struct bst_usb *phy = phy_get_drvdata(x);
+
+	if (phy) {
+		if (phy->usb_mode == USB_MODE_USB2)
+			bst_usb2_phy_init(phy);
+		else if (phy->usb_mode == USB_MODE_USB3)
+			bst_usb3_phy_init(phy);
+		else
+			bst_usb31_phy_init(phy);
+	}
+	return 0;
+}
+
 static int bst_usb_exit(struct phy *x)
 {
 	return 0;
@@ -353,6 +369,7 @@ static const struct phy_ops ops = {
 	.exit = bst_usb_exit,
 	.power_on = bst_usb_power_on,
 	.power_off = bst_usb_power_off,
+	.reset = bst_usb_reset,
 	.owner = THIS_MODULE,
 };
 
@@ -415,7 +432,7 @@ static int bst_usb_probe(struct platform_device *pdev)
 
 	pm_runtime_enable(phy->dev);
 	phy->host_force_gen1_speed = device_property_read_bool(dev, "host_force_gen1_speed");
-#ifdef CONFIG_TYPEC
+#if defined(CONFIG_TYPEC) || defined(CONFIG_TYPEC_MODULE)
 	phy->is_typec_phy = device_property_read_bool(dev, "is_typec_phy");
 	usb_typec_phy_probe(phy);
 #endif
@@ -445,7 +462,7 @@ static int bst_usb_remove(struct platform_device *pdev)
 {
 
 	bst_sysfs_cr_remove(&pdev->dev);
-#ifdef CONFIG_TYPEC
+#if defined(CONFIG_TYPEC) || defined(CONFIG_TYPEC_MODULE)
 {
 	struct bst_usb *phy = (struct bst_usb *)platform_get_drvdata(pdev);
 

@@ -22,6 +22,14 @@
 #include <linux/kfifo.h>
 
 #define BSTGMAC_RX_COE_NONE	0
+#define BSTMAC_PTP_KFIFO_NUM	16
+
+enum bstmac_mb_sub {
+	BSTMAC_MB_SUB_INIT = 0,
+	BSTMAC_MB_SUB_OK,
+	BSTMAC_MB_SUB_DONE,
+};
+
 struct bstgmac_resources {
 	void __iomem *addr;
 #ifdef CONFIG_UIO
@@ -207,6 +215,7 @@ struct bstptp_ctl {
 	struct bstgmac_flex_pps flex_pps;
 	struct bstgmac_aux_snap aux_snap;
 	struct kfifo tx_ts_fifo;
+	spinlock_t tx_ts_lock;
 };
 
 struct bstgmac_priv {
@@ -314,6 +323,7 @@ struct bstgmac_priv {
 	struct workqueue_struct *rxmem;
 	struct workqueue_struct *tx_wq;
 	struct work_struct service_task;
+	struct delayed_work mb_resub_task;
 	struct work_struct mem_mgmt_work;
 
 	/* Workqueue for handling FPE hand-shaking */
@@ -342,8 +352,12 @@ struct bstgmac_priv {
 	u32 fpe_tx_queue_mask;
 	u32 fpe_min_frag_size;
 
+	unsigned int ipc_state;
 	bool bypass;
 	int fpe_hs;
+	int64_t time_offset;
+	int tx_irq_num;
+	int rx_irq_num;
 };
 
 enum bstgmac_state {
@@ -356,7 +370,6 @@ enum bstgmac_state {
 
 struct bstgmac_mem_t {
 	struct sk_buff *skb;
-	dma_addr_t buf;
 };
 
 struct cmd_mac {
@@ -396,4 +409,23 @@ void bstmac_selftest_run(struct net_device *dev,
 			 struct ethtool_test *etest, u64 *buf);
 void bstmac_selftest_get_strings(struct bstgmac_priv *priv, u8 *data);
 int bstmac_selftest_get_count(struct bstgmac_priv *priv);
+int bstmac_get_ts_flag_slt(void);
+void bstmac_clr_ts_flag_slt(void);
+void bstmac_set_ts_flag_slt(bool tx);
+extern int scmi_read(u32 reg,u32 *val);
+extern int scmi_write(u32 reg,u32 val);
+extern int bstmac_test_hfilt(struct bstgmac_priv *priv);
+extern int bstmac_test_pfilt(struct bstgmac_priv *priv);
+extern int bstmac_test_mcfilt(struct bstgmac_priv *priv);
+extern int bstmac_test_ucfilt(struct bstgmac_priv *priv);
+extern int bstmac_test_l3filt_da(struct bstgmac_priv *priv);
+extern int bstmac_test_l3filt_sa(struct bstgmac_priv *priv);
+extern int bstmac_test_l4filt_da_tcp(struct bstgmac_priv *priv);
+extern int bstmac_test_l4filt_sa_tcp(struct bstgmac_priv *priv);
+extern int bstmac_test_l4filt_da_udp(struct bstgmac_priv *priv);
+extern int bstmac_test_l4filt_sa_udp(struct bstgmac_priv *priv);
+extern int bstmac_test_multichannel(struct bstgmac_priv *priv);
+extern int bstmac_test_ipv6_l3filt_da(struct bstgmac_priv *priv);
+extern int bstmac_test_ipv6_l3filt_sa(struct bstgmac_priv *priv);
+extern int bstmac_test_flowctrl(struct bstgmac_priv *priv);
 #endif /* __BSTGMAC_H__ */

@@ -1,7 +1,7 @@
 #!/bin/bash
 
-CROSS_COMPILETOOL_GNU=aarch64-linux-gnu-
-CROSS_COMPILETOOL_BST=aarch64-bst-linux-
+CROSS_COMPILETOOL_GNU=${TOOLCHAIN}aarch64-linux-gnu-
+CROSS_COMPILETOOL_BST=${TOOLCHAIN}aarch64-bst-linux-
 BUILD_LOG=$(pwd)/build.log
 
 AR_GNU=${CROSS_COMPILETOOL_GNU}ar
@@ -91,23 +91,76 @@ function build_kernel_image() {
 
 # setp4: copy kernel image、related dtbs
 function copy_image_dtb() {
+    local overlay
+    readonly PREBUILT=../../device/bst/c1200/prebuilt
     IMAGE_FILES=" Image
                   bstc1200-ivi.dtb
                   c1200-evb-overlay.dtb
-                  c1200-cdcu-overlay.dtb "
+                  c1200-cdcu-overlay.dtb
+		  c1296-cdcu1.0-ivi-8c8g-overlay.dtb
+		  c1296-cdcu1.0-ivi-4c6g-overlay.dtb
+		  c1296-cdcu2.0-ivi-8c8g-overlay.dtb
+		  c1296-cdcu2.0-ivi-4c6g-overlay.dtb
+                  c1296-evm1.0-ivi-4c6g-overlay.dtb "
 
-    rm -rf ../../device/bst/c1200/prebuilt/*.dtb
+    if [ ! -d "${PREBUILT}" ]; then
+	    mkdir -p "${PREBUILT}"
+    fi
+    rm -rf "${PREBUILT}"/*.dtb
     for FILE in ${IMAGE_FILES}; do
-        find ./build/arch/arm64/boot/ -name ${FILE} | xargs -i cp {} ../../device/bst/c1200/prebuilt
+        find ./build/arch/arm64/boot/ -name ${FILE} | xargs -i cp {} "${PREBUILT}"/
     done
+
+    cp -dr ./build/arch/arm64/boot/dts/bst/overlay/isp "${PREBUILT}"/
+    overlay=$(readlink ./build/arch/arm64/boot/dts/bst/overlay/bst-overlay.dtbo)
+    overlay=${overlay#isp\/}
+    ln -sf "${overlay}" "${PREBUILT}"/isp/isp-overlay.dtbo
+    find "${PREBUILT}"/isp ! -name "*.dtbo" -type f  -exec rm '{}' + || true
 }
 
 # setp5: copy related bsp drivers ko modules, delete redundancy modules
 function copy_ko_modules() {
         cp build/drivers/pci/bcmdhd/bcmdhd.ko ../../device/bst/c1200/prebuilt
 
-        KO_FILES=" mali_kbase.ko
-                   bst-dc.ko"
+	if [ ! -d ../../device/bst/c1200/prebuilt/kernel_modules ]; then
+		mkdir -p ../../device/bst/c1200/prebuilt/kernel_modules
+	fi
+
+        KO_FILES="mali_kbase.ko
+                bst-dc.ko
+                dwc3-bst.ko
+                dwc3.ko
+                gadgetfs.ko
+                dummy_hcd.ko
+                usb_bst_ccgx.ko
+                usb_bst_virt_msg.ko
+                usb_virt_device.ko
+                xhci-hcd.ko
+                xhci-plat-hcd.ko
+                roles.ko
+                uas.ko
+                usb-storage.ko
+                ax88796b.ko
+                asix.ko
+                ax88179_178a.ko
+                cdc_ether.ko
+                cdc_ncm.ko
+                cdc_subset.ko
+                net1080.ko
+                r8152.ko
+                r8153_ecm.ko
+                rtl8150.ko
+                usbnet.ko
+                zaurus.ko
+                ch341.ko
+                cp210x.ko
+                ftdi_sio.ko
+                option.ko
+                pl2303.ko
+                usb_wwan.ko
+                usbserial.ko
+                bst_hwcv.ko
+                bstn_driver.ko"
 
         rm -rf ../../device/bst/c1200/prebuilt/kernel_modules/*.ko
         for FILE in ${KO_FILES}; do
@@ -120,8 +173,8 @@ then
         generate_build_config
         update_build_config
         build_kernel_image 2>&1 | tee $BUILD_LOG
-        copy_image_dtb
-        copy_ko_modules
+#        copy_image_dtb
+#        copy_ko_modules
         exit
 else
         args=( "$@" )

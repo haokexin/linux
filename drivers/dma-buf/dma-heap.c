@@ -369,6 +369,12 @@ static long dma_heap_ioctl_query_phys_addrs(struct file *file, void *data)
 			query->fd, query->cnt, (unsigned long long)buffer);
 
 	heap = file->private_data;
+	if ((dma_buf->exp_name != NULL) && (heap->name != NULL) && (strcmp(dma_buf->exp_name, heap->name) != 0)) {
+		pr_err("%s: heap is invalid!\n", __func__);
+		ret = -EINVAL;
+		goto out;
+	}
+
 	if (heap->ops->get_phy_addrs == NULL) {
 		ret = -EINVAL;
 		goto out;

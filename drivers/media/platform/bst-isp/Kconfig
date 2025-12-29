@@ -1,0 +1,19 @@
+# SPDX-License-Identifier: GPL-2.0-only
+
+comment "BST media platform drivers"
+
+config VIDEO_BST_ISP
+	tristate "BST ISP Video Input Driver"
+	select IOMMU_API
+	select OF
+	select V4L2_FWNODE
+	select VIDEOBUF2_DMA_CONTIG
+	select VIDEO_BST_DEV
+	help
+	  Support for BST Video Input driver.
+
+config VIDEO_BST_ISP_MULTI_OS
+	tristate "BST ISP Video Input Driver"
+	default n
+	help
+	  Use ISP simultaneously by multiple OS

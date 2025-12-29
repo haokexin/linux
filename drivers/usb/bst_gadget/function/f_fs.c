@@ -1023,6 +1023,11 @@ static ssize_t ffs_epfile_io(struct file *file, struct ffs_io_data *io_data)
 		io_data->use_sg = gadget->sg_supported && data_len > PAGE_SIZE;
 		spin_unlock_irq(&epfile->ffs->eps_lock);
 
+		if (data_len < 0) {
+			ret = -EFAULT;
+			goto error_mutex;
+		}
+
 		data = ffs_alloc_buffer(io_data, data_len);
 		if (!data) {
 			ret = -ENOMEM;
@@ -2621,6 +2626,7 @@ static int __ffs_data_got_strings(struct ffs_data *ffs,
 	struct usb_gadget_strings **stringtabs, *t;
 	const char *data = _data;
 	struct usb_string *s;
+	char *vlabuf = NULL;
 
 	ENTER();
 
@@ -2659,7 +2665,7 @@ static int __ffs_data_got_strings(struct ffs_data *ffs,
 		vla_item(d, struct usb_string, strings,
 			size_mul(lang_count, (needed_count + 1)));
 
-		char *vlabuf = kmalloc(vla_group_size(d), GFP_KERNEL);
+		vlabuf = kmalloc(vla_group_size(d), GFP_KERNEL);
 
 		if (!vlabuf) {
 			kfree(_data);
@@ -2742,7 +2748,7 @@ static int __ffs_data_got_strings(struct ffs_data *ffs,
 	return 0;
 
 error_free:
-	kfree(stringtabs);
+	kfree(vlabuf);
 error:
 	kfree(_data);
 	return -EINVAL;

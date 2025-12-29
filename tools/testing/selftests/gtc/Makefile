@@ -1,7 +1,7 @@
 	
-default:
-	aarch64-linux-gnu-gcc gtctool.c -o gtctool
-	aarch64-linux-gnu-gcc gtcnltool.c -o gtcnltool
-	
-clean:
-	rm -rf gtctool gtcnltool
+CFLAGS += -static -O3 -Wl,-no-as-needed -Wall $(KHDR_INCLUDES)
+
+TEST_GEN_PROGS := gtctool
+TEST_GEN_PROGS += gtcnltool
+
+include ../lib.mk

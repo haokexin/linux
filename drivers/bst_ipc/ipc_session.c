@@ -48,7 +48,7 @@ IPC_SESSION_STATUS get_session_status(uint32_t session_id)
 	struct ipc_session *session;
 
 	if (!ipc_session_valid(session_id)) {
-		IPC_LOG_INFO("session id %d is invalid", session_id);
+		pr_info("%s,session id %d is invalid", __func__,session_id);
 		return SESSION_STATE_NULL;
 	}
 	session = session_map[session_id];
@@ -122,6 +122,8 @@ int32_t ipc_register_session(enum ipc_core_e src, enum ipc_core_e dst)
 	IPC_LOG_INFO("current->pid = %d", current->pid);
 	session->pid_num = current->pid;
 	session->cl_info = client_info;
+
+	mutex_init(&session->session_mutex);
 
 	init_completion(&session->tx_complete);
 	init_completion(&session->rx_complete);
@@ -255,8 +257,8 @@ int32_t ipc_session_destroy_by_id(uint32_t session_id)
 	complete(&session->tx_complete);
 	complete(&session->rx_complete);
 
-	if (&session->recv_msg_fifo)
-		kfifo_free(&session->recv_msg_fifo);
+
+	kfifo_free(&session->recv_msg_fifo);
 
 	// qnx bugfix merge #30964
 	// close session need clear sent_msg_queue to avoid token invert overlap issue

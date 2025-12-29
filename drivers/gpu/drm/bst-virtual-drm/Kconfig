@@ -16,12 +16,18 @@ config DRM_BST_VIRTUAL_DISPLAY
 
 	  If compiled as a module it will be called bst-virtual-drm.
 
-config DRM_BST_FW_MSG
-	tristate "BST Display Firmware Message Dirver"
+config DRM_BST_FW_MSGBX
+	tristate "BST Display Firmware MessageBox Dirver"
+	default n
+	help
+	  Choose this option if you want to compile the display firmware.
+	  functionalities.
+
+config DRM_BST_FW_IPC
+	tristate "BST Display Firmware IPC Dirver"
 	default y
 	help
 	  Choose this option if you want to compile the display firmware.
 	  functionalities.
 
 endmenu
-

@@ -1,0 +1,10 @@
+# SPDX-License-Identifier: GPL-2.0-only
+#
+# bst eeprom configuration
+#
+config BST_EEPROM
+    tristate "Support BST EEPROM"
+    depends on ARM64
+    help
+        BST eeprom driver is included.
+    default y

@@ -1124,6 +1124,36 @@ bool of_dma_is_coherent(struct device_node *np)
 EXPORT_SYMBOL_GPL(of_dma_is_coherent);
 
 /**
+ * of_dma_is_flag_sync_to_pop - Check if device is coherent pop
+ * @np:	device node
+ *
+ * It returns true if "dma-coherent-pop" property was found
+ * for this device in the DT, or if DMA is coherent pop by
+ * default for OF devices on the current platform and no
+ * "dma-noncoherent-pop" property was found for this device.
+ */
+bool of_dma_is_flag_sync_to_pop(struct device_node *np)
+{
+	struct device_node *node;
+	bool is_flag_sync_to_pop = IS_ENABLED(CONFIG_BST_OF_DMA_NEED_SYNC_TO_POP);
+
+	node = of_node_get(np);
+
+	while (node) {
+		if (of_property_read_bool(node, "dma-coherent-pop")) {
+			is_flag_sync_to_pop = true;
+			break;
+		} else {
+			is_flag_sync_to_pop = false;
+			break;
+		}
+	}
+	of_node_put(node);
+	return is_flag_sync_to_pop;
+}
+EXPORT_SYMBOL_GPL(of_dma_is_flag_sync_to_pop);
+
+/**
  * of_mmio_is_nonposted - Check if device uses non-posted MMIO
  * @np:	device node
  *

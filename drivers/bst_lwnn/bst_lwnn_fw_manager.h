@@ -1,4 +1,5 @@
-/* SPDX-License-Identifier: GPL-2.0+
+// SPDX-License-Identifier: GPL-2.0+
+/*
  *
  * Copyright (c) 2024 Black Sesame Technologies
  */
@@ -18,8 +19,8 @@
 
 #define BST_LWNN_HANDSHAKE_TIMEOUT 100
 #define BST_LWNN_HANDSHAKE_SLEEP_INTERVAL 10
-#define BST_LWNN_HANDSHAKE_RETRY_NUM                                           \
-  (BST_LWNN_HANDSHAKE_TIMEOUT / BST_LWNN_HANDSHAKE_SLEEP_INTERVAL)
+#define BST_LWNN_HANDSHAKE_RETRY_NUM \
+	(BST_LWNN_HANDSHAKE_TIMEOUT / BST_LWNN_HANDSHAKE_SLEEP_INTERVAL)
 
 #define BST_LWNN_REG_WIDTH 4
 
@@ -38,6 +39,12 @@
 #define LB_CV_REG_R_CV_DSP_CLUSTER_INTR_EN_REG 0x28
 #define LB_CV_REG_R_CV_DSP_CV_PARITY_CTRL_REG0 0x50
 
+struct bst_lwnn_res_bypass {
+	phys_addr_t paddr;
+	dma_addr_t iova;
+	resource_size_t size;
+};
+
 struct bst_lwnn_dsp_fw_ctl {
 	// flags used for cleanup
 	uint8_t init;
@@ -49,6 +56,7 @@ struct bst_lwnn_dsp_fw_ctl {
 	void __iomem *fwmem_base;
 	resource_size_t fwmem_size;
 	phys_addr_t fwmem_phys_addr;
+	dma_addr_t fwmem_iova;
 	dsp_ptr rt_init_addr;
 	// memory assigned to firmware
 	struct bst_lwnn_memblock *assigned_mem;
@@ -61,6 +69,7 @@ struct bst_lwnn_fw_manager {
 	void __iomem *lb_cv_reg_base;
 	dsp_ptr ipc_register_addr;
 	struct bst_lwnn_dsp_fw_ctl dsps[BST_LWNN_MAX_DSP_NUM];
+	struct bst_lwnn_res_bypass res_bypass[2];
 	struct _bst_lwnn_ver_info ver_info;
 };
 

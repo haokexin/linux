@@ -75,8 +75,8 @@ struct i2s_dma_data {
 };
 
 /* I2S DMA registers */
-#define I2S_REG_RXDMA_CH_BASE		0x0204
-#define I2S_REG_TXDMA_CH_BASE		0x0214
+#define I2S_REG_RXDMA_CH_BASE(x)		(0x4*x + 0x0204)
+#define I2S_REG_TXDMA_CH_BASE(x)		(0x4*x + 0x0214)
 
 #define TWO_CHANNEL_SUPPORT	2	/* up to 2.0 */
 #define FOUR_CHANNEL_SUPPORT	4	/* up to 3.1 */

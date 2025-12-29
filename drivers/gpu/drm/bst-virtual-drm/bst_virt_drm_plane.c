@@ -12,6 +12,7 @@
 #include "bst_virt_drm_device.h"
 #include "bst_virt_drm_kms.h"
 #include "bst_virt_drm_framebuffer.h"
+#include "bst_display_dc_cmdset.h"
 
 static int bst_plane_init_data_flow(struct drm_plane_state *st,
 				    struct bst_crtc_state *bcrtc_st,
@@ -63,8 +64,7 @@ bst_plane_atomic_check(struct drm_plane *plane,
 	if (!new_plane_state->crtc || !new_plane_state->fb)
 		return 0;
 
-	crtc_st = drm_atomic_get_crtc_state(state,
-					    new_plane_state->crtc);
+	crtc_st = drm_atomic_get_crtc_state(state, new_plane_state->crtc);
 	if (IS_ERR(crtc_st) || !crtc_st->enable) {
 		DRM_DEBUG_ATOMIC("Cannot update plane on a disabled CRTC.\n");
 		return -EINVAL;
@@ -76,8 +76,10 @@ bst_plane_atomic_check(struct drm_plane *plane,
 	bcrtc_st = to_bcrtc_st(crtc_st);
 
 	err = bst_plane_init_data_flow(new_plane_state, bcrtc_st, &dflow);
-	if (err)
+	if (err) {
+		DRM_ERROR("bst_plane_init_data_flow err:%d\n", err);
 		return err;
+	}
 
 	return bst_build_layer_data_flow(layer, bplane_st, bcrtc_st, &dflow);
 }
@@ -104,9 +106,13 @@ static void bst_plane_reset(struct drm_plane *plane)
 {
 	struct bst_plane_state *state;
 	struct bst_plane *bplane = to_bplane(plane);
+	struct bst_virt_component_state *comp_st = priv_to_comp_st(bplane->layer->base.obj.state);
+	struct bst_virt_layer_state *st = to_layer_st(comp_st);
 
 	if (plane->state)
 		__drm_atomic_helper_plane_destroy_state(plane->state);
+
+	memset(&st->afbc_crop_old, 0, sizeof(st->afbc_crop_old));
 
 	kfree(plane->state);
 	plane->state = NULL;
@@ -209,7 +215,7 @@ static u32 get_plane_type(struct bst_kms_dev *kms, struct bst_virt_layer *layer)
 }
 
 static int bst_plane_add(struct bst_kms_dev *kms, struct bst_virt_layer *layer,
-			 struct bst_virt_device *subdev)
+			 struct bst_virt_device *subdev, uint32_t* plane_id)
 {
 	struct bst_virt_component *c = &layer->base;
 	struct bst_plane *bplane;
@@ -281,6 +287,7 @@ static int bst_plane_add(struct bst_kms_dev *kms, struct bst_virt_layer *layer,
 
 	bst_set_crtc_plane_mask(kms, c->pipe, plane);
 
+	*plane_id = plane->base.id;
 	return 0;
 cleanup:
 	bst_plane_destroy(plane);
@@ -293,14 +300,21 @@ int bst_kms_add_planes(struct bst_kms_dev *kms,
 	struct bst_virt_pipe *pipe;
 	struct bst_virt_device *dc_dev;
 	int i, j, err;
+	struct bst_display_plane_ids ids;
+	struct bst_display_comm_reply reply;
 
 	for (i = 0; i < super_dev->n_pipelines; i++) {
 		pipe = super_dev->pipelines[i];
 		dc_dev = super_dev->subdevs[i][0];
 		for (j = 0; j < pipe->n_dc_layers; j++) {
-			err = bst_plane_add(kms, pipe->dc_layers[j], dc_dev);
+			err = bst_plane_add(kms, pipe->dc_layers[j], dc_dev, &ids.plane_ids[j]);
 			if (err)
 				return err;
+		}
+		ids.num = pipe->n_dc_layers;
+		bst_display_dc_cmd_set_plane_ids(dc_dev->subdev_session, &ids, &reply);
+		if (reply.base.status != DISP_COMM_REPLAY_OK) {
+			DRM_ERROR("session[0x%x] set planes id fail\n", dc_dev->subdev_session);
 		}
 	}
 

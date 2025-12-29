@@ -18,4 +18,7 @@ define com.bst.ipc.deployment for provider as lwnn_client {
     instance com.bst.ipc.coreip.cvdsp3 {
         DstEndID = ISPCV_3
     }
+    instance com.bst.ipc.coreip.cvdsp_safety {
+        DstEndID = SAFETY_0
+    }
 }

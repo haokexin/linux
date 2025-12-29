@@ -1,4 +1,0 @@
-compatible = "bst,isx019-yuv";
-sensor-id = <0x1a>;
-data-type = <0x1e>;
-serializer = "max96701";

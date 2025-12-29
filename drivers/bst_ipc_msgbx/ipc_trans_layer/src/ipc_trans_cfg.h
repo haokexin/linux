@@ -1,39 +1,30 @@
-/* SPDX-License-Identifier: GPL-2.0 OR BSD-3-Clause
+/* SPDX-License-Identifier: GPL-2.0 OR Apache 2.0
  *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2 of the License, or
- * (at your option) any later version.
+ * Copyright (c) 2024 Black Sesame Technologies
  *
- * This program is also distributed under the terms of the BSD 3-Clause
+ * This program is also distributed under the terms of the Apache 2.0
  * License.
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
- * Copyright (C) 2023 Black Sesame Technologies. Inc.
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 
 #ifndef _IPC_TRANS_CFG_H
 #define _IPC_TRANS_CFG_H
 
-#include <bst/ipc_hw_layer.h>
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-enum _flt_status_t {
-	FLT_UNUSED = 0,
-	FLT_SET = 1,
-};
-#define flt_status_t enum _flt_status_t
-
-struct _ipc_flt_cfg_t {
-	msgbx_flt_cfg_t cfg;
-	msgbx_flt_info_t info;
-	msgbx_flt_rule_cfg_t rule;
-	flt_status_t status;
-};
-#define ipc_flt_cfg_t struct _ipc_flt_cfg_t
-
-int8_t set_flt_rules(const uint8_t fid, void *addr);
+int8_t set_flt_rules(const uint8_t fid, const uint8_t enable_flag, void *addr);
 int8_t flt_cfg_init(void *addr);
 
 #ifdef __cplusplus

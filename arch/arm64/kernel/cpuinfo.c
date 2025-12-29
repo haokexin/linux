@@ -277,6 +277,10 @@ static struct kobj_type cpuregs_kobj_type = {
 CPUREGS_ATTR_RO(midr_el1, midr);
 CPUREGS_ATTR_RO(revidr_el1, revidr);
 CPUREGS_ATTR_RO(smidr_el1, smidr);
+CPUREGS_ATTR_RO(currentel, currentel);
+CPUREGS_ATTR_RO(tcr_el1, tcr_el1);
+CPUREGS_ATTR_RO(tcr_el12, tcr_el12);
+CPUREGS_ATTR_RO(hcr_el2, hcr_el2);
 
 static struct attribute *cpuregs_id_attrs[] = {
 	&cpuregs_attr_midr_el1.attr,
@@ -287,6 +291,19 @@ static struct attribute *cpuregs_id_attrs[] = {
 static const struct attribute_group cpuregs_attr_group = {
 	.attrs = cpuregs_id_attrs,
 	.name = "identification"
+};
+
+static struct attribute *sysregs_id_attrs[] = {
+	&cpuregs_attr_currentel.attr,
+	&cpuregs_attr_tcr_el1.attr,
+	&cpuregs_attr_tcr_el12.attr,
+	&cpuregs_attr_hcr_el2.attr,
+	NULL
+};
+
+static const struct attribute_group sysregs_attr_group = {
+	.attrs = sysregs_id_attrs,
+	.name = "sysregs"
 };
 
 static struct attribute *sme_cpuregs_id_attrs[] = {
@@ -314,6 +331,7 @@ static int cpuid_cpu_online(unsigned int cpu)
 	if (rc)
 		goto out;
 	rc = sysfs_create_group(&info->kobj, &cpuregs_attr_group);
+	rc = sysfs_create_group(&info->kobj, &sysregs_attr_group);
 	if (rc)
 		kobject_del(&info->kobj);
 	if (system_supports_sme())
@@ -332,6 +350,7 @@ static int cpuid_cpu_offline(unsigned int cpu)
 		return -ENODEV;
 	if (info->kobj.parent) {
 		sysfs_remove_group(&info->kobj, &cpuregs_attr_group);
+		sysfs_remove_group(&info->kobj, &sysregs_attr_group);
 		kobject_del(&info->kobj);
 	}
 
@@ -420,6 +439,10 @@ static void __cpuinfo_store_cpu(struct cpuinfo_arm64 *info)
 	info->reg_dczid = read_cpuid(DCZID_EL0);
 	info->reg_midr = read_cpuid_id();
 	info->reg_revidr = read_cpuid(REVIDR_EL1);
+	info->reg_tcr_el1 = read_cpuid(TCR_EL1);
+	info->reg_currentel = read_cpuid(CURRENTEL);
+	info->reg_tcr_el12 = (info->reg_currentel == 0x08? read_cpuid(TCR_EL12) : 0);
+	info->reg_hcr_el2 = (info->reg_currentel == 0x08? read_cpuid(ICH_HCR_EL2) : 0);
 
 	info->reg_id_aa64dfr0 = read_cpuid(ID_AA64DFR0_EL1);
 	info->reg_id_aa64dfr1 = read_cpuid(ID_AA64DFR1_EL1);

@@ -1,0 +1,277 @@
+// SPDX-License-Identifier: GPL-2.0+
+/dts-v1/;
+#include "bstc1200.dtsi"
+#include "bstc1200-soc-cluster0.dtsi"
+
+/ {
+	compatible = "bst,c1200";
+	model = "BST C1200 CDCU";
+
+	chosen {
+		bootargs = "earlycon=uart8250,mmio32,0x20008000 console=ttyS0,115200n8 rdinit=/sbin/init root=/dev/ram rw init=/linuxrc rodata=n";
+		stdout-path = "uart0";
+	};
+
+	memory@800151000 {
+		device_type = "memory";
+		reg = < 0x8 0x00151000 0x0 0x00001000
+				0x8 0x01400000 0x0 0x01000000
+				0x8 0x00254000 0x0 0x00001000
+				0x8 0x06a10000 0x0 0x00100000
+				0x8 0x10000000 0x1 0xb0000000
+				0xc 0x08000000 0x1 0xb8000000
+			>;
+	};
+
+	reserved-memory {
+		#address-cells = <2>;
+		#size-cells = <2>;
+		ranges;
+
+		its_table_reserved: its_table@806a10000 {
+			reg = <0x8 0x06a10000 0x0 0x100000>;
+		};
+
+		bst_ufs_reserved: bst_ufs@800000000 {
+			compatible = "shared-dma-pool";
+			reg = <0x8 0x000000 0x0 0x20000>;
+			no-map;
+		};
+		
+		bst_ipc_reserved: bst_ipc@800300000 {
+			compatible = "shared-dma-pool";
+			reg = <0x8 0x300000 0x0 0x400000>;
+			no-map;
+		};
+		
+
+		scmi_buf_reserved: scmi_buf@800152000 {
+            compatible = "shared-dma-pool";
+            reg = <0x8 0x152000 0x0 0x1000>;
+            no-map;
+        };
+
+		bst_sramemmc0_reserved: bst_sramemmc0@5100000{
+			compatible = "shared-dma-pool";
+			reg = <0x0 0x5100000 0x0 0x10000>;
+			no-map;
+		};
+
+
+		
+		bst_nor_flash_code_reserved: bst_nor_flash@800140000 {
+			compatible = "shared-dma-pool";
+			reg = <0x8 0x140000 0x0 0x10000>;
+			no-map;
+		};
+
+		bst_optee_reserved: bst_optee@801400000 {
+			compatible = "shared-dma-pool";
+			reg = <0x8 0x1400000 0x0 0x1000000>;
+			no-map;
+		};
+	};
+
+	firmware {
+		optee {
+                compatible = "linaro,optee-tz";
+                method = "smc";
+                chip-number = <2>;
+        };
+	};
+
+	tee {
+		#address-cells = <0x2>;
+		#size-cells = <0x2>;
+		reg = <0x0 0x18060000 0x0 0x1f000>;
+		memory-region = <&bst_optee_reserved>;
+		mbox-names = "bst-mbox";
+		chip-number = <2>;
+	};
+};
+
+&uart0 {
+	status = "okay";
+};
+&uart1 {
+	status = "disable";
+};
+&uart2 {
+	status = "disable";
+};
+&uart3 {
+	status = "disable";
+};
+
+&usbdwc3 {
+	iommus = <&mmu600_soc 1>;
+};
+
+&usbdrd_dwc3 {
+	status = "okay";
+	/delete-property/ clock-names;
+	/delete-property/ clocks;
+	/delete-property/ resets;
+	/delete-property/ reset-names;
+};
+
+&usbdwc2 {
+	iommus = <&mmu600_soc 2>;
+	role-switch-default-mode="peripheral";
+};
+&dwc3 {
+	status = "okay";
+	/delete-property/ clock-names;
+	/delete-property/ clocks;
+	/delete-property/ resets;
+	/delete-property/ reset-names;
+};
+
+
+
+&ipc {
+	status = "okay";
+	memory-region = <&bst_ipc_reserved>;
+};
+&mbox {
+	status = "okay";
+	ipc-cpus = <0>;
+	memory-region = <&bst_ipc_reserved>;
+};
+
+
+
+&firmware_scmi {
+
+	shmem = <&scmi_buf_reserved>;
+	reg = <0x0 0x20011014 0 0x14>;
+	status = "okay";
+
+	scmi_voltage: protocol@17 {
+
+		regulators {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			v_qmmc: regulator {
+				reg = <0>;
+				regulator-name = "voltage_qmmc";
+				regulator-min-microvolt = <1800000>;
+				regulator-max-microvolt = <3300000>;
+				regulator-always-on;
+			};
+		};
+
+	};
+
+	scmi_pinctrl: protocol@19 {
+
+			mmc_pinctrl:mmc_pinctrl {
+			config {
+				pins = "SC_SDMMC0_RSTB","SC_SDMMC0_STROB","SC_SDMMC0_CLK","SC_SDMMC0_CMD"
+				,"SC_SDMMC0_DAT0","SC_SDMMC0_DAT1","SC_SDMMC0_DAT2","SC_SDMMC0_DAT3","SC_SDMMC0_DAT4","SC_SDMMC0_DAT5","SC_SDMMC0_DAT6","SC_SDMMC0_DAT7";
+				drive-strength = <5>;
+				bias-pull-up;
+			};
+		};
+
+		mmc_pinctrl1:mmc_pinctrl1 {
+			config {
+				pins = "SC_SDMMC0_CLK";
+				drive-strength = <6>;
+				bias-pull-up;
+			};
+		};
+
+		mmc_pinconfig:mmc_pinconfig {
+			config {
+				pins = "SC_SDMMC0_PVDD0", "SC_SDMMC0_PVDD1", "SC_SDMMC0_PVDD2";
+				low-power-disable;
+			};
+		};
+
+
+		mmc_pinconfig1:mmc_pinconfig1 {
+			config {
+				pins = "SC_SDMMC0_PVDD0", "SC_SDMMC0_PVDD1", "SC_SDMMC0_PVDD2";
+				low-power-enable;
+			};
+		};
+
+	};
+};
+
+
+&mmc0 {
+	memory-region = <&bst_sramemmc0_reserved>;
+	
+	pinctrl-names = "default","sd_pvdd3-3","sd_pvdd1-8";
+	pinctrl-0 = <&mmc_pinctrl &mmc_pinctrl1>;
+	pinctrl-1 = <&mmc_pinconfig>;
+	pinctrl-2 = <&mmc_pinconfig1>;
+	
+
+	status = "okay";
+};
+
+
+
+
+
+&nor_flash {
+	memory-region = <&bst_nor_flash_code_reserved>;
+	status = "okay";
+};
+&mmu600_soc {
+	status = "okay";
+};
+
+
+&mmc1 {
+	status = "disable";
+};
+
+&ufs {
+	memory-region = <&bst_ufs_reserved>;
+	reg = <0x0 0x23005f00 0 0x100>,
+		  <0x0 0x20011000 0 0x1000>;
+    interrupts = <GIC_SPI 184 IRQ_TYPE_LEVEL_HIGH
+					GIC_SPI 218 IRQ_TYPE_LEVEL_HIGH>; 
+	ufs-timer = <0x0>;
+	status = "disable";
+};
+
+
+&gic600 {
+	status = "okay";
+};
+
+&msgbox {
+	status = "okay";
+	spi-irq-num = <4>;
+	filter-num = <8>;
+	// id = <0x0>;
+	// end0 and end1 spi irq
+	interrupts =    <
+			GIC_PPI 2 (GIC_CPU_MASK_SIMPLE(8) | IRQ_TYPE_LEVEL_LOW)
+			GIC_PPI 3 (GIC_CPU_MASK_SIMPLE(8) | IRQ_TYPE_LEVEL_LOW)
+			GIC_PPI 4 (GIC_CPU_MASK_SIMPLE(8) | IRQ_TYPE_LEVEL_LOW)
+			GIC_PPI 15 (GIC_CPU_MASK_SIMPLE(8) | IRQ_TYPE_LEVEL_LOW)
+            GIC_SPI 560 (IRQ_TYPE_LEVEL_HIGH)
+            GIC_SPI 561 (IRQ_TYPE_LEVEL_HIGH)
+            GIC_SPI 562 (IRQ_TYPE_LEVEL_HIGH)
+            GIC_SPI 563 (IRQ_TYPE_LEVEL_HIGH)
+            GIC_SPI 564 (IRQ_TYPE_LEVEL_HIGH)
+            GIC_SPI 565 (IRQ_TYPE_LEVEL_HIGH)
+            GIC_SPI 566 (IRQ_TYPE_LEVEL_HIGH)
+            GIC_SPI 567 (IRQ_TYPE_LEVEL_HIGH)
+            GIC_SPI 568 (IRQ_TYPE_LEVEL_HIGH)
+            GIC_SPI 569 (IRQ_TYPE_LEVEL_HIGH)
+            GIC_SPI 570 (IRQ_TYPE_LEVEL_HIGH)
+            GIC_SPI 571 (IRQ_TYPE_LEVEL_HIGH)
+            GIC_SPI 572 (IRQ_TYPE_LEVEL_HIGH)
+            GIC_SPI 573 (IRQ_TYPE_LEVEL_HIGH)
+            GIC_SPI 574 (IRQ_TYPE_LEVEL_HIGH)
+            GIC_SPI 575 (IRQ_TYPE_LEVEL_HIGH)
+			>;
+	#mbox-cells = <0x1>;
+};

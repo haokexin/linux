@@ -377,6 +377,22 @@ int ufshcd_pltfrm_init(struct platform_device *pdev,
 
 	ufshcd_init_lanes_per_dir(hba);
 
+
+#ifdef UFS_CLEAR_TIMER_INT
+	hba->base_timer = devm_platform_ioremap_resource(pdev, 1);
+	if (IS_ERR(hba->base_timer)) {
+		err = PTR_ERR(hba->base_timer);
+		goto out;
+	}
+
+	err = device_property_read_u32(dev, "ufs-timer", &hba->timer_num);
+	if (err) {
+		dev_err(dev, "%s: get ufs timer number failed %d\n",
+				__func__, err);
+		goto out;
+	}	
+#endif
+
 	err = ufshcd_init(hba, mmio_base, irq);
 	if (err) {
 		dev_err(dev, "Initialization failed\n");

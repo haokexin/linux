@@ -105,9 +105,10 @@ struct bst_virt_component *
 bst_virt_pipe_get_first_component(struct bst_virt_pipe *pipe, u32 comp_mask)
 {
 	struct bst_virt_component *c = NULL;
+	unsigned long comp_mask_local = (unsigned long)comp_mask;
 	int id;
 
-	id = find_first_bit((unsigned long *)&comp_mask, 32);
+	id = find_first_bit(&comp_mask_local, 32);
 	if (id < 32)
 		c = bst_virt_pipe_get_component(pipe, id);
 
@@ -119,8 +120,7 @@ bst_virt_component_add(struct bst_virt_pipe *pipe,
 		       struct bst_virt_device *subdev, size_t comp_sz, u32 id,
 		       u32 fw_id, const struct bst_virt_component_funcs *funcs,
 		       u8 max_active_inputs, u32 supported_inputs,
-		       u8 max_active_outputs, u32 client_id,
-		       const char *name_fmt, ...)
+		       u8 max_active_outputs, const char *name_fmt, ...)
 {
 	struct bst_virt_component **pos;
 	struct bst_virt_component *c;
@@ -155,7 +155,6 @@ bst_virt_component_add(struct bst_virt_pipe *pipe,
 	if (!c)
 		return ERR_PTR(-ENOMEM);
 
-	c->client_id = client_id;
 	c->id = id;
 	c->fw_id = fw_id;
 	c->subdev_session = subdev->subdev_session;
@@ -164,6 +163,7 @@ bst_virt_component_add(struct bst_virt_pipe *pipe,
 	c->max_active_outputs = max_active_outputs;
 	c->supported_inputs = supported_inputs;
 	c->funcs = funcs;
+	c->base_dev = subdev;
 
 	if (name_fmt) {
 		va_list args;
@@ -193,11 +193,11 @@ static void bst_virt_component_dump(struct bst_virt_component *c)
 	if (!c)
 		return;
 
-	DRM_INFO("	%s: ID %d-0x%08lx.\n", c->name, c->id, BIT(c->id));
-	DRM_INFO(
+	DRM_DEBUG("	%s: ID %d-0x%08lx.\n", c->name, c->id, BIT(c->id));
+	DRM_DEBUG(
 		"		max_active_inputs:%d, supported_inputs: 0x%08x.\n",
 		c->max_active_inputs, c->supported_inputs);
-	DRM_INFO(
+	DRM_DEBUG(
 		"		max_active_outputs:%d, supported_outputs: 0x%08x.\n",
 		c->max_active_outputs, c->supported_outputs);
 }
@@ -208,8 +208,8 @@ static void bst_virt_pipe_dump(struct bst_virt_pipe *pipe)
 	struct bst_virt_component *c;
 	int id;
 	unsigned long avail_comps = pipe->avail_comps;
-	const char *link0_comp_name;
-	const char *link1_comp_name;
+	const char *link0_comp_name = NULL;
+	const char *link1_comp_name = NULL;
 
 
 	if (pipe->of_output_links[0])
@@ -317,8 +317,6 @@ int bst_virt_assemble_pipe(struct bst_super_device *super_dev)
 		dc_dev = super_dev->subdevs[i][BST_VIRT_DC_IDX];
 		if (dc_dev) {
 			conn_dev = super_dev->subdevs[i][BST_VIRT_CONN_IDX];
-			topo_info.client_id = dc_dev->dev_info.client_id;
-			topo_info.platform_id = dc_dev->dev_info.platform_id;
 			topo_info.dc_subdev_session = dc_dev->dev_info.subdev_session;
 			if(!conn_dev){
 				DRM_ERROR("conn_dev is null \n");
@@ -327,7 +325,7 @@ int bst_virt_assemble_pipe(struct bst_super_device *super_dev)
 			topo_info.conn_subdev_session = conn_dev->dev_info.subdev_session;
 			memset(&topo_status, 0, sizeof(topo_status));
 			ret = bst_display_glb_cmd_is_valid_topology(&topo_info, &topo_status);
-			if (!ret && topo_status.topology_status == DISP_TOPO_STATUS_OK) {
+			if (!ret && topo_status.base.status == DISP_COMM_REPLAY_OK) {
 				pipe = dc_dev->this_pipe;
 				bst_virt_pipe_assemble(pipe);
 				bst_virt_pipe_dump(pipe);

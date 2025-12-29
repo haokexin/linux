@@ -2666,6 +2666,9 @@ int sdhci_start_signal_voltage_switch(struct mmc_host *mmc,
 		}
 		/* Wait for 5ms */
 		usleep_range(5000, 5500);
+		/* Some controller need to do more when switching */
+                if (host->ops->voltage_switch)
+                        host->ops->voltage_switch(host);
 
 		/* 3.3V regulator output should be stable within 5 ms */
 		ctrl = sdhci_readw(host, SDHCI_HOST_CONTROL2);
@@ -2703,11 +2706,6 @@ int sdhci_start_signal_voltage_switch(struct mmc_host *mmc,
 		ctrl = sdhci_readw(host, SDHCI_HOST_CONTROL2);
 		if (ctrl & SDHCI_CTRL_VDD_180)
 			return 0;
-
-		if(strcmp(mmc_hostname(mmc),"mmc0") == 0){
-			return 0;
-		}
-		
 
 		pr_warn("%s: 1.8V regulator output did not become stable\n",
 			mmc_hostname(mmc));
@@ -4181,6 +4179,7 @@ void __sdhci_read_caps(struct sdhci_host *host, const u16 *ver,
 }
 EXPORT_SYMBOL_GPL(__sdhci_read_caps);
 
+
 static void sdhci_allocate_bounce_buffer(struct sdhci_host *host)
 {
 	struct mmc_host *mmc = host->mmc;
@@ -4193,13 +4192,28 @@ static void sdhci_allocate_bounce_buffer(struct sdhci_host *host)
 	 * has diminishing returns, this is probably because SD/MMC
 	 * cards are usually optimized to handle this size of requests.
 	 */
+
 	bounce_size = SZ_64K;
+
+	#ifdef CONFIG_BST_C1200_ADAS
+	bounce_size = SZ_32K;
+	#endif
+
+	#ifdef CONFIG_C1200_MASS
+	bounce_size = SZ_16K;
+	#endif
+
+	#ifdef CONFIG_C1200_SLT
+	bounce_size = SZ_16K;
+	#endif
+
+	
 	/*
 	 * Adjust downwards to maximum request size if this is less
 	 * than our segment size, else hammer down the maximum
 	 * request size to the maximum buffer size.
 	 */
-	if (mmc->max_req_size < bounce_size)
+	if (mmc->max_req_size < bounce_size)	
 		bounce_size = mmc->max_req_size;
 	max_blocks = bounce_size / 512;
 

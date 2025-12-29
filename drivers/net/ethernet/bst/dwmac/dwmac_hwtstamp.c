@@ -141,15 +141,25 @@ static int adjust_systime(void __iomem *ioaddr, u32 sec, u32 nsec,
 
 static void get_systime(void __iomem *ioaddr, u64 *systime)
 {
-	u64 ns;
+	u64 ns, sec, ns2, sec2;
 
 	/* Get the TSSS value */
 	ns = readl(ioaddr + PTP_STNSR);
-	/* Get the TSS and convert sec time value to nanosecond */
-	ns += readl(ioaddr + PTP_STSR) * 1000000000ULL;
+	sec = readl(ioaddr + PTP_STSR);
+	ns2 = readl(ioaddr + PTP_STNSR);
+	sec2 = readl(ioaddr + PTP_STSR); 
 
-	if (systime)
-		*systime = ns;
+	if (sec == sec2) {
+		/* Get the TSS and convert sec time value to nanosecond */
+		ns2 += sec2 * 1000000000ULL;
+		if (systime)
+			*systime = ns2;
+	} else {
+		/* Get the TSS and convert sec time value to nanosecond */
+		ns += sec * 1000000000ULL;
+		if (systime)
+			*systime = ns;
+	}
 }
 
 const struct bstgmac_hwtimestamp bstgmac_ptp = {

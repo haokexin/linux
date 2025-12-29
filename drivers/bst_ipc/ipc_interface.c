@@ -93,6 +93,8 @@ int32_t ipc_init(enum ipc_core_e dest_core_id, enum ipc_core_e src_core_id,
 }
 EXPORT_SYMBOL(ipc_init);
 
+
+
 int32_t ipc_send(int32_t session_id, ipc_msg *msg, int32_t timeout, ...)
 {
 	int32_t ret = 0;
@@ -107,6 +109,7 @@ int32_t ipc_send(int32_t session_id, ipc_msg *msg, int32_t timeout, ...)
 	struct ipc_fill_register_msg fill_msg;
 	struct ipc_session *p_session;
 	unsigned long flags;
+
 
 	if (!get_ipc_init_status()) {
 		IPC_LOG_ERR("session %d send ipc is not ready", session_id);
@@ -179,37 +182,124 @@ int32_t ipc_send(int32_t session_id, ipc_msg *msg, int32_t timeout, ...)
 	}
 
 	// ipc message sending
-	set_session_status(session_id, SESSION_SENDING);
+//	set_session_status(session_id, SESSION_SENDING);
+	
+	p_session = get_session_by_id(session_id);
+	if (IS_ERR_OR_NULL(p_session)) {
+
+		
+		if (sent_msg_store_flag){
+
+			struct ipc_drv_msg *ipc_drv_msg_ptr;
+
+			ret = send_msg_out(fill_msg.short_param, &ipc_drv_msg_ptr);
+			if (ret < 0) {
+				
+				if(ipc_drv_msg)
+					devm_kfree(&g_ipc_platform_dev->dev, ipc_drv_msg);
+
+				IPC_LOG_WARNING("token %d find sent msg failed",fill_msg.short_param);
+				return ret;
+			}
+			if (IS_ERR_OR_NULL(ipc_drv_msg_ptr)) {
+
+				if(ipc_drv_msg)
+					devm_kfree(&g_ipc_platform_dev->dev, ipc_drv_msg);
+
+				IPC_LOG_WARNING("sender %d sent a message with invalid token %d",src, fill_msg.short_param);
+				return ret;
+			}
+
+			devm_kfree(&g_ipc_platform_dev->dev, ipc_drv_msg_ptr);
+		}
+
+
+		IPC_LOG_WARNING("session %d is invalid", session_id);
+		return IPC_SEND_ERR_INVALID_PARAM;
+	}
+
+	mutex_lock(&p_session->session_mutex);
 	ret = ipc_drv_send(src, dst, session_id,
 			   (void *)&fill_msg, sizeof(fill_msg));
 	if (ret) {
 		IPC_LOG_WARNING("session %d ipc_drv_send fail, ret = %d",
 				session_id, ret);
-		if (sent_msg_store_flag)
-			devm_kfree(&g_ipc_platform_dev->dev, ipc_drv_msg);
+
+		if (sent_msg_store_flag){
+
+			struct ipc_drv_msg *ipc_drv_msg_ptr;
+
+			ret = send_msg_out(fill_msg.short_param, &ipc_drv_msg_ptr);
+			if (ret < 0) {
+				
+				if(ipc_drv_msg)
+					devm_kfree(&g_ipc_platform_dev->dev, ipc_drv_msg);
+
+				IPC_LOG_WARNING("token %d find sent msg failed",fill_msg.short_param);
+				mutex_unlock(&p_session->session_mutex);
+				return ret;
+			}
+			if (IS_ERR_OR_NULL(ipc_drv_msg_ptr)) {
+
+				if(ipc_drv_msg)
+					devm_kfree(&g_ipc_platform_dev->dev, ipc_drv_msg);
+
+				IPC_LOG_WARNING("sender %d sent a message with invalid token %d",src, fill_msg.short_param);
+				mutex_unlock(&p_session->session_mutex);
+				return ret;
+			}
+
+			devm_kfree(&g_ipc_platform_dev->dev, ipc_drv_msg_ptr);
+		}
+
+		mutex_unlock(&p_session->session_mutex);
 		return ret;
 	}
 
 	// wait sending result
 	wait = msecs_to_jiffies(SEND_MAX_TIMEOUT);
 	set_session_status(session_id, SESSION_WAIT_SEND);
-
-	p_session = get_session_by_id(session_id);
-
-	if (IS_ERR_OR_NULL(p_session)) {
-		IPC_LOG_WARNING("session %d is invalid", session_id);
-		return IPC_SEND_ERR_INVALID_PARAM;
-	}
-
+	
 	ret = wait_for_completion_timeout(&p_session->tx_complete, wait);
 	if (ret == 0) { // timeout
 		diagnose_info[session_id].send_err.no_ACK += 1;
+
+
 		IPC_LOG_WARNING(
-			"session %d no ack with %d with in 200 milliseconds",
-			session_id, dst);
-		if (sent_msg_store_flag)
-			devm_kfree(&g_ipc_platform_dev->dev, ipc_drv_msg);
-		return IPC_SEND_ERR_TIMEOUT;
+			"session %d no ack with %d  %d with in 200 milliseconds",
+			session_id, dst,fill_msg.long_param);
+
+		if(get_session_status(session_id) == SESSION_WAIT_SEND) {
+			if (sent_msg_store_flag){
+				struct ipc_drv_msg *ipc_drv_msg_ptr;
+
+				ret = send_msg_out(fill_msg.short_param, &ipc_drv_msg_ptr);
+				if (ret < 0) {
+					if(ipc_drv_msg)
+						devm_kfree(&g_ipc_platform_dev->dev, ipc_drv_msg);
+
+					IPC_LOG_WARNING("token %d find sent msg failed",fill_msg.short_param);
+					mutex_unlock(&p_session->session_mutex);
+					return IPC_SEND_ERR_TIMEOUT;
+				}
+				if (IS_ERR_OR_NULL(ipc_drv_msg_ptr)) {
+
+					if(ipc_drv_msg)
+						devm_kfree(&g_ipc_platform_dev->dev, ipc_drv_msg);
+
+					IPC_LOG_WARNING("sender %d sent a message with invalid token %d",src, fill_msg.short_param);
+					mutex_unlock(&p_session->session_mutex);
+					return IPC_SEND_ERR_TIMEOUT;
+				}
+				
+				devm_kfree(&g_ipc_platform_dev->dev, ipc_drv_msg_ptr);
+			}
+
+			IPC_LOG_ERR("session status:%d\n",get_session_status(session_id));
+
+			mutex_unlock(&p_session->session_mutex);
+			return IPC_SEND_ERR_TIMEOUT;
+		}
 	}
 
 	// session status check
@@ -217,10 +307,35 @@ int32_t ipc_send(int32_t session_id, ipc_msg *msg, int32_t timeout, ...)
 	    get_session_status(session_id) == SESSION_STATE_NULL) {
 		diagnose_info[session_id].send_err.session_invalid += 1;
 		IPC_LOG_INFO("session %d is destroy", session_id);
-		if (sent_msg_store_flag)
-			devm_kfree(&g_ipc_platform_dev->dev, ipc_drv_msg);
+		if (sent_msg_store_flag){
+			struct ipc_drv_msg *ipc_drv_msg_ptr;
+
+			ret = send_msg_out(fill_msg.short_param, &ipc_drv_msg_ptr);
+			if (ret < 0) {
+				if(ipc_drv_msg)
+					devm_kfree(&g_ipc_platform_dev->dev, ipc_drv_msg);
+
+				IPC_LOG_WARNING("token %d find sent msg failed",fill_msg.short_param);
+				mutex_unlock(&p_session->session_mutex);
+				return IPC_RECV_ERR_INVALID_PARAM;
+			}
+			if (IS_ERR_OR_NULL(ipc_drv_msg_ptr)) {
+				if(ipc_drv_msg)
+					devm_kfree(&g_ipc_platform_dev->dev, ipc_drv_msg);
+
+				IPC_LOG_WARNING("sender %d sent a message with invalid token %d",src, fill_msg.short_param);
+				mutex_unlock(&p_session->session_mutex);
+				return IPC_RECV_ERR_INVALID_PARAM;
+			}
+			
+			devm_kfree(&g_ipc_platform_dev->dev, ipc_drv_msg_ptr);
+		}
+		mutex_unlock(&p_session->session_mutex);
 		return IPC_RECV_ERR_INVALID_PARAM;
 	}
+
+	mutex_unlock(&p_session->session_mutex);
+
 
 	// session diagnostic information update
 	spin_lock_irqsave(&count_lock, flags);
@@ -228,6 +343,7 @@ int32_t ipc_send(int32_t session_id, ipc_msg *msg, int32_t timeout, ...)
 	spin_unlock_irqrestore(&count_lock, flags);
 	return 0;
 }
+
 EXPORT_SYMBOL(ipc_send);
 
 int32_t ipc_send_sync(int32_t session_id, ipc_msg *msg)
@@ -238,6 +354,8 @@ int32_t ipc_send_sync(int32_t session_id, ipc_msg *msg)
 	struct ipc_session *session;
 	uint32_t src;
 	uint32_t dst;
+	struct ipc_drv_msg *ipc_drv_msg = NULL;
+	//int try_count = 5;
 
 	session = get_session_by_id(session_id);
 	if (!session) {
@@ -246,27 +364,100 @@ int32_t ipc_send_sync(int32_t session_id, ipc_msg *msg)
 		return -EINVAL;
 	}
 
+
 	src = session->src;
 	dst = session->dest;
 	memset(&send_msg, 0, sizeof(send_msg));
 	send_msg.type = msg->type;
 	send_msg.long_param = msg->data;
 	send_msg.cmd = msg->cmd;
-	// message token management, only actively send message need add token
-	if (msg->type == IPC_MSG_TYPE_METHOD ||
-	    msg->type == IPC_MSG_TYPE_SIGNAL) {
-		send_msg.short_param = ++session->token;
-		pr_debug("%s: %d -> %d, token: %d", __func__, src, dst,
-			 send_msg.short_param);
+
+	if (msg->type == IPC_MSG_TYPE_METHOD) {
+
+		msg->token = ipc_msg_get_an_available_token();
+		send_msg.short_param = msg->token;
+		
+		ipc_drv_msg = devm_kzalloc(&g_ipc_platform_dev->dev,
+						sizeof(*ipc_drv_msg), GFP_KERNEL);
+		if (!ipc_drv_msg) {
+			IPC_LOG_WARNING(
+				"session %d sent msg store alloc mem error",
+				session_id);
+			return IPC_SEND_ERR;
+		}
+
+		ipc_drv_msg->msg.type = msg->type;
+		ipc_drv_msg->msg.cmd = msg->cmd;
+		ipc_drv_msg->msg.data = msg->data;
+		ipc_drv_msg->msg.token = msg->token;
+		ipc_drv_msg->session_id = session_id;
+		ipc_drv_msg->dst = dst;
+		ipc_drv_msg->src = src;
+
+		send_msg_in(ipc_drv_msg);
 	}
 
 	ret = ipc_node_parse(dst, &client);
 	if (ret < 0) {
 		pr_debug("%s: can not parse client for %d", __func__, dst);
+
+		if(msg->type == IPC_MSG_TYPE_METHOD){
+
+			struct ipc_drv_msg *ipc_drv_msg_ptr;
+
+			ret = send_msg_out(send_msg.short_param, &ipc_drv_msg_ptr);
+			if (ret < 0) {
+				if(ipc_drv_msg)
+					devm_kfree(&g_ipc_platform_dev->dev, ipc_drv_msg);
+				IPC_LOG_WARNING("token %d find sent msg failed",send_msg.short_param);
+				return -ENOENT;
+			}
+			if (IS_ERR_OR_NULL(ipc_drv_msg_ptr)) {
+				if(ipc_drv_msg)
+					devm_kfree(&g_ipc_platform_dev->dev, ipc_drv_msg);
+
+				IPC_LOG_WARNING("sender %d sent a message with invalid token %d",src, send_msg.short_param);
+				return -ENOENT;
+			}
+			
+			devm_kfree(&g_ipc_platform_dev->dev, ipc_drv_msg_ptr);
+		}
+
 		return -ENOENT;
 	}
 
-	return ipc_send_data(client, src, &send_msg);
+	ret = ipc_send_data(client, src, &send_msg);
+	if(ret == -1){
+		if(msg->type == IPC_MSG_TYPE_METHOD){
+			
+				struct ipc_drv_msg *ipc_drv_msg_ptr;
+
+				IPC_LOG_WARNING("token %d find sent msg failed",send_msg.short_param);
+				
+				ret = send_msg_out(send_msg.short_param, &ipc_drv_msg_ptr);
+				if (ret < 0) {
+					if(ipc_drv_msg)
+						devm_kfree(&g_ipc_platform_dev->dev, ipc_drv_msg);
+
+					IPC_LOG_WARNING("token %d find sent msg failed",send_msg.short_param);
+					return -ENOENT;
+				}
+				if (IS_ERR_OR_NULL(ipc_drv_msg_ptr)) {
+					if(ipc_drv_msg)
+						devm_kfree(&g_ipc_platform_dev->dev, ipc_drv_msg);
+
+					IPC_LOG_WARNING("sender %d sent a message with invalid token %d",src, send_msg.short_param);
+					return -ENOENT;
+				}
+				
+				devm_kfree(&g_ipc_platform_dev->dev, ipc_drv_msg_ptr);
+			}
+			
+		return -ENOENT;
+	}
+
+
+	return 0;
 }
 EXPORT_SYMBOL(ipc_send_sync);
 
@@ -297,17 +488,19 @@ int32_t ipc_recv(int32_t session_id, ipc_msg *msg, int32_t timeout)
 	// use rx_complete means all message receive from resource core
 	completion = &p_sess->rx_complete;
 	// update session status
-	set_session_status(session_id, SESSION_WAIT_RECEIVE);
+	//set_session_status(session_id, SESSION_WAIT_RECEIVE);
 
 	if (timeout == -1) {
-		wait_for_completion(completion);
+		wait_for_completion_interruptible(completion);
 	} else {
 		wait = msecs_to_jiffies(timeout);
-		ret = wait_for_completion_timeout(completion, wait);
+		ret = wait_for_completion_interruptible_timeout(completion, wait);
 		if (ret == 0) { // timeout
 			diagnose_info[session_id].recv_err.timeout += 1;
 			IPC_LOG_INFO("session %d no received type = %d with in %d ms",
 					session_id, msg->type, timeout);
+
+
 			return IPC_RECV_ERR_TIMEOUT;
 		}
 	}
@@ -369,7 +562,7 @@ int32_t ipc_close(int32_t session_id)
 	spin_unlock_irqrestore(&subscription_lock, flags);
 
 	spin_lock_irqsave(&register_lock, flags);
-	if (dst < REGISTER_MAP_MAX) {
+	if (dst < IPC_CORE_MAX) {
 		for (cnt = 0; cnt < MSG_CMD_MAX; cnt++) {
 			if (register_list[dst][cnt] == session_id)
 				register_list[dst][cnt] = 0; // map clear to 0
@@ -481,7 +674,7 @@ int32_t ipc_method_register(int32_t session_id, uint32_t cmd)
 	}
 
 	// this restriction is temporary, dst number validity checking
-	if (dst >= IPC_CORE_DB0) {
+	if (src > IPC_CORE_DB1) {
 		IPC_LOG_WARNING("session %d dst is invalid", session_id);
 		return IPC_METHOD_REGISTER_INVALID_PARAM;
 	}
@@ -507,3 +700,4 @@ int32_t ipc_method_register(int32_t session_id, uint32_t cmd)
 	return 0;
 }
 EXPORT_SYMBOL(ipc_method_register);
+

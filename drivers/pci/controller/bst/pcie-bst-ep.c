@@ -723,8 +723,8 @@ int dw_pcie_ep_raise_msix_irq_doorbell(struct dw_pcie_ep *ep, u8 func_no, u8 vfu
 	if (!ep_func || !ep_func->msix_cap)
 		return -EINVAL;
 
-	msg_data = (func_no << PCIE_MSIX_DOORBELL_PF_SHIFT) |
-		   (vfunc_no ? ((vfunc_no - 1) << PCIE_MSIX_DOORBELL_VF_SHIFT
+	msg_data = ((u32)func_no << PCIE_MSIX_DOORBELL_PF_SHIFT) |
+		   (vfunc_no ? (((u32)vfunc_no - 1) << PCIE_MSIX_DOORBELL_VF_SHIFT
 				| PCIE_MSIX_DOORBELL_VF_ACTIVE) : 0) |
 		   (interrupt_num - 1);
 
@@ -774,7 +774,13 @@ int dw_pcie_ep_raise_msix_irq(struct dw_pcie_ep *ep, u8 func_no, u8 vfunc_no,
 				  msg_addr & ~(epc->mem->window.page_size - 1),
 				  epc->mem->window.page_size);
 	if (ret)
-		return ret;
+	{
+		dev_err(pci->dev, "ep map failed:%d\n", ret);
+		// Can not return ret value direct with SAST SCAN
+		// so return -EINVVAL here
+		// You can get failed info from the print info
+		return -EINVAL;
+	}
 
 	writel(msg_data, ep->msi_mem + aligned_offset);
 

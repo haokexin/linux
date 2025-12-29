@@ -161,6 +161,11 @@ static int i2c_dw_set_timings_master(struct dw_i2c_dev *dev)
 	if (ret)
 		return ret;
 
+	
+	ret=i2c_dw_set_skplen(dev);
+	if (ret)
+		return ret;
+
 	dev_dbg(dev->dev, "Bus speed: %s\n", i2c_freq_mode_string(t->bus_freq_hz));
 	return 0;
 }
@@ -183,6 +188,8 @@ static int i2c_dw_init_master(struct dw_i2c_dev *dev)
 
 	/* Disable the adapter */
 	__i2c_dw_disable(dev);
+
+
 
 	/* Write standard speed timing parameters */
 	regmap_write(dev->map, DW_IC_SS_SCL_HCNT, dev->ss_hcnt);

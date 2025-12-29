@@ -367,10 +367,17 @@ static int dma_buf_te_mmap(struct dma_buf *dmabuf, struct vm_area_struct *vma)
 	int ret;
 	struct dma_buf_te_alloc *alloc;
 	vm_flags_t set;
+	size_t vma_size = vma->vm_end - vma->vm_start;
+
 	alloc = dmabuf->priv;
 
 	if (alloc->fail_mmap)
 		return -ENOMEM;
+
+	if (vma_size > (alloc->nr_pages * PAGE_SIZE)) {
+		dev_err(te_device.this_device, "%s: mapping too large %ld > %ld\n", __func__, vma_size, alloc->nr_pages * PAGE_SIZE);
+		return -EINVAL;
+	}
 
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 7, 0))
 	set = VM_IO | VM_DONTEXPAND | VM_DONTDUMP;
@@ -386,8 +393,10 @@ static int dma_buf_te_mmap(struct dma_buf *dmabuf, struct vm_area_struct *vma)
 
 	/*  we fault in the pages on access */
 #if 1 
-	ret = remap_pfn_range(vma, vma->vm_start, PFN_DOWN(alloc->contig_dma_addr), alloc->nr_pages * PAGE_SIZE,
-				  vma->vm_page_prot);
+	//ret = remap_pfn_range(vma, vma->vm_start, PFN_DOWN(alloc->contig_dma_addr), alloc->nr_pages * PAGE_SIZE,
+	//			  vma->vm_page_prot);
+	ret = remap_pfn_range(vma, vma->vm_start, PFN_DOWN(alloc->contig_dma_addr), vma_size,
+				vma->vm_page_prot);
 
 	dev_dbg(te_device.this_device, "%s %lx ret = %d\n", __func__,vma->vm_start,ret);
 	if (ret)
@@ -906,4 +915,6 @@ static void __exit dma_buf_te_exit(void)
 
 module_init(dma_buf_te_init);
 module_exit(dma_buf_te_exit);
+
+MODULE_IMPORT_NS(DMA_BUF);
 MODULE_LICENSE("GPL");

@@ -31,8 +31,10 @@ struct gtc_freq {
 #define GTC_IOC_MUX_CFG      _IOW(GTC_IOC_MAGIC, 3, int)
 #define GTC_IOC_GET_PARM     _IOR(GTC_IOC_MAGIC, 4, struct time_sync_parm)
 #define GTC_IOC_GET_FREQ     _IOR(GTC_IOC_MAGIC, 5, struct gtc_freq)
-#define GTC_IOC_LOG          _IOR(GTC_IOC_MAGIC, 6, int)
-#define GTC_IOC_MAXNR    7
+#define GTC_IOC_LOG          _IOW(GTC_IOC_MAGIC, 6, int)
+#define GTC_IOC_TEST_KTIME   _IOW(GTC_IOC_MAGIC, 7, long long)
+
+#define GTC_IOC_MAXNR    8
 
 static void usage(char *progname)
 {
@@ -43,7 +45,8 @@ static void usage(char *progname)
 			" -l 255|[0-28]	clear|set latch index\n"
 			" -i 0|1		disable/enable soc intr\n"
 			" -m 255|[0-28]	disable/set mux\n"
-			" -d 0|1         log on/off\n",
+			" -d 0|1        log on/off\n"
+			" -k hi32|lw32  gtc counter\n",
 			progname);
 }
 
@@ -51,13 +54,14 @@ int main(int argc, char *argv[])
 {
 	char *progname;
 	int c, gtc_fd, latch_parm, intr_parm, mux_parm, ret = 0, log_parm;
-	bool query = false, latch = false, intr = false, mux = false, freq = false, log = false;
+	long long  cnt_parm = 0;
+	bool query = false, latch = false, intr = false, mux = false, freq = false, log = false, cnt = false;
 	struct time_sync_parm rec;
 	struct gtc_freq freq_info;
 
 	progname = strrchr(argv[0], '/');
 	progname = progname ? 1+progname : argv[0];
-	while (EOF != (c = getopt(argc, argv, "fgl:i:m:d:"))) {
+	while (EOF != (c = getopt(argc, argv, "fgl:i:m:d:k:"))) {
 		switch (c) {
 		case 'f':
 			freq = true;
@@ -86,6 +90,11 @@ int main(int argc, char *argv[])
 			log_parm = atoi(optarg);
 			log = true;
 			printf("log parm = %d\n", log_parm);
+			break;
+		case 'k':
+			cnt_parm = atol(optarg);
+			cnt = true;
+			printf("cnt parm = %llu\n", cnt_parm);
 			break;
 		default:
 			usage(progname);
@@ -123,8 +132,8 @@ int main(int argc, char *argv[])
 		printf("gtc record:\n"
 		    "\tlatch_gtc_hicnt :%d\n"
 		    "\tlatch_gtc_lwcnt :%d\n"
-		    "\tphc_nsec :%d\n"
-		    "\tphc_sec  :%d\n"
+		    "\tphc_sec :%llu\n"
+		    "\tphc_nsec  :%lu\n"
 			"\tgtc_hicnt :%d\n"
 		    "\tgtc_lwcnt  :%d\n\n",
 			rec.latch_gtc_hicnt,
@@ -172,6 +181,14 @@ int main(int argc, char *argv[])
 		 	printf("GTC_IOC_LOG Success\n");
 	}
 
+	if (cnt) {
+		printf("hi32|lw32 = %llu\n", cnt_parm);
+		ret = ioctl(gtc_fd, GTC_IOC_TEST_KTIME, &cnt_parm);
+		if (ret < 0)
+			perror("GTC_IOC_TEST_KTIME Error");
+		else
+		 	printf("GTC_IOC_TEST_KTIME Success\n");
+	}
 	close(gtc_fd);
 
 	return ret;

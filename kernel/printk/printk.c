@@ -3226,7 +3226,8 @@ void register_console(struct console *newcon)
 	 * users know there might be something in the kernel's log buffer that
 	 * went to the bootconsole (that they do not see on the real console)
 	 */
-	con_printk(KERN_INFO, newcon, "enabled\n");
+	//con_printk(KERN_DEBUG, newcon, "enabled\n");
+	
 	if (bootcon_enabled &&
 	    ((newcon->flags & (CON_CONSDEV | CON_BOOT)) == CON_CONSDEV) &&
 	    !keep_bootcon) {
@@ -3242,7 +3243,7 @@ int unregister_console(struct console *console)
 	struct console *con;
 	int res;
 
-	con_printk(KERN_INFO, console, "disabled\n");
+	//con_printk(KERN_DEBUG, console, "disabled\n");
 
 	res = _braille_unregister_console(console);
 	if (res < 0)

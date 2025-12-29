@@ -1026,7 +1026,7 @@ void smp_send_stop(void)
 	/* Wait up to one second for other CPUs to stop */
 	timeout = USEC_PER_SEC;
 	while (num_other_online_cpus() && timeout--)
-		mdelay(5000); //delay, wait slave cores powerdown complete.
+		udelay(1); //delay, wait slave cores powerdown complete.
 
 	if (num_other_online_cpus())
 		pr_warn("SMP: failed to stop secondary CPUs %*pbl\n",

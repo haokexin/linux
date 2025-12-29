@@ -264,7 +264,7 @@ static bool dmatest_match_device(struct dmatest_params *params,
 
 static unsigned long dmatest_random(void)
 {
-	unsigned long buf;
+	unsigned long buf = 0;
 
 	get_random_bytes(&buf, sizeof(buf));
 	return buf;

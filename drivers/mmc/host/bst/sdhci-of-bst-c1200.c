@@ -10,27 +10,40 @@
 #include <linux/ktime.h>
 #include <linux/i2c.h>
 #include <linux/arm-smccc.h>
-
+#include <linux/pinctrl/pinctrl.h>
+#include <linux/pinctrl/pinmux.h>
 #include "../sdhci-pltfm.h"
 #include "bst-sdhci.h"
+#include <linux/reset.h>
+
+#include "SdemmcClient.h"
+
 
 struct dwcmshc_priv {
 	struct clk *bus_clk;
+	struct reset_control	*rst;
 	uint32_t channel;
 	uint32_t  phy_crm_reg_base;
+	struct pinctrl *pinctrl;
+	struct pinctrl_state *pinctrl_1_8v;
+	struct pinctrl_state *pinctrl_3_3v;
+	uint32_t psm_id;
 };
 
-#define REG_SDMMC_SOFTRST_SEL (0x30002000+0x184)
-#define SDMMC_SOFTRST_SEL0 0x20
-#define SDMMC_SOFTRST_SEL1 0x10
+struct monitor_param_s 
+{
+    unsigned int ref_clkcnt;
+    unsigned int freq_highclkcnt;
+    unsigned int freq_threshold;
+};
 
-//#define REG_SD_EMMC_SEL 0x33000064 // bit0 for sd0/emmc0  bit1 for sd1/emmc1  (0:sd  1:emmc)
+#ifndef CONFIG_SECOND_KERNEL
+static SdemmcClient_t *m_client = NULL;
+#endif
+static SdemmcClient_data_t m_data={0};
+
 #define BST_SDMMC_VER_ID	    0x3138302A
 #define SDHCI_VENDOR_PTR_R	    0xE8
-#define SYS_CTRL_SDEMMC_DIV_CTRL    0x3300003C
-#define SYS_CTRL_SDEMMC_CTRL_EN_CLR 0x33000068
-#define TOP_IO_CFG_REG_R_IO_CFG_41  0x33001154
-#define TOP_IO_CFG_REG_R_IO_CFG_42  0x33001158
 
 #define MBIU_CTRL	       0x510
 #define BURST_INCR16_EN	       BIT(3)
@@ -51,43 +64,6 @@ struct dwcmshc_priv {
 #define SDHC_AT_STAT_R	       (reg_offset_addr_vendor + 0X44)
 
 #define SDHC_SW_TUNE_EN 0x00000010
-
-#define SOC_PMM_REG_BASEADDR                    0x30001000
-#define SC_PMM_REG_OFFSET(n)                    (0x04*n)
-
-#define LOCAL_RST_CFG  							0x00
-#define CLK_GATE_CFG 							0x04
-#define SDEMMC_CRM_BCLK_DIV_CTRL 				0x08
-#define SDEMMC_CRM_RX_CLK_CTRL                  0X14
-#define SDEMMC_CRM_TIMER_DIV_CTRL 				0x0C
-#define SDEMMC_CRM_CQE_CLK_DIV_CTRL 			0x10
-#define SDEMMC_CRM_ECC_STATUS 					0x18
-#define SDEMMC_CRM_VOL_CTRL 					0x1C
-#define SDEMMC_CRM_LED_CTRL 					0x20
-#define SDEMMC_CRM_PARITY                       0x24
-#define SDEMMC_CRM_FREQ_CHECK_EN                0x28
-#define SDEMMC_CRM_RREQ_INTR                    0x2c
-#define SDEMMC_CRM_TXCLK_FREQ_REF_CLKCNT        0x30
-#define SDEMMC_CRM_TXCLK_RREQ_HIGHCLKCNT        0x34
-#define SDEMMC_CRM_TXCLK_RREQ_THRESHOLD         0x38
-#define SDEMMC_CRM_TXCLK_RREQ_HIGHCLK_PPM       0x3c
-#define SDEMMC_CRM_RXCLK_RREQ_REF_CLKCNT        0x40
-#define SDEMMC_CRM_RXCLK_RREQ_HIGHCLKCNT        0x44
-#define SDEMMC_CRM_RXCLK_RREQ_THRESHOLD         0x48
-#define SDEMMC_CRM_RXCLK_RREQ_HIGHCLK_PPM       0x4c
-#define SDEMMC_CRM_TIMERCLK_RREQ_REF_CLKCNT     0x50
-#define SDEMMC_CRM_TIMERCLK_RREQ_HIGHCLKCNT     0x54
-#define SDEMMC_CRM_TIMERCLK_RREQ_THRESHOLD      0x58
-#define SDEMMC_CRM_TIMERCLK_RREQ_HIGHCLK_PPM    0x5c
-#define SDEMMC_CRM_CQECLK_RREQ_REF_CLKCNT       0x60
-#define SDEMMC_CRM_CQECLK_RREQ_HIGHCLKCNT       0x64
-#define SDEMMC_CRM_CQECLK_RREQ_THRESHOLD        0x68
-#define SDEMMC_CRM_CQECLK_RREQ_HIGHCLK_PPM      0x6c
-#define SDEMMC_CRM_BCLK_RREQ_REF_CLKCNT         0x70
-#define SDEMMC_CRM_BCLK_RREQ_HIGHCLKCNT         0x74
-#define SDEMMC_CRM_BCLK_RREQ_THRESHOLD          0x78
-#define SDEMMC_CRM_BCLK_RREQ_HIGHCLK_PPM        0x7c
-
 /* MMCM DRP */
 #define SDHC_MMCM_DIV_REG  0x1020
 #define DIV_REG_100_MHZ	   0x1145
@@ -98,18 +74,6 @@ struct dwcmshc_priv {
 #define SDHC_CCLK_MMCM_RST 0x00000001
 #define DRIVER_NAME	   "sdhci_bst"
 
-/* I2C frame. */
-#define BST_ADDRESS_BASE    0x08U /* I2C device base address */
-#define BST_COMM_FRAME_SIZE 0x03U /* Length of the communication frame */
-#define BST_FRAME_SIZE	    0x04U /* Length of the complete I2C frame */
-#define BST_READ_FRAME_LENGTH \
-	0x01U /* Length of the data frame for I2C read command. */
-#define BST_RX_SIZE 0x02U /* Length of the received I2C data frame */
-
-/* CRC polynomial. */
-#define BST_CRC_TBL_SIZE 256U /* Size of CRC table. */
-#define BST_CRC_POLYNOM	 0x1DU /* CRC polynom. */
-#define BST_CRC_INIT	 0xFFU /* CRC initial value. */
 
 
 
@@ -118,6 +82,9 @@ struct dwcmshc_priv {
 #define SD_3_3V 0
 #define SD_1_8V 1
 
+#ifdef CONFIG_SECOND_KERNEL
+extern u8 msgbx_get_start_pid(void);
+#endif
 
 void sdhci_bst_print_vendor(struct sdhci_host *host)
 {
@@ -181,6 +148,174 @@ static unsigned int bst_get_min_clock(struct sdhci_host *host)
 }
 
 
+static int clk_monitor_param_cal(unsigned int freq, unsigned int ref, struct monitor_param_s* pClkMonitor, unsigned int ppm)
+{
+    unsigned int i;
+    unsigned long long u64val;
+
+    for(i=63; i>0; i--) {
+        u64val = i;
+        u64val *=freq;
+        u64val *=100;
+        if((u64val/ref) < 65536) {
+            break;
+        }
+    }
+
+    if(i==0) {
+        pr_err("%s: invalid freq = %d, ref = %d\r\n", __func__, freq, ref);
+        return -1;
+    }
+
+    pClkMonitor->ref_clkcnt = i;
+    u64val = pClkMonitor->ref_clkcnt;
+    u64val *=freq;
+    u64val *=100;
+
+    pClkMonitor->freq_highclkcnt = u64val/ref;
+
+    u64val = pClkMonitor->freq_highclkcnt;
+    u64val *= ppm;
+    u64val += 1000000 -1;
+
+    pClkMonitor->freq_threshold = u64val/1000000;
+
+//    pr_info("jun, %s: freq %d, ref %d, ref_clkcnt 0x%x, freq_highclkcnt 0x%x, freq_threshold 0x%x\r\n", __func__, freq, ref, pClkMonitor->ref_clkcnt, pClkMonitor->freq_highclkcnt, pClkMonitor->freq_threshold);
+
+    return 0;
+}
+
+
+#define CLOCK_MONITOR_PPM 600
+#define CLOCK_MONITOR_FREQ 200000000
+
+static void clk_monitor_sdemmc(u32 crm_base, int status, unsigned int clk)
+{
+    struct monitor_param_s sClkMonitor;
+    struct monitor_param_s *pClkMonitor = &sClkMonitor;
+	int ret = 0;
+	void *mem_mapped = NULL;
+	u32 val;
+
+	mem_mapped = ioremap(crm_base, 0x1000);
+	if (mem_mapped == NULL) {
+		pr_err("%s: ioremap fail \r\n", __func__);
+		return;
+	}
+
+	if (status) {
+		ret = clk_monitor_param_cal(CLOCK_MONITOR_FREQ, CLOCK_MONITOR_FREQ, &sClkMonitor, CLOCK_MONITOR_PPM);	//200M
+		if (ret) {
+			pr_err("%s: clk_monitor_param_cal fail \r\n", __func__);
+			iounmap(mem_mapped);
+			return;
+		}
+
+		/*txclk freq monitor*/
+		iowrite32(pClkMonitor->ref_clkcnt, ((u8 *)mem_mapped) + SDEMMC_CRM_TXCLK_FREQ_REF_CLKCNT);
+		iowrite32(pClkMonitor->freq_highclkcnt, ((u8 *)mem_mapped) + SDEMMC_CRM_TXCLK_RREQ_HIGHCLKCNT);
+		iowrite32(pClkMonitor->freq_threshold, ((u8 *)mem_mapped) + SDEMMC_CRM_TXCLK_RREQ_THRESHOLD);
+
+		val = (u32)ioread32(((u8 *)mem_mapped) + SDEMMC_CRM_FREQ_CHECK_EN);
+		val = (val&(~(0x10)))|(0x10);
+		iowrite32(val, ((u8 *)mem_mapped) + SDEMMC_CRM_FREQ_CHECK_EN);
+	} else {
+		val = (u32)ioread32(((u8 *)mem_mapped) + SDEMMC_CRM_FREQ_CHECK_EN);
+		val = (val&(~(0x10)))|(0x00);
+		iowrite32(val, ((u8 *)mem_mapped) + SDEMMC_CRM_FREQ_CHECK_EN);
+	}
+
+	if (status) {
+		ret = clk_monitor_param_cal(CLOCK_MONITOR_FREQ, CLOCK_MONITOR_FREQ, &sClkMonitor, CLOCK_MONITOR_PPM);	//200M
+		if (ret) {
+			pr_err("%s: clk_monitor_param_cal fail \r\n", __func__);
+			iounmap(mem_mapped);
+			return;
+		}
+		/*rxclk freq monitor*/
+		iowrite32(pClkMonitor->ref_clkcnt, ((u8 *)mem_mapped) + SDEMMC_CRM_RXCLK_RREQ_REF_CLKCNT);
+		iowrite32(pClkMonitor->freq_highclkcnt, ((u8 *)mem_mapped) + SDEMMC_CRM_RXCLK_RREQ_HIGHCLKCNT);
+		iowrite32(pClkMonitor->freq_threshold, ((u8 *)mem_mapped) + SDEMMC_CRM_RXCLK_RREQ_THRESHOLD);
+
+		val = (u32)ioread32(((u8 *)mem_mapped) + SDEMMC_CRM_FREQ_CHECK_EN);	//rxclk_freq_check_en
+		val = (val&(~(0x08)))|(0x08);
+		iowrite32(val, ((u8 *)mem_mapped) + SDEMMC_CRM_FREQ_CHECK_EN);
+	} else {
+		val = (u32)ioread32(((u8 *)mem_mapped) + SDEMMC_CRM_FREQ_CHECK_EN); //rxclk_freq_check_en disable
+		val = (val&(~(0x08)))|(0x00);
+		iowrite32(val, ((u8 *)mem_mapped) + SDEMMC_CRM_FREQ_CHECK_EN);
+	}
+
+	if (status) {	//not enable timerclk monitor
+		ret = clk_monitor_param_cal(CLOCK_MONITOR_FREQ, CLOCK_MONITOR_FREQ, &sClkMonitor, CLOCK_MONITOR_PPM);	//timer clk 25M
+		if (ret) {
+			pr_err("%s: clk_monitor_param_cal fail \r\n", __func__);
+			iounmap(mem_mapped);
+			return;
+		}
+
+		/*timerclk freq monitor*/
+		iowrite32(pClkMonitor->ref_clkcnt, ((u8 *)mem_mapped) + SDEMMC_CRM_TIMERCLK_RREQ_REF_CLKCNT);
+		iowrite32(pClkMonitor->freq_highclkcnt, ((u8 *)mem_mapped) + SDEMMC_CRM_TIMERCLK_RREQ_HIGHCLKCNT);
+		iowrite32(pClkMonitor->freq_threshold, ((u8 *)mem_mapped) + SDEMMC_CRM_TIMERCLK_RREQ_THRESHOLD);
+
+		val = (u32)ioread32(((u8 *)mem_mapped) + SDEMMC_CRM_FREQ_CHECK_EN); 	//timerclk_freq_check_en
+		val = (val&(~(0x04)))|(0x04);
+		iowrite32(val, ((u8 *)mem_mapped) + SDEMMC_CRM_FREQ_CHECK_EN);
+	} else {
+		val = (u32)ioread32(((u8 *)mem_mapped) + SDEMMC_CRM_FREQ_CHECK_EN); //timerclk_freq_check_en disable
+		val = (val&(~(0x04)))|(0x00);
+		iowrite32(val, ((u8 *)mem_mapped) + SDEMMC_CRM_FREQ_CHECK_EN);		
+	}
+
+
+	if (0) {	//not use cqe clk , not enable cqe monitor
+		ret = clk_monitor_param_cal(CLOCK_MONITOR_FREQ, CLOCK_MONITOR_FREQ, &sClkMonitor, CLOCK_MONITOR_PPM);	//200M
+		if (ret) {
+			pr_err("%s: clk_monitor_param_cal fail \r\n", __func__);
+			iounmap(mem_mapped);
+			return;
+		}
+
+		/*cqeclk freq monitor*/
+		iowrite32(pClkMonitor->ref_clkcnt, ((u8 *)mem_mapped) + SDEMMC_CRM_CQECLK_RREQ_REF_CLKCNT);
+		iowrite32(pClkMonitor->freq_highclkcnt, ((u8 *)mem_mapped) + SDEMMC_CRM_CQECLK_RREQ_HIGHCLKCNT);
+		iowrite32(pClkMonitor->freq_threshold, ((u8 *)mem_mapped) + SDEMMC_CRM_CQECLK_RREQ_THRESHOLD);
+
+		val = (u32)ioread32(((u8 *)mem_mapped) + SDEMMC_CRM_FREQ_CHECK_EN); 	//cqeclk_freq_check_en
+		val = (val&(~(0x02)))|(0x02);
+		iowrite32(val, ((u8 *)mem_mapped) + SDEMMC_CRM_FREQ_CHECK_EN);
+	} else {
+		val = (u32)ioread32(((u8 *)mem_mapped) + SDEMMC_CRM_FREQ_CHECK_EN); 	//cqeclk_freq_check_en disable
+		val = (val&(~(0x02)))|(0x00);
+		iowrite32(val, ((u8 *)mem_mapped) + SDEMMC_CRM_FREQ_CHECK_EN);
+	}
+
+	if (status) {
+		ret = clk_monitor_param_cal(clk, CLOCK_MONITOR_FREQ, &sClkMonitor, CLOCK_MONITOR_PPM);	//400K->52M->200M
+		if (ret) {
+			pr_err("%s: clk_monitor_param_cal fail \r\n", __func__);
+			iounmap(mem_mapped);
+			return;
+		}
+		/*bclk freq monitor*/
+		iowrite32(pClkMonitor->ref_clkcnt, ((u8 *)mem_mapped) + SDEMMC_CRM_BCLK_RREQ_REF_CLKCNT);
+		iowrite32(pClkMonitor->freq_highclkcnt, ((u8 *)mem_mapped) + SDEMMC_CRM_BCLK_RREQ_HIGHCLKCNT);
+		iowrite32(pClkMonitor->freq_threshold, ((u8 *)mem_mapped) + SDEMMC_CRM_BCLK_RREQ_THRESHOLD);
+
+		val = (u32)ioread32(((u8 *)mem_mapped) + SDEMMC_CRM_FREQ_CHECK_EN); 	//bclk_freq_check_en
+		val = (val&(~(0x01)))|(0x01);
+		iowrite32(val, ((u8 *)mem_mapped) + SDEMMC_CRM_FREQ_CHECK_EN);
+	} else {
+		val = (u32)ioread32(((u8 *)mem_mapped) + SDEMMC_CRM_FREQ_CHECK_EN); 	//bclk_freq_check_en disable
+		val = (val&(~(0x01)))|(0x00);
+		iowrite32(val, ((u8 *)mem_mapped) + SDEMMC_CRM_FREQ_CHECK_EN);
+	}
+
+	iounmap(mem_mapped);
+}
+
+
 typedef union {
 	struct {
 		u32 rx_revert:1;
@@ -220,6 +355,7 @@ void sdhci_enable_bst_clk(struct sdhci_host *host, unsigned int clk)
 	unsigned int div;
 	u32 val;
 	rx_ctrl_u rx_reg;
+	unsigned int clk_monitor;
 
 	pltfm_host = sdhci_priv(host);
 	priv = sdhci_pltfm_priv(pltfm_host);
@@ -235,6 +371,11 @@ void sdhci_enable_bst_clk(struct sdhci_host *host, unsigned int clk)
 		div = div / clk;
 		div /= 100;
 	}
+
+	clk_monitor = clk;
+	val = bst_read_phys_bst(priv->phy_crm_reg_base+SDEMMC_CRM_FREQ_CHECK_EN);
+	val = val&(~(0x1f));
+	bst_write_phys_bst(priv->phy_crm_reg_base+SDEMMC_CRM_FREQ_CHECK_EN,val);
 
 	clk = sdhci_readw(host, SDHCI_CLOCK_CONTROL);
 	clk &= ~SDHCI_CLOCK_CARD_EN;
@@ -254,7 +395,8 @@ void sdhci_enable_bst_clk(struct sdhci_host *host, unsigned int clk)
 
 	val = bst_read_phys_bst(priv->phy_crm_reg_base+SDEMMC_CRM_TIMER_DIV_CTRL);
 	val &= ~(0xff);
-	val |=0x20;
+	val |=0x20;		//800/32=25M
+//	val |=0x4;		// 800/4=200M
     bst_write_phys_bst(priv->phy_crm_reg_base+SDEMMC_CRM_TIMER_DIV_CTRL,  val);//bit0-7:sdemmc_timer_div_ctrl = div //800/32=25M
 
 	val = bst_read_phys_bst(priv->phy_crm_reg_base+SDEMMC_CRM_TIMER_DIV_CTRL);
@@ -267,7 +409,7 @@ void sdhci_enable_bst_clk(struct sdhci_host *host, unsigned int clk)
 	bst_write_phys_bst(priv->phy_crm_reg_base+SDEMMC_CRM_RX_CLK_CTRL,val);
 
 	if(priv->channel == 1){
-		#if 0
+	
 		rx_reg.reg = bst_read_phys_bst(priv->phy_crm_reg_base+SDEMMC_CRM_RX_CLK_CTRL);
 		//inner
 		// rx_reg.bit.rx_revert = 1;
@@ -281,19 +423,17 @@ void sdhci_enable_bst_clk(struct sdhci_host *host, unsigned int clk)
 		rx_reg.bit.rx_revert = 0;
 		rx_reg.bit.rx_clk_sel_sec = 1;
 		rx_reg.bit.rx_clk_div = 4;
-		rx_reg.bit.rx_clk_phase_inner = 2;
+		rx_reg.bit.rx_clk_phase_inner = 1;
 		rx_reg.bit.rx_clk_sel_first = 0;
 		rx_reg.bit.rx_clk_phase_out = 2;
 
 
 		bst_write_phys_bst(priv->phy_crm_reg_base+SDEMMC_CRM_RX_CLK_CTRL,  rx_reg.reg);//bit0-7:sdemmc_timer_div_ctrl = div //800/32=25M
-		#endif
 
-
-		val = bst_read_phys_bst(priv->phy_crm_reg_base+SDEMMC_CRM_RX_CLK_CTRL);
-		val &= ~(0x7ff);
-		val |=0x00000b13;
-		bst_write_phys_bst(priv->phy_crm_reg_base+SDEMMC_CRM_RX_CLK_CTRL,  val);//bit0-7:sdemmc_timer_div_ctrl = div //800/32=25M
+		//val = bst_read_phys_bst(priv->phy_crm_reg_base+SDEMMC_CRM_RX_CLK_CTRL);
+		//val &= ~(0x7ff);
+		//val |= 0x00000b13;
+		//bst_write_phys_bst(priv->phy_crm_reg_base+SDEMMC_CRM_RX_CLK_CTRL,  val);//bit0-7:sdemmc_timer_div_ctrl = div //800/32=25M
 	}
 	else{
 		rx_reg.reg = bst_read_phys_bst(priv->phy_crm_reg_base+SDEMMC_CRM_RX_CLK_CTRL);
@@ -346,31 +486,18 @@ void sdhci_enable_bst_clk(struct sdhci_host *host, unsigned int clk)
 
 	clk |= SDHCI_CLOCK_INT_EN;
 	sdhci_writew(host, clk, SDHCI_CLOCK_CONTROL);
+
+	if (clk_monitor == CLOCK_MONITOR_FREQ) {
+		clk_monitor_sdemmc(priv->phy_crm_reg_base, priv->psm_id & (1U<<0), clk_monitor);
+	}
 }
 
 void sdhci_set_bst_clock(struct sdhci_host *host, unsigned int clock)
 {
 
-
-	// host->mmc->actual_clock = 0;
-
-
-	
-	
 	if (clock == 0)
-		return;
-	// if (host->quirks2 & SDHCI_QUIRK2_CLK_FROM_DTS) {
-		// if (pltfm_host->clock > clock) {
-			// clk = bst_sdhci_calc_clk(host, clock,
-						 // &host->mmc->actual_clock);
-		// } else {
-			// host->mmc->actual_clock = pltfm_host->clock;
-			// clk = host->mmc->actual_clock / 1000;
-		// }
-	// } else {
-		// clk = bst_sdhci_calc_clk(host, clock, &host->mmc->actual_clock);
-	// }
-	
+	return;
+
 	sdhci_enable_bst_clk(host, clock);
 }
 
@@ -397,24 +524,11 @@ static void sdhci_bst_timeout(struct sdhci_host *host, struct mmc_command *cmd)
 static void sdhci_bst_set_power(struct sdhci_host *host, unsigned char mode,
 				unsigned short vdd)
 {
-	// if (!IS_ERR(host->mmc->supply.vmmc)) {
-	// 	struct mmc_host *mmc = host->mmc;
-
-	// 	mmc_regulator_set_ocr(mmc, mmc->supply.vmmc, vdd);
-	// }
 	sdhci_set_power(host, mode, vdd);
 	sdhci_writeb(host, 0xF, SDHCI_POWER_CONTROL);
 	sdhci_writew(host, (sdhci_readw(host, MBIU_CTRL) & (~0xf)) | BURST_EN,
 		     MBIU_CTRL);
 }
-
-// static void sdhci_bst_voltage_switch(struct sdhci_host *host)
-// {
-	
-// }
-
-
-
 
 static int	bst_sdhci_execute_tuning(struct sdhci_host *host, u32 opcode)
 {
@@ -432,14 +546,10 @@ static int	bst_sdhci_execute_tuning(struct sdhci_host *host, u32 opcode)
 	pltfm_host = sdhci_priv(host);
 	priv = sdhci_pltfm_priv(pltfm_host);
 	
-
+	bst_write_phys_bst(priv->phy_crm_reg_base + SDEMMC_CRM_REG_WR_PROTECT,SDEMMC_CRM_REG_WR_PROTECT_MAGIC);//protected write opened
 	
-	for(i=0;i<SDHCI_TUNING_COUNT;i++){
-		
-		bst_write_phys_bst(priv->phy_crm_reg_base + 0x88,0x1234abcd);//protected write opened
-		bst_write_phys_bst(priv->phy_crm_reg_base + 0x94,(1ul<<i)-1);
-
-		
+	for(i=0;i<SDHCI_TUNING_COUNT;i++){		
+		bst_write_phys_bst(priv->phy_crm_reg_base + SDEMMC_CRM_DELAY_CHAIN_SEL,(1ul<<i)-1);		
 		timeout = 20;
 		while (!((clk = sdhci_readw(host, SDHCI_CLOCK_CONTROL))
 			& SDHCI_CLOCK_INT_STABLE)) {
@@ -450,8 +560,7 @@ static int	bst_sdhci_execute_tuning(struct sdhci_host *host, u32 opcode)
 			}
 			timeout--;
 			udelay(1000);
-		}
-	
+		}	
 		ret = mmc_send_tuning(host->mmc,opcode,&error);
 		if(ret != 0){
 			flag  = 1;
@@ -478,13 +587,13 @@ static int	bst_sdhci_execute_tuning(struct sdhci_host *host, u32 opcode)
 	
 
 
-	// printk("end0:%d start0:%d addr:%x,opcode:%x\n",end0,start0,priv->phy_crm_reg_base,opcode);
-	// printk("end1:%d start1:%d addr:%x,opcode:%x\n",end1,start1,priv->phy_crm_reg_base,opcode);
-	//printk("tuning best:%d %lx\n",best,(1ul<<best)-1);
+	//printk("end0:%d start0:%d addr:%x,opcode:%x\n",end0,start0,priv->phy_crm_reg_base,opcode);
+	//printk("end1:%d start1:%d addr:%x,opcode:%x\n",end1,start1,priv->phy_crm_reg_base,opcode);
+	//pr_err("channel :%d ,tuning best:%d %lx\n",priv->channel,best,(1ul<<best)-1);
 
-	bst_write_phys_bst(priv->phy_crm_reg_base+0x94,(1ul<<best)-1);
+	bst_write_phys_bst(priv->phy_crm_reg_base+SDEMMC_CRM_DELAY_CHAIN_SEL,(1ul<<best)-1);
 	timeout = 20;
-	
+	bst_write_phys_bst(priv->phy_crm_reg_base + SDEMMC_CRM_REG_WR_PROTECT,0);//protected write close
 	while (!((clk = sdhci_readw(host, SDHCI_CLOCK_CONTROL))
 		& SDHCI_CLOCK_INT_STABLE)) {
 		if (timeout == 0) {
@@ -501,45 +610,61 @@ static int	bst_sdhci_execute_tuning(struct sdhci_host *host, u32 opcode)
 	return 0;
 }
 
-#if 0
-extern unsigned long bst_sip_special_address_rw(u_int64_t x1, u_int64_t x2, u_int64_t x3);
 
-void bst_set_pinctrl_iolength(struct sdhci_host *host,struct mmc_ios *ios){
-	sdmmc_iocfg_u sdmmc_reg;
+static void sdhci_bst_voltage_switch(struct sdhci_host *host)
+{
+	struct mmc_ios *ios = &host->mmc->ios;
 	struct sdhci_pltfm_host *pltfm_host;
 	struct dwcmshc_priv *priv;
-
-
-
+	int count=100;
 	pltfm_host = sdhci_priv(host);
-	priv = sdhci_pltfm_priv(pltfm_host);
-	
-	
-	if(priv->channel == 0){
-		return;
+	priv = sdhci_pltfm_priv(pltfm_host);	
+	if (IS_ERR(priv->pinctrl )) {
+    	pr_err("no pinctrl\n");
+    	return;
+	}
+	if( (host->mmc->caps2 & MMC_CAP2_NO_SDIO) &&  (host->mmc->caps2 & MMC_CAP2_NO_SD)) {
+			pinctrl_select_state(priv->pinctrl, priv->pinctrl_1_8v);
+			bst_write_phys_bst(priv->phy_crm_reg_base + SDEMMC_CRM_VOL_CTRL,0x1<<7);//vol stable power on
+			//pr_debug("no need to voltage switch\n");
+			return;
 	}
 
-	sdmmc_reg.reg = bst_sip_special_address_rw(0x300011c0,0,0);
-	
-	//printk("bst_set_pinctrl_iolength:%x\n",sdmmc_reg.reg.);
+	pr_debug("channel :%d ios->signal_voltag:%d timing:%d host->mmc->caps=0x%x\n",priv->channel ,ios->signal_voltage,ios->timing ,host->mmc->caps);	
+	usleep_range(5000, 5500);
+
+
+
 	switch(ios->signal_voltage){
 
-		case MMC_SIGNAL_VOLTAGE_330:{
-			
-			sdmmc_reg.bit.SC_SDMMC1_PVDD18POCSD0 = 0;
-			sdmmc_reg.bit.SC_SDMMC1_PVDD18POCSD1 = 0;
-			sdmmc_reg.bit.SC_SDMMC1_PVDD18POCSD2 = 0;
-
-			bst_sip_special_address_rw(0x300011c0,sdmmc_reg.reg,1);
-
+		case MMC_SIGNAL_VOLTAGE_330:{	
+			sdhci_writeb(host, SDHCI_POWER_330|SDHCI_POWER_ON, SDHCI_POWER_CONTROL);
+			if (IS_ERR(priv->pinctrl_3_3v)) {
+				pr_err("error find sd_pvdd3-3 pinmux \n");
+				return ;
+			}		
+			pinctrl_select_state(priv->pinctrl, priv->pinctrl_3_3v);
 			break;
 		}
-		case MMC_SIGNAL_VOLTAGE_180:{
-			sdmmc_reg.bit.SC_SDMMC1_PVDD18POCSD0 = 0x2;
-			sdmmc_reg.bit.SC_SDMMC1_PVDD18POCSD1 = 0x2;
-			sdmmc_reg.bit.SC_SDMMC1_PVDD18POCSD2 = 0x2;
+		case MMC_SIGNAL_VOLTAGE_180:{	
 
-			bst_sip_special_address_rw(0x300011c0,sdmmc_reg.reg,1);
+			sdhci_writeb(host, SDHCI_POWER_180|SDHCI_POWER_ON, SDHCI_POWER_CONTROL);
+			if (IS_ERR(priv->pinctrl_1_8v)) {
+				pr_err("error find sd_pvdd1-8 pinmux \n");
+				return ;
+			}
+
+			pinctrl_select_state(priv->pinctrl, priv->pinctrl_1_8v);
+			while( ! (bst_read_phys_bst(priv->phy_crm_reg_base+0x1c)&(0x1))&&(count))
+			{
+				usleep_range(10, 15);
+				count --;
+			}
+			if(count <1)
+			{
+				pr_err("uhs voltage not stable");
+			}
+
 			break;
 		}
 		case MMC_SIGNAL_VOLTAGE_120:{
@@ -551,15 +676,9 @@ void bst_set_pinctrl_iolength(struct sdhci_host *host,struct mmc_ios *ios){
 			break;
 		}
 	}
+	bst_write_phys_bst(priv->phy_crm_reg_base + SDEMMC_CRM_VOL_CTRL,0x1<<7);//vol stable power on
 
-	//sdmmc_reg.reg = bst_sip_special_address_rw(0x300011c0,0,0);
-
-	//printk("ios->signal_voltag:%d\n",ios->signal_voltage);
-	//printk("ios->bst_set_pinctrl_iolength:%x\n",sdmmc_reg.reg);
-	return;
 }
-#endif
-
 static const struct sdhci_ops sdhci_dwcmshc_ops = {
 	.set_clock = sdhci_set_bst_clock,
 	.set_bus_width = sdhci_set_bus_width,
@@ -571,15 +690,14 @@ static const struct sdhci_ops sdhci_dwcmshc_ops = {
 	.set_timeout = sdhci_bst_timeout,
 	.platform_execute_tuning = bst_sdhci_execute_tuning,
 	//.set_pinctrl_iolength = bst_set_pinctrl_iolength,
-	//.voltage_switch = sdhci_bst_voltage_switch,
+	.voltage_switch = sdhci_bst_voltage_switch,
 };
 static const struct sdhci_pltfm_data sdhci_dwcmshc_pdata = {
 	.ops = &sdhci_dwcmshc_ops,
 	.quirks = SDHCI_QUIRK_DELAY_AFTER_POWER |
 		  SDHCI_QUIRK_CAP_CLOCK_BASE_BROKEN |
 		  SDHCI_QUIRK_INVERTED_WRITE_PROTECT,
-	.quirks2 = SDHCI_QUIRK2_BROKEN_DDR50 | SDHCI_QUIRK2_CLK_FROM_DTS |
-		   SDHCI_QUIRK2_BROKEN_HS200 | SDHCI_QUIRK2_TUNING_WORK_AROUND,
+        .quirks2 = SDHCI_QUIRK2_BROKEN_DDR50 | SDHCI_QUIRK2_TUNING_WORK_AROUND|SDHCI_QUIRK2_ACMD23_BROKEN,
 };
 
 
@@ -642,12 +760,66 @@ static SIMPLE_DEV_PM_OPS(dwcmshc_pmops, dwcmshc_suspend, dwcmshc_resume);
 #endif
 
 
+#ifndef CONFIG_SECOND_KERNEL
+static void sdhci_bst_config_ecc(struct dwcmshc_priv *priv, int status)
+{
+	u32 val;
+	val = bst_read_phys_bst(priv->phy_crm_reg_base+SDEMMC_CRM_ECC_STATUS);
+//	pr_info ("jun: %s, ecc status ori: 0x%x \n", __func__, val);
+	if (status) {
+		val |= (1<<4);
+	} else {
+		val &= ~(1<<4);
+	}
+	bst_write_phys_bst(priv->phy_crm_reg_base+SDEMMC_CRM_ECC_STATUS,val);
+	val = bst_read_phys_bst(priv->phy_crm_reg_base+SDEMMC_CRM_ECC_STATUS);
+//	pr_info ("jun: %s, ecc status cur: 0x%x \n", __func__, val);
+
+}
+
+static int sdhci_get_psmid_from_safety(uint8_t block_id_in ,uint8_t *block_id_out, uint32_t *psm_id_out){
+	int ret = -1;
+	int i = 0;
+	uint8_t blockid = 0;
+    sdemmc_UInt32Array4_t *psm_id=NULL;
+	sdemmc_ErrorEnum_t err=0;
+
+	if(!m_client)
+		return ret;
+
+	ret = m_client->sdemmc_client.fusaenable_method_sync(block_id_in,&blockid,&psm_id,&err,500,NULL);
+    if(ret < 0|| err != 0){
+        pr_err("%s,%d ret is %d,err = %d.", __func__, __LINE__,ret,(int)err);
+        return -2;
+    }
+
+    *block_id_out = blockid;
+    if(psm_id != NULL){
+        for(i=0;i<4;i++)
+            psm_id_out[i]=(*psm_id)[i];
+    }
+
+	return 0;
+}
+
+#endif
+
 static int dwcmshc_probe(struct platform_device *pdev)
 {
 	struct sdhci_pltfm_host *pltfm_host;
 	struct sdhci_host *host;
 	struct dwcmshc_priv *priv;
 	int err;
+
+#ifndef CONFIG_SECOND_KERNEL
+	int status = 1;
+    ipc_inf_version_t version = {0};
+	int ret=0;
+
+    uint8_t block_id_in;
+    uint8_t block_id_out;
+    uint32_t psm_id_out[4];
+#endif
 
 
 	host = sdhci_pltfm_init(pdev, &sdhci_dwcmshc_pdata,
@@ -659,8 +831,15 @@ static int dwcmshc_probe(struct platform_device *pdev)
 	priv = sdhci_pltfm_priv(pltfm_host);
 
 
-	
-#if 1
+	priv->rst = devm_reset_control_get_optional_exclusive(&pdev->dev, NULL);
+	if (IS_ERR(priv->rst))
+		return PTR_ERR(priv->rst);
+
+	reset_control_assert(priv->rst);
+	udelay(10);
+	reset_control_deassert(priv->rst);
+
+
 	pltfm_host->clk = devm_clk_get(&pdev->dev, "core");
 	if (IS_ERR(pltfm_host->clk)) {
 		err = PTR_ERR(pltfm_host->clk);
@@ -686,7 +865,6 @@ static int dwcmshc_probe(struct platform_device *pdev)
 		if (err)
 			goto err_clk;
 	}
-#endif
 	
 	err = mmc_of_parse(host->mmc);
 	if (err)
@@ -695,23 +873,71 @@ static int dwcmshc_probe(struct platform_device *pdev)
 	sdhci_get_of_property(pdev);
 	device_property_read_u32(&pdev->dev, "port", &priv->channel);
 	device_property_read_u32(&pdev->dev, "mmc_crm_reg_base", &priv->phy_crm_reg_base);
-	//pr_err("%s: priv->channel =%d priv->phy_crm_reg_base=0x%x \n",__func__, priv->channel,priv->phy_crm_reg_base);
-    // bst_write_phys_bst(priv->phy_crm_reg_base+SDEMMC_CRM_CQE_CLK_DIV_CTRL,
-	// bst_read_phys_bst(priv->phy_crm_reg_base+SDEMMC_CRM_CQE_CLK_DIV_CTRL) &(~ 0x0100));//bit8:sdemmc_timer_div_ctrl_en = 0
-    // bst_write_phys_bst(priv->phy_crm_reg_base+SDEMMC_CRM_CQE_CLK_DIV_CTRL,
-	// (bst_read_phys_bst(priv->phy_crm_reg_base+SDEMMC_CRM_CQE_CLK_DIV_CTRL)&(~0xff))|0x20);//bit0-7:sdemmc_timer_div_ctrl = div //800/32=25M
-    // bst_write_phys_bst(priv->phy_crm_reg_base+SDEMMC_CRM_CQE_CLK_DIV_CTRL,
-	// bst_read_phys_bst(priv->phy_crm_reg_base+SDEMMC_CRM_CQE_CLK_DIV_CTRL) | 0x0100 );//bit8:sdemmc_timer_div_ctrl_en = 1
-    //     /*default timer is 25m*/
-    // bst_write_phys_bst(priv->phy_crm_reg_base+SDEMMC_CRM_TIMER_DIV_CTRL, 
-	// bst_read_phys_bst(priv->phy_crm_reg_base+SDEMMC_CRM_TIMER_DIV_CTRL) &(~ 0x0100));//bit8:sdemmc_timer_div_ctrl_en = 0
-    // bst_write_phys_bst(priv->phy_crm_reg_base+SDEMMC_CRM_TIMER_DIV_CTRL, 
-	// (bst_read_phys_bst(priv->phy_crm_reg_base+SDEMMC_CRM_TIMER_DIV_CTRL)&(~0xff))|0x20 );//bit0-7:sdemmc_timer_div_ctrl = div //800/32=25M
-    // bst_write_phys_bst(priv->phy_crm_reg_base+SDEMMC_CRM_TIMER_DIV_CTRL,
-	// bst_read_phys_bst(priv->phy_crm_reg_base+SDEMMC_CRM_TIMER_DIV_CTRL) | 0x0100);//bit8:sdemmc_timer_div_ctrl_en = 1
 
-	// bst_write_phys_bst(priv->phy_crm_reg_base+SDEMMC_CRM_VOL_CTRL,
-	// bst_read_phys_bst(priv->phy_crm_reg_base+SDEMMC_CRM_VOL_CTRL) | 0x80);//sdemmc_host_reg_vol_stable
+#ifdef CONFIG_SECOND_KERNEL
+	m_data.com_data.pid = msgbx_get_start_pid();
+#endif
+
+#ifndef CONFIG_SECOND_KERNEL
+	m_client = SdemmcClient_init(&m_data);
+	if (!m_client) {
+		pr_err("SdemmcClient_init init client fail\n");
+		return ret;
+	}
+        
+	// client start
+	ret = m_client->start();
+    if(ret) {
+        pr_err("SdemmcClient_init start failed\n");
+		return ret;
+    }
+	// get version
+	version = m_client->sdemmc_client.version();
+
+    block_id_in = 0x6e;
+
+    ret = sdhci_get_psmid_from_safety(block_id_in ,&block_id_out,psm_id_out);
+    if(ret != 0) {
+		pr_err("get psm_id from safety fail, set psm_id to 0xf\n");
+		psm_id_out[0] = 0xf;      
+    }
+
+//	pr_info("jun, %s , psm_id: 0x%x \n", __func__, psm_id_out[0]);
+	//mem ecc 
+	status =  psm_id_out[0] & (1U<<3);
+	sdhci_bst_config_ecc(priv, status);
+
+	//disable clk monitor
+	priv->psm_id = psm_id_out[0] & (~(1<<0));
+#else
+	priv->psm_id = 0;
+#endif
+
+	if(( host->mmc->caps & MMC_CAP_UHS) || ((host->mmc->caps2 & MMC_CAP2_NO_SDIO) &&  (host->mmc->caps2 && MMC_CAP2_NO_SD)))
+	{
+
+
+		priv->pinctrl = devm_pinctrl_get(&pdev->dev);
+		if (IS_ERR(priv->pinctrl )) {
+        dev_err(&pdev->dev, "error get pinmux\n");
+        return 0;
+		}
+		priv->pinctrl_3_3v = pinctrl_lookup_state(priv->pinctrl, "sd_pvdd3-3");
+		if (IS_ERR(priv->pinctrl_3_3v)) {
+			dev_err(&pdev->dev, "error find sd_pvdd3-3 pinmux \n");
+					return 0;
+		}
+
+		priv->pinctrl_1_8v = pinctrl_lookup_state(priv->pinctrl, "sd_pvdd1-8");
+		if (IS_ERR(priv->pinctrl_1_8v)) {
+			dev_err(&pdev->dev, "error find sd_pvdd1-8 pinmux \n");
+					return 0;	
+		}		
+  	}
+
+
+
+
 
 	if (sdhci_readl(host, SDHC_MHSC_VER_ID_R) != BST_SDMMC_VER_ID) {
 		dev_err(&pdev->dev, "%s wrong ver id\n", __func__);
@@ -727,6 +953,7 @@ static int dwcmshc_probe(struct platform_device *pdev)
 	return 0;
 
 err_clk:
+
 	if(!IS_ERR(pltfm_host->clk)){
 		clk_disable_unprepare(pltfm_host->clk);
 	}

@@ -549,6 +549,16 @@ config HW_RANDOM_CN10K
 	 To compile this driver as a module, choose M here.
 	 The module will be called cn10k_rng. If unsure, say Y.
 
+config HW_RANDOM_BST
+       tristate "Black Sesame SOC Random Number Generator support"
+       depends on HW_RANDOM && ARCH_BST
+       default HW_RANDOM
+       help
+	 This driver provides support for the True Random Number at BST
+	 SoCs.
+	 
+	 To compile this driver as a module, choose M here.
+	 The module will be called bst_rng. If unsure, say Y.
 endif # HW_RANDOM
 
 config UML_RANDOM
@@ -565,3 +575,4 @@ config UML_RANDOM
 	  entropy pool.
 
 	  If unsure, say Y.
+

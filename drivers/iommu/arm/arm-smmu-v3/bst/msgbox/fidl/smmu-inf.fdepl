@@ -1,0 +1,11 @@
+//xxx-inf.fdepl
+import "platform:/plugin/com.bst.os.idl/deployment/ipc_spec.fdepl"
+import "smmu.fidl"
+
+define com.bst.ipc.deployment for interface com.bst.ipc.smmu.mapping {
+    MaxMethodNum = 255
+
+    method smmu_r5_method {
+        MethodID = 114
+    }
+}

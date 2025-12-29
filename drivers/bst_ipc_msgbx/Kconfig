@@ -33,32 +33,28 @@ config TRANS_LAYER_RECV_USE_INT
 	depends on BST_IPC_MSGBX
 	default y
 
-config MSGBOX_CHANNEL_COUNT
-	int
+config MSGBOX_CHANNEL_COUNT_BITS
+	int "BST IPC Msgbox Channel count"
 	depends on BST_IPC_MSGBX
-	default 8 if BST_C1200_ADAS || BST_C1200_IVI
-	default 2 if BST_C1200_DB
+	default 3 if BST_C1200_ADAS || BST_C1200_IVI || ARCH_BSTA2000
+	default 1 if BST_C1200_DB
 
 config MSGBOX_DEF_FLT_ST_ADDR
 	int "BST IPC Msgbox Channel count"
 	depends on BST_IPC_MSGBX
-	default 0
+	default 8 if ARCH_BSTC1200
+	default 0 if ARCH_BSTA2000
 
 config MSGBOX_DEF_FLT_END_ADDR
 	int "BST IPC Msgbox Channel count"
 	depends on BST_IPC_MSGBX
-	default 63 if BST_C1200_ADAS || BST_C1200_IVI
+	default 63 if BST_C1200_ADAS || BST_C1200_IVI || ARCH_BSTA2000
 	default 15 if BST_C1200_DB
 
 config MSGBOX_MISCDEV_MOD
 	bool "Compile Msgbox Miscdev Independly"
 	depends on BST_IPC_MSGBX
 	default y
-
-config IPC_MAX_SUB_MSG_NUM
-	int "BST IPC Max Sub msg of Msgbox"
-	depends on BST_IPC_MSGBX
-	default 16
 
 config IPC_LOG_SUPPORT
 	bool
@@ -68,4 +64,10 @@ config IPC_STATE_MGT_ENABLE
 	bool "Support IPC State Management"
 	depends on BST_IPC_MSGBX
 	default y
+
+config MSGBOX_SLT_OVERFLOW_MSG_BUF_SIZE
+	int "BST IPC Msgbox slt reply overflow msg buf size"
+	depends on BST_IPC_MSGBX && (C1200_SLT || C1200_MASS)
+	default 8 if BST_C1200_ADAS || BST_C1200_IVI
+	default 2 if BST_C1200_DB
 endif

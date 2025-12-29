@@ -17,10 +17,9 @@
  * limitations under the License.
  */
 
-/* This file is auto generated for message box v1.2.0.
+/* This file is auto generated for message box v2.0.0.
  * All manual modifications will be LOST by next generation.
  * It is recommended NOT modify it.
- * Generator Version: francaidl cb46a82 msgbx_ipc f2e1e48
  */
 
 #ifndef USB_DATATYPE_H
@@ -30,6 +29,17 @@
 #include <bst/ipc_app_common.h>
 #else
 #include "ipc_app_common.h"
+#endif
+
+#if __has_include(<inttypes.h>)
+  #include <inttypes.h>
+#else
+#ifndef PRId32
+#define PRId32 "d"
+#endif
+#ifndef PRIu8
+#define PRIu8 "u"
+#endif
 #endif
 
 #ifdef __cplusplus

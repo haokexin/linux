@@ -15,7 +15,6 @@
 #include <drm/drm_bridge.h>
 #include <drm/drm_print.h>
 #include <drm/display/drm_dp_helper.h>
-#include "bst_display_dp_cmdset.h"
 #include "bst_virt_pipeline.h"
 
 #define BST_DRM_MAX_PIPES 5
@@ -45,6 +44,7 @@ struct bst_connector {
 	struct drm_panel *panel;
 	struct drm_bridge *bridge;
 	struct bst_virt_connector *virt_conn;
+	struct backlight_device *bd;
 };
 
 struct bst_crtc {
@@ -63,6 +63,7 @@ struct bst_crtc_state {
 	u32 affected_pipes;
 	u32 active_pipes;
 	u64 clock_ratio;
+	u8 en_scaling;
 };
 
 struct bst_kms_dev {

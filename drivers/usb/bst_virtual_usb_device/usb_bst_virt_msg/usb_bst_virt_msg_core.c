@@ -29,8 +29,10 @@
 static UsbClient_data_t __usb_client_data;
 static UsbClient_t *__pclient;
 
+// releated to SESSION_PACKET_MSG_BUFFER_COUNT of R5, default to 8 for now
 static int msg_max = 8;
-static int msg_timeout = 5;
+// timeout for waitting time to send msg, default to 10 seconds
+static int msg_timeout = 10;
 
 module_param(msg_max, int, 0444);
 MODULE_PARM_DESC(msg_max, "Maximum number of msg send,include ack and bulk in");
@@ -214,6 +216,8 @@ int get_system_pid(void)
 {
 	return __usb_client_data.com_data.pid;
 }
+EXPORT_SYMBOL(get_system_pid);
+
 int usb_client_main_loop(void *arg)
 {
 	ipc_inf_version_t version;

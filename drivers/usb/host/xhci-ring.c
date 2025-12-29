@@ -1470,6 +1470,7 @@ static void xhci_handle_cmd_config_ep(struct xhci_hcd *xhci, int slot_id,
 	struct xhci_virt_device *virt_dev;
 	struct xhci_input_control_ctx *ctrl_ctx;
 	struct xhci_ep_ctx *ep_ctx;
+	 int last_ep;
 	unsigned int ep_index;
 	u32 add_flags;
 
@@ -1488,6 +1489,14 @@ static void xhci_handle_cmd_config_ep(struct xhci_hcd *xhci, int slot_id,
 	}
 
 	add_flags = le32_to_cpu(ctrl_ctx->add_flags);
+
+	last_ep = xhci_last_valid_endpoint(add_flags);
+    if (last_ep <= 0) {
+        xhci_warn(xhci, "No valid endpoints found in add_flags 0x%x\n", 
+                  add_flags);
+        return;
+    }
+
 
 	/* Input ctx add_flags are the endpoint index plus one */
 	ep_index = xhci_last_valid_endpoint(add_flags) - 1;

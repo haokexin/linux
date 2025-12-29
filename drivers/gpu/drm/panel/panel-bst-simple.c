@@ -242,7 +242,7 @@ static unsigned int panel_simple_get_display_modes(struct panel_simple *panel,
 
 		mode->type |= DRM_MODE_TYPE_DRIVER;
 
-		if (panel->desc->num_modes == 1)
+		if (0 == i)
 			mode->type |= DRM_MODE_TYPE_PREFERRED;
 
 		drm_mode_set_name(mode);
@@ -4550,6 +4550,7 @@ static const struct panel_desc_dsi zebu_xtor_2k = {
 };
 
 static const struct drm_display_mode panel_bst_modes[] = {
+#if defined(CONFIG_C1200_SLT) || defined(CONFIG_C1200_MASS)
 	{
 		.clock = 93600,
 		.hdisplay = 1920,
@@ -4574,6 +4575,44 @@ static const struct drm_display_mode panel_bst_modes[] = {
 		.vtotal = 1080 + 4 + 5 + 36,
 		.flags = DRM_MODE_FLAG_NVSYNC | DRM_MODE_FLAG_NHSYNC,
 	},
+	{	/*3840x2160@30Hz*/
+		.clock = 297000,
+		.hdisplay = 3840,
+		.hsync_start = 3840 + 176,
+		.hsync_end = 3840 + 176 + 88,
+		.htotal = 3840 + 176 + 88 + 296,
+		.vdisplay = 2160,
+		.vsync_start = 2160 + 8,
+		.vsync_end = 2160 + 8 + 10,
+		.vtotal = 2160 + 8 + 10 + 72,
+		.flags = DRM_MODE_FLAG_NVSYNC | DRM_MODE_FLAG_NHSYNC,
+	},
+#else
+	{
+		.clock = 93600,
+		.hdisplay = 1920,
+		.hsync_start = 1920 + 70,
+		.hsync_end = 1920 + 70 + 43,
+		.htotal = 1920 + 70 + 43 + 47,
+		.vdisplay = 720,
+		.vsync_start = 720 + 3,
+		.vsync_end = 720 + 3 + 3,
+		.vtotal = 720 + 3 + 3 + 24,
+		.flags = DRM_MODE_FLAG_NVSYNC | DRM_MODE_FLAG_NHSYNC,
+	},
+	{
+		.clock = 148500,
+		.hdisplay = 1920,
+		.hsync_start = 1920 + 88,
+		.hsync_end = 1920 + 88 + 44,
+		.htotal = 1920 + 88 + 44 + 148,
+		.vdisplay = 1080,
+		.vsync_start = 1080 + 4,
+		.vsync_end = 1080 + 4 + 5,
+		.vtotal = 1080 + 4 + 5 + 36,
+		.flags = DRM_MODE_FLAG_NVSYNC | DRM_MODE_FLAG_NHSYNC,
+	},
+#endif
 	// {/*2560x1440@60Hz*/
     //     .clock = 241500,
     //     .hdisplay = 2560,
@@ -4639,7 +4678,7 @@ static const struct drm_display_mode panel_bst_modes[] = {
 static const struct panel_desc_dsi panel_bst = {
 	.desc = {
 		.modes = &panel_bst_modes[0],
-		.num_modes = 2,
+		.num_modes = sizeof(panel_bst_modes)/sizeof(panel_bst_modes[0]),
 		.bpc = 8,
 		.size = {
 			.width = 112,
@@ -4653,7 +4692,7 @@ static const struct panel_desc_dsi panel_bst = {
 };
 
 static const struct drm_display_mode boe_1920x1080_modes[] = {
-#ifndef CONFIG_C1200_SLT
+#if defined(CONFIG_C1200_SLT) || defined(CONFIG_C1200_MASS)
 	{
 		.clock = 93600,
 		.hdisplay = 1920,
@@ -4677,8 +4716,7 @@ static const struct drm_display_mode boe_1920x1080_modes[] = {
 		.vsync_end = 1080 + 4 + 5,
 		.vtotal = 1080 + 4 + 5 + 36,
 		.flags = DRM_MODE_FLAG_NVSYNC | DRM_MODE_FLAG_NHSYNC,
-	}
-#else
+	},
 	{	/*3840x2160@30Hz*/
 		.clock = 297000,
 		.hdisplay = 3840,
@@ -4691,13 +4729,38 @@ static const struct drm_display_mode boe_1920x1080_modes[] = {
 		.vtotal = 2160 + 8 + 10 + 72,
 		.flags = DRM_MODE_FLAG_NVSYNC | DRM_MODE_FLAG_NHSYNC,
 	},
+#else
+	{
+		.clock = 93600,
+		.hdisplay = 1920,
+		.hsync_start = 1920 + 70,
+		.hsync_end = 1920 + 70 + 43,
+		.htotal = 1920 + 70 + 43 + 47,
+		.vdisplay = 720,
+		.vsync_start = 720 + 3,
+		.vsync_end = 720 + 3 + 3,
+		.vtotal = 720 + 3 + 3 + 24,
+		.flags = DRM_MODE_FLAG_NVSYNC | DRM_MODE_FLAG_NHSYNC,
+	},
+	{
+		.clock = 148500,
+		.hdisplay = 1920,
+		.hsync_start = 1920 + 88,
+		.hsync_end = 1920 + 88 + 44,
+		.htotal = 1920 + 88 + 44 + 148,
+		.vdisplay = 1080,
+		.vsync_start = 1080 + 4,
+		.vsync_end = 1080 + 4 + 5,
+		.vtotal = 1080 + 4 + 5 + 36,
+		.flags = DRM_MODE_FLAG_NVSYNC | DRM_MODE_FLAG_NHSYNC,
+	},
 #endif
 };
 
 static const struct panel_desc_dsi boe_1920x1080 = {
 	.desc = {
 		.modes = &boe_1920x1080_modes[0],
-		.num_modes = 2,
+		.num_modes = sizeof(boe_1920x1080_modes)/sizeof(boe_1920x1080_modes[0]),
 		.bpc = 8,
 		.size = {
 			.width = 108,

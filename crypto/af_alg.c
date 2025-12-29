@@ -871,11 +871,13 @@ int af_alg_sendmsg(struct socket *sock, struct msghdr *msg, size_t size,
 		case ALG_OP_VERIFY:
 		case ALG_OP_SIGN:
 		case ALG_OP_ENCRYPT:
+		case ALG_OP_MACGEN:
 			// enc = true;
 			// break;
 		case ALG_OP_DECRYPT:
 		case ALG_OP_KEYGEN:
 		case ALG_OP_SSGEN:
+		case ALG_OP_MACVER:
 			// enc = false;
 			op = con.op;
 			break;

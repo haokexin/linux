@@ -1,12 +1,12 @@
-compatible = "bst,jinghua_ox08b";
-sensor-id = <0x36>;
-data-type = <0x2d>;
-serializer = "max9295";
+#include <dt-bindings/media/bst-isp.h>
 
-algo-bin = "ox08b/OX08B40_raw14_JH_h120_AlgoParam.bin";
-iq-bin = "ox08b/OX08B40_raw14_JH_h120_IqParam.bin";
+compatible = "bst,jh_ox08b";
+sensor-addr = <0x36>;
+data-type = <DT_RAW14>;
+sensor-fps = <20>;
+reg-width = <WORD_REG_BYTE_VAL>;
+algo-bin = "isp/algo/ox08b/OX08B40_raw14_JH_h120_AlgoParam.bin";
+iq-bin = "isp/algo/ox08b/OX08B40_raw14_JH_h120_IqParam.bin";
 
-clock-frequency = <27>;
-sensor-fps = <30>;
-trigger-tx-pin = <7>;
-serializer-id = <0x40>;
+ser-fsync-tx-pin = <7>;
+ser-addr = <0x40>;

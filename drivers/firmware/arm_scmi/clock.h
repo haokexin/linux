@@ -1701,7 +1701,7 @@ static const char *const socnic_m_to_sysnoc_aclk_mux_parents[] = { CLK_25M_OSC, 
 static const char *const msgbx_switch0_wclk_mux_parents[] =  { CLK_25M_OSC, FACTOR_SYSBUS1_600,FACTOR_SYSBUS1_400,FACTOR_SYSBUS0_200};
 static const char *const sysnoc_to_gpunic_aclk_mux_parents[] ={ CLK_25M_OSC, FACTOR_SYSBUS1_400,FACTOR_SYSBUS0_200,FACTOR_SYSBUS0_100};
 
-static const char *const cpu_mp2_core_clk_mux_parents[] ={ CLK_25M_OSC, FACTOR_SYSBUS1_1200,FACTOR_SYSBUS1_800,FACTOR_SYSBUS0_500};
+static const char *const cpu_mp2_core_clk_mux_parents[] ={ CLK_25M_OSC, FACTOR_SYSBUS0_1000,FACTOR_SYSBUS1_800,FACTOR_SYSBUS0_500};
 
 
 static const char *const bd_external_mux_clk0_mux_parents[] ={ CLK_25M_OSC, FACTOR_SYSBUS1_1200,UFS_26,MUX_DISPLAY0,MUX_DISPLAY1,MUX_DISPLAY2,MUX_DISPLAY3,CLK_25M_OSC};

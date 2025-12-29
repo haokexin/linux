@@ -8,9 +8,9 @@
 #include "bst_virt_drm_device.h"
 #include "bst_virt_pipeline.h"
 #include "bst_virt_drm_kms.h"
-#include "bst_display_mipi_cmdset.h"
-#include "bst_display_lvds_cmdset.h"
 #include "bst_virt_drm_connector.h"
+
+#if 0
 struct virt_shared_conn_dev {
 	struct bst_virt_device *base_dev;
 };
@@ -76,10 +76,7 @@ static int shared_conn_get_modes(struct bst_virt_component *c)
 	struct bst_display_mipi_probed_info *mipi_probed_info;
 	struct bst_display_lvds_probed_info *lvds_probed_info;
 
-	req.subdev_session = c->subdev_session;
-	req.client_id = virt_dev->dev_info.client_id;
-	req.platform_id = virt_dev->dev_info.platform_id;
-	ret = bst_display_glb_cmd_get_cur_video_mode(&req, &vm_info);
+	ret = bst_display_conn_cmd_get_cur_video_mode(c->subdev_session, &req, &vm_info);
 	if (ret) {
 		DRM_ERROR("Failed to get shared video mode from FW\n");
 		DRM_ERROR("It maybe owner client not boot done, retry later\n");
@@ -114,7 +111,7 @@ static int shared_conn_get_modes(struct bst_virt_component *c)
 			break;
 		default:
 			DRM_ERROR("device type(%d) not found!\n", virt_dev->device_type);
-		break;
+			return 0;
 	}
 	drm_display_info_form_fw(disp_info,	preferred_screen, v_conn);
 
@@ -125,15 +122,11 @@ static int shared_conn_detect(struct bst_virt_component *c)
 {
 	struct bst_virt_connector *v_conn =
 		container_of(c, struct bst_virt_connector, base);
-	struct bst_virt_device *virt_dev = c->pipe->subdevs[BST_VIRT_CONN_IDX];
 	struct bst_display_vm_req req;
 	struct bst_display_vm_setting vm_info = { 0 };
 	int ret;
 
-	req.subdev_session = c->subdev_session;;
-	req.client_id = virt_dev->dev_info.client_id;
-	req.platform_id = virt_dev->dev_info.platform_id;
-	ret = bst_display_glb_cmd_get_cur_video_mode(&req, &vm_info);
+	ret = bst_display_conn_cmd_get_cur_video_mode(c->subdev_session, &req, &vm_info);
 	if (ret) {
 		DRM_WARN("Failed to get shared video mode from FW\n");
 		DRM_WARN("It maybe owner client not boot done, retry later\n");
@@ -155,7 +148,6 @@ static int virt_shared_conn_init_submodule(struct bst_virt_device *base_dev)
 	struct bst_virt_component *comp = NULL;
 	struct bst_virt_connector *v_conn;
 	uint32_t dev_type = base_dev->device_type;
-	uint32_t client_id = base_dev->dev_info.client_id;
 	uint32_t subdev_session = base_dev->dev_info.subdev_session;
 	struct bst_display_dp_probed_info *dp_probed_info =
 		(struct bst_display_dp_probed_info *)base_dev->dev_info.private;
@@ -164,12 +156,8 @@ static int virt_shared_conn_init_submodule(struct bst_virt_device *base_dev)
 	struct bst_display_lvds_probed_info *probed_lvds_info =
 		(struct bst_display_lvds_probed_info *)base_dev->dev_info.private;
 
-	struct bst_display_dp_info hw_dp_info = { 0 };
-	struct bst_display_mipi_info hw_mipi_info = { 0 };
-	struct bst_display_lvds_info hw_lvds_info = { 0 };
-	struct bst_display_dp_req hw_dp_req = { 0 };
-	struct bst_display_lvds_req hw_lvds_req = { 0 };
-	struct bst_display_mipi_req hw_mipi_req = { 0 };
+	struct bst_display_submodule_req hw_get_subm_info_req = { 0 };
+	struct bst_display_submodule_info hw_submodule_info = { 0 };
 	int ret;
 
 	switch (dev_type) {
@@ -177,25 +165,25 @@ static int virt_shared_conn_init_submodule(struct bst_virt_device *base_dev)
 		comp = bst_virt_component_add(base_dev->this_pipe, base_dev,
 					sizeof(*v_conn),
 					BST_VIRT_COMPONENT_CONN_eDP_VIDEO, 0,
-					&shared_conn_funcs, 0, 1, 1, client_id, "VIRT_DP(shared)-%d", 0);
+					&shared_conn_funcs, 0, 1, 1, "VIRT_DP(shared)-%d", 0);
 		if (IS_ERR(comp)) {
 			DRM_ERROR("Failed to add connector component\n");
 			return PTR_ERR(comp);
 		}
 		v_conn = container_of(comp, struct bst_virt_connector, base);
-		hw_dp_req.client_id = base_dev->dev_info.client_id;
-		ret = bst_display_dp_cmd_get_info(subdev_session, &hw_dp_req, &hw_dp_info);
+		hw_get_subm_info_req.submodule_id = SUBMODULE_ID_DP_VIDEO;
+		ret = bst_display_conn_cmd_get_submodule_info(subdev_session, &hw_get_subm_info_req, &hw_submodule_info);
 		if (ret) {
 			DRM_ERROR("Failed to get dp info from FW, ret(%d)\n", ret);
 			return -1;
 		}
-		atomic_set(&v_conn->connected, hw_dp_info.connected ? 1 : 0);
+		atomic_set(&v_conn->connected, hw_submodule_info.info.video_info.connected ? 1 : 0);
 		v_conn->lanes = dp_probed_info->lanes;
 		v_conn->rate = drm_dp_rate_from_firmware(dp_probed_info->rate);
 		v_conn->bpc = dp_probed_info->bpc;
 		v_conn->video_format = dp_probed_info->video_format;
-		v_conn->supported_color_formats = hw_dp_info.supported_color_formats;
-		v_conn->supported_color_depths = hw_dp_info.supported_color_depths;
+		v_conn->supported_color_formats = hw_submodule_info.info.video_info.supported_color_formats;
+		v_conn->supported_color_depths = hw_submodule_info.info.video_info.supported_color_depths;
 
 		DRM_INFO("dptx(shared) lane:%d, bpc:%d, rate:%d, video_format:%d, supported_color_formats:%d, supported_color_depths:%d\n",
 			v_conn->lanes,
@@ -210,11 +198,11 @@ static int virt_shared_conn_init_submodule(struct bst_virt_device *base_dev)
 		comp = bst_virt_component_add(base_dev->this_pipe, base_dev,
 					sizeof(*v_conn),
 					BST_VIRT_COMPONENT_CONN_DSI_VIDEO, 0,
-					&shared_conn_funcs, 0, 1, 1, client_id, "VIRT_DSI(shared)-%d", 0);
+					&shared_conn_funcs, 0, 1, 1, "VIRT_DSI(shared)-%d", 0);
 
 		v_conn = container_of(comp, struct bst_virt_connector, base);
-		hw_mipi_req.client_id = base_dev->dev_info.client_id;
-		ret = bst_display_mipi_cmd_get_info(subdev_session, &hw_mipi_req, &hw_mipi_info);
+		hw_get_subm_info_req.submodule_id = SUBMODULE_ID_MIPI_VIDEO;
+		ret = bst_display_conn_cmd_get_submodule_info(subdev_session, &hw_get_subm_info_req, &hw_submodule_info);
 		if (ret) {
 			DRM_ERROR("Failed to get mipi dsi0 info from FW, ret(%d)\n", ret);
 			return -1;
@@ -223,8 +211,8 @@ static int virt_shared_conn_init_submodule(struct bst_virt_device *base_dev)
 		v_conn->lanes = probed_mipi_info->lanes;
 		v_conn->bpc = probed_mipi_info->bpc;
 		v_conn->video_format = probed_mipi_info->format;
-		v_conn->supported_color_depths = hw_mipi_info.supported_color_depths;
-		v_conn->supported_color_formats = hw_mipi_info.supported_color_formats;
+		v_conn->supported_color_depths = hw_submodule_info.info.video_info.supported_color_depths;
+		v_conn->supported_color_formats = hw_submodule_info.info.video_info.supported_color_formats;
 		DRM_INFO("mipi_dsi0(shared) lane:%d, bpc:%d, video_format:%d, supported_color_formats:%d, supported_color_depths:%d\n",
 			v_conn->lanes,
 			v_conn->bpc,
@@ -236,10 +224,10 @@ static int virt_shared_conn_init_submodule(struct bst_virt_device *base_dev)
 		comp = bst_virt_component_add(base_dev->this_pipe, base_dev,
 					sizeof(*v_conn),
 					BST_VIRT_COMPONENT_CONN_DSI_VIDEO, 0,
-					&shared_conn_funcs, 0, 1, 1, client_id, "VIRT_DSI(shared)-%d", 1);
+					&shared_conn_funcs, 0, 1, 1, "VIRT_DSI(shared)-%d", 1);
 		v_conn = container_of(comp, struct bst_virt_connector, base);
-		hw_mipi_req.client_id = base_dev->dev_info.client_id;
-		ret = bst_display_mipi_cmd_get_info(subdev_session, &hw_mipi_req, &hw_mipi_info);
+		hw_get_subm_info_req.submodule_id = SUBMODULE_ID_MIPI_VIDEO;
+		ret = bst_display_conn_cmd_get_submodule_info(subdev_session, &hw_get_subm_info_req, &hw_submodule_info);
 		if (ret) {
 			DRM_ERROR("Failed to get mipi dsi1 info from FW, ret(%d)\n", ret);
 			return -1;
@@ -248,8 +236,8 @@ static int virt_shared_conn_init_submodule(struct bst_virt_device *base_dev)
 		v_conn->lanes = probed_mipi_info->lanes;
 		v_conn->bpc = probed_mipi_info->bpc;
 		v_conn->video_format = probed_mipi_info->format;
-		v_conn->supported_color_depths = hw_mipi_info.supported_color_depths;
-		v_conn->supported_color_formats = hw_mipi_info.supported_color_formats;
+		v_conn->supported_color_depths = hw_submodule_info.info.video_info.supported_color_depths;
+		v_conn->supported_color_formats = hw_submodule_info.info.video_info.supported_color_formats;
 		DRM_INFO("mipi_dsi1(shared) lane:%d, bpc:%d, video_format:%d, supported_color_formats:%d, supported_color_depths:%d\n",
 			v_conn->lanes,
 			v_conn->bpc,
@@ -261,10 +249,10 @@ static int virt_shared_conn_init_submodule(struct bst_virt_device *base_dev)
 		comp = bst_virt_component_add(base_dev->this_pipe, base_dev,
 					sizeof(*v_conn),
 					BST_VIRT_COMPONENT_CONN_LVDS_VIDEO, 0,
-					&shared_conn_funcs, 0, 1, 1, client_id, "VIRT_LVDS(shared)-%d", 0);
+					&shared_conn_funcs, 0, 1, 1, "VIRT_LVDS(shared)-%d", 0);
 		v_conn = container_of(comp, struct bst_virt_connector, base);
-		hw_lvds_req.client_id = base_dev->dev_info.client_id;
-		ret = bst_display_lvds_cmd_get_info(subdev_session, &hw_lvds_req, &hw_lvds_info);
+		hw_get_subm_info_req.submodule_id = SUBMODULE_ID_LVDS_VIDEO;
+		ret = bst_display_conn_cmd_get_submodule_info(subdev_session, &hw_get_subm_info_req, &hw_submodule_info);
 		if (ret) {
 			DRM_ERROR("Failed to get lvds0 info from FW, ret(%d)\n", ret);
 			return -1;
@@ -273,8 +261,8 @@ static int virt_shared_conn_init_submodule(struct bst_virt_device *base_dev)
 		v_conn->lanes = 4;
 		v_conn->bpc = probed_lvds_info->bpc;
 		v_conn->video_format = probed_lvds_info->video_format;
-		v_conn->supported_color_depths = hw_lvds_info.supported_color_depths;
-		v_conn->supported_color_formats = hw_lvds_info.supported_color_formats;
+		v_conn->supported_color_depths = hw_submodule_info.info.video_info.supported_color_depths;
+		v_conn->supported_color_formats = hw_submodule_info.info.video_info.supported_color_formats;
 		DRM_INFO("lvds0(shared) lane:%d, bpc:%d, video_format:%d, supported_color_formats:%d, supported_color_depths:%d\n",
 			v_conn->lanes,
 			v_conn->bpc,
@@ -286,10 +274,10 @@ static int virt_shared_conn_init_submodule(struct bst_virt_device *base_dev)
 		comp = bst_virt_component_add(base_dev->this_pipe, base_dev,
 					sizeof(*v_conn),
 					BST_VIRT_COMPONENT_CONN_LVDS_VIDEO, 0,
-					&shared_conn_funcs, 0, 1, 1, client_id, "VIRT_LVDS(shared)-%d", 1);
+					&shared_conn_funcs, 0, 1, 1, "VIRT_LVDS(shared)-%d", 1);
 		v_conn = container_of(comp, struct bst_virt_connector, base);
-		hw_lvds_req.client_id = base_dev->dev_info.client_id;
-		ret = bst_display_lvds_cmd_get_info(subdev_session, &hw_lvds_req, &hw_lvds_info);
+		hw_get_subm_info_req.submodule_id = SUBMODULE_ID_LVDS_VIDEO;
+		ret = bst_display_conn_cmd_get_submodule_info(subdev_session, &hw_get_subm_info_req, &hw_submodule_info);
 		if (ret) {
 			DRM_ERROR("Failed to get lvds1 info from FW, ret(%d)\n", ret);
 			return -1;
@@ -298,8 +286,8 @@ static int virt_shared_conn_init_submodule(struct bst_virt_device *base_dev)
 		v_conn->lanes = 4;
 		v_conn->bpc = probed_lvds_info->bpc;
 		v_conn->video_format = probed_lvds_info->video_format;
-		v_conn->supported_color_depths = hw_lvds_info.supported_color_depths;
-		v_conn->supported_color_formats = hw_lvds_info.supported_color_formats;
+		v_conn->supported_color_depths = hw_submodule_info.info.video_info.supported_color_depths;
+		v_conn->supported_color_formats = hw_submodule_info.info.video_info.supported_color_formats;
 		DRM_INFO("lvds1(shared) lane:%d, bpc:%d, video_format:%d, supported_color_formats:%d, supported_color_depths:%d\n",
 			v_conn->lanes,
 			v_conn->bpc,
@@ -311,11 +299,12 @@ static int virt_shared_conn_init_submodule(struct bst_virt_device *base_dev)
 		comp = bst_virt_component_add(base_dev->this_pipe, base_dev,
 					sizeof(*v_conn),
 					BST_VIRT_COMPONENT_CONN_LVDS_VIDEO, 0,
-					&shared_conn_funcs, 0, 1, 1, client_id, "VIRT_DUAL_LVDS(shared)-%d", 0);
+					&shared_conn_funcs, 0, 1, 1, "VIRT_DUAL_LVDS(shared)-%d", 0);
 		v_conn = container_of(comp, struct bst_virt_connector, base);
 		break;
 	default:
-		break;
+		DRM_ERROR("invalid dev_type\n");
+		return -1;
 	}
 	if (IS_ERR(comp)) {
 		DRM_ERROR("Failed to add connector component\n");
@@ -347,3 +336,4 @@ const struct bst_virt_device_funcs virt_shared_conn_dev_funcs = {
 	.update = virt_shared_conn_update,
 	.flush = virt_shared_conn_flush,
 };
+#endif

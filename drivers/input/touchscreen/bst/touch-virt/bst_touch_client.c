@@ -1,26 +1,33 @@
-// SPDX-License-Identifier: GPL-2.0 OR BSD-3-Clause
+// SPDX-License-Identifier: GPL-2.0 OR Apache 2.0
 /*
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2 of the License, or
- * (at your option) any later version.
+ * Copyright (c) 2024 Black Sesame Technologies
  *
- * This program is also distributed under the terms of the BSD 3-Clause
+ * This program is also distributed under the terms of the Apache 2.0
  * License.
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
- * Copyright (C) 2023 Black Sesame Technologies. Inc.
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 
-/* This file is auto generated for message box v1.1.0.
+/* This file is auto generated for message box v2.0.0.
  * All manual modifications will be LOST by next generation.
  * It is recommended NOT modify it.
- * Generator Version: francaidl 797e374 msgbx_ipc c468e33
  */
 
 #include "bst_touch_client.h"
 
 // macro definitions
-#define CID SAFETY_0
+#define CID DMA_0
+#define CCID 0
+#define CID_MASK (0x1U << 16)
 #define MAJOR 1U
 #define MINOR 0U
 
@@ -28,6 +35,7 @@
 #define CMD_METHOD_CLIENT_REQUEST_LOCATION_INIT 90U
 #define CMD_METHOD_SET_TOUCH_CALIBRATION 91U
 #define CMD_METHOD_GET_TOUCH_CALIBRATION 92U
+#define CMD_METHOD_TOUCH_DEBUG_CMD 93U
 
 #define CMD_METHOD_SUB_LOCATION_INFO 95U
 #define CMD_METHOD_UNSUB_LOCATION_INFO 96U
@@ -40,6 +48,7 @@ static bst_touch_client_ext_t *s_ext;
 #ifndef IPC_RTE_BAREMETAL
 
 struct _client_request_location_init_out_t {
+	DECL_SEM(sem)
 	uint64_t *client_uuid;
 	bst_touch_hw_info_t **screen_hwinfo;
 	bst_touch_ErrorEnum_t *err;
@@ -47,15 +56,24 @@ struct _client_request_location_init_out_t {
 #define client_request_location_init_out_t struct _client_request_location_init_out_t
 
 struct _set_touch_calibration_out_t {
+	DECL_SEM(sem)
 	bst_touch_ErrorEnum_t *err;
 };
 #define set_touch_calibration_out_t struct _set_touch_calibration_out_t
 
 struct _get_touch_calibration_out_t {
+	DECL_SEM(sem)
 	bst_touch_calibration_info_t **cali_info;
 	bst_touch_ErrorEnum_t *err;
 };
 #define get_touch_calibration_out_t struct _get_touch_calibration_out_t
+
+struct _touch_debug_cmd_out_t {
+	DECL_SEM(sem)
+	char **result_str;
+	bst_touch_ErrorEnum_t *err;
+};
+#define touch_debug_cmd_out_t struct _touch_debug_cmd_out_t
 
 #endif
 // interface implementation
@@ -104,6 +122,8 @@ static void client_request_location_init_sync_callback(
 	*out->client_uuid = client_uuid;
 	*out->screen_hwinfo = (bst_touch_hw_info_t *)screen_hwinfo;
 	*out->err = err;
+
+	IPC_SEM_POST(&out->sem);
 }
 
 static int32_t call_client_request_location_init_sync(const uint32_t client_id,
@@ -125,6 +145,7 @@ static int32_t call_client_request_location_init_sync(const uint32_t client_id,
 
 	if (!data || !s_ext)
 		return -ERR_APP_PARAM;
+	IPC_SEM_INIT(&out.sem, 0);
 	ser = &serdes;
 	(void)ipc_ser_init(ser);
 
@@ -135,24 +156,23 @@ static int32_t call_client_request_location_init_sync(const uint32_t client_id,
 	}
 
 	// send request
-	ret = send_request(data, ser, s_ext->cid, CMD_METHOD_CLIENT_REQUEST_LOCATION_INIT,
-				client_request_location_init_sync_callback, &out, ext_buf);
+	ret = send_request(data, s_ext->client_request_location_init_registry, ser, s_ext->cid,
+			CMD_METHOD_CLIENT_REQUEST_LOCATION_INIT, client_request_location_init_sync_callback, &out, ext_buf);
 	if (ret < 0 || ret >= IPC_TOKEN_NUM) {
-		IPC_LOG_ERR("send method fail %d.\n", ret);
+		IPC_LOG_ERR("send method fail %" PRId32 ".\n", ret);
 		return ret;
 	}
 
 	//wait for reply
-	reg = &data->method_registry[ret];
-	reg->disable_gc = true;
+	reg = &s_ext->client_request_location_init_registry[ret];
 	if (timeout_ms <= 0)
-		ret = wait_on_registry(reg);
+		IPC_SEM_WAIT(&out.sem);
 	else
-		ret = timedwait_on_registry(reg, timeout_ms);
-	if (ret < 0) {
-		clear_registry(reg);
+		IPC_SEM_TIMED_WAIT(&out.sem, timeout_ms);
+	if (ret < 0)
 		IPC_LOG_ERR("wait timeout\n");
-	}
+	clear_registry(reg);
+	IPC_SEM_DESTROY(&out.sem);
 
 	return ret;
 }
@@ -165,7 +185,7 @@ static int32_t call_client_request_location_init_async(const uint32_t client_id,
 				des_buf_t *ext_buf)
 {
 	int32_t ret = 0;
-#ifdef IPC_RTE_BAREMETAL
+#ifdef IPC_SHARED_SERIALIZER
 	serdes_t *ser = NULL;
 #else
 	serdes_t serdes = { 0 };
@@ -175,7 +195,7 @@ static int32_t call_client_request_location_init_async(const uint32_t client_id,
 
 	if (!data || !s_ext)
 		return -ERR_APP_PARAM;
-#ifdef IPC_RTE_BAREMETAL
+#ifdef IPC_SHARED_SERIALIZER
 	ser = &data->serializer;
 #endif
 	(void)ipc_ser_init(ser);
@@ -187,47 +207,49 @@ static int32_t call_client_request_location_init_async(const uint32_t client_id,
 	}
 
 	// send request
-	ret = send_request(data, ser, s_ext->cid, CMD_METHOD_CLIENT_REQUEST_LOCATION_INIT,
-				cb, ext, ext_buf);
+	ret = send_request(data, s_ext->client_request_location_init_registry, ser, s_ext->cid,
+			CMD_METHOD_CLIENT_REQUEST_LOCATION_INIT, cb, ext, ext_buf);
 	if (ret < 0 || ret >= IPC_TOKEN_NUM) {
-		IPC_LOG_ERR("send method fail %d.\n", ret);
+		IPC_LOG_ERR("send method fail %" PRId32 ".\n", ret);
 		return ret;
 	}
 
 	return RESULT_SUCCESS;
 }
 
-static inline int32_t call_client_request_location_init_callback(serdes_t *des)
+static inline int32_t call_client_request_location_init_callback(des_buf_t *des)
 {
 	int32_t ret = 0;
 	callback_registration_t *reg = NULL;
 	des_buf_t *buf = NULL;
-	uint32_t len = 0;
 	com_client_data_t *data = s_data;
+	bst_touch_client_request_location_init_callback_t cb = NULL;
 	uint64_t client_uuid = 0;
 	bst_touch_hw_info_t *screen_hwinfo = NULL;
 	bst_touch_ErrorEnum_t err = 0;
-	bst_touch_client_request_location_init_callback_t cb;
 
 
-	if (!des || !data)
+	if (!des || !data || !s_ext)
 		return -ERR_APP_PARAM;
 
-	reg = &data->method_registry[des->header.tok];
-	if (!reg->busy || reg->cmd != CMD_METHOD_CLIENT_REQUEST_LOCATION_INIT) {
+	reg = &s_ext->client_request_location_init_registry[des->header.tok];
+	if (!reg->busy) {
 		IPC_LOG_ERR("callback registry is invalid.\n");
 		return -ERR_APP_TOK;
 	}
-	buf = reg->ext_buf ? reg->ext_buf : &data->des_buf;
-	clear_des_buf(buf);
+	if (reg->ext_buf) {
+		buf = reg->ext_buf;
+		(void)ipc_memcpy(buf, des, sizeof(des_buf_t));
+	}
+	else
+		buf = des;
+	// set info (for callback function)
 	data->info.uuid = ipc_msg_get_uuid(des->header);
-	data->info.timestamp = des->recv_end_time;
+	data->info.timestamp = des->timestamp;
 
 	// deserialize arguments
-	len = ipc_des_get_all(des, (uint8_t *)buf->data_buf);
-	if (len <= 0)
+	if (buf->unavail_data_size >= IPC_MAX_DATA_SIZE)
 		return -ERR_APP_SERDES;
-	buf->unavail_data_size = IPC_MAX_DATA_SIZE - len;
 
 	if (ret >= 0)
 		ret = deserialize_bst_touch_ErrorEnum(buf, &err);
@@ -247,10 +269,6 @@ static inline int32_t call_client_request_location_init_callback(serdes_t *des)
 	cb = (bst_touch_client_request_location_init_callback_t)(reg->cb);
 	if (cb)
 		cb(client_uuid, screen_hwinfo, err, reg->ext, &data->info);
-#ifndef IPC_RTE_BAREMETAL
-	notify_callback_registry(reg);
-#endif
-	clear_registry(reg);
 
 	return RESULT_SUCCESS;
 }
@@ -286,6 +304,8 @@ static void set_touch_calibration_sync_callback(
 	if (!out)
 		return;
 	*out->err = err;
+
+	IPC_SEM_POST(&out->sem);
 }
 
 static int32_t call_set_touch_calibration_sync(const uint32_t screen_id,
@@ -303,6 +323,7 @@ static int32_t call_set_touch_calibration_sync(const uint32_t screen_id,
 
 	if (!data || !s_ext)
 		return -ERR_APP_PARAM;
+	IPC_SEM_INIT(&out.sem, 0);
 	ser = &serdes;
 	(void)ipc_ser_init(ser);
 
@@ -313,24 +334,23 @@ static int32_t call_set_touch_calibration_sync(const uint32_t screen_id,
 	}
 
 	// send request
-	ret = send_request(data, ser, s_ext->cid, CMD_METHOD_SET_TOUCH_CALIBRATION,
-				set_touch_calibration_sync_callback, &out, ext_buf);
+	ret = send_request(data, s_ext->set_touch_calibration_registry, ser, s_ext->cid,
+			CMD_METHOD_SET_TOUCH_CALIBRATION, set_touch_calibration_sync_callback, &out, ext_buf);
 	if (ret < 0 || ret >= IPC_TOKEN_NUM) {
-		IPC_LOG_ERR("send method fail %d.\n", ret);
+		IPC_LOG_ERR("send method fail %" PRId32 ".\n", ret);
 		return ret;
 	}
 
 	//wait for reply
-	reg = &data->method_registry[ret];
-	reg->disable_gc = true;
+	reg = &s_ext->set_touch_calibration_registry[ret];
 	if (timeout_ms <= 0)
-		ret = wait_on_registry(reg);
+		IPC_SEM_WAIT(&out.sem);
 	else
-		ret = timedwait_on_registry(reg, timeout_ms);
-	if (ret < 0) {
-		clear_registry(reg);
+		IPC_SEM_TIMED_WAIT(&out.sem, timeout_ms);
+	if (ret < 0)
 		IPC_LOG_ERR("wait timeout\n");
-	}
+	clear_registry(reg);
+	IPC_SEM_DESTROY(&out.sem);
 
 	return ret;
 }
@@ -343,7 +363,7 @@ static int32_t call_set_touch_calibration_async(const uint32_t screen_id,
 				des_buf_t *ext_buf)
 {
 	int32_t ret = 0;
-#ifdef IPC_RTE_BAREMETAL
+#ifdef IPC_SHARED_SERIALIZER
 	serdes_t *ser = NULL;
 #else
 	serdes_t serdes = { 0 };
@@ -353,7 +373,7 @@ static int32_t call_set_touch_calibration_async(const uint32_t screen_id,
 
 	if (!data || !s_ext)
 		return -ERR_APP_PARAM;
-#ifdef IPC_RTE_BAREMETAL
+#ifdef IPC_SHARED_SERIALIZER
 	ser = &data->serializer;
 #endif
 	(void)ipc_ser_init(ser);
@@ -365,65 +385,59 @@ static int32_t call_set_touch_calibration_async(const uint32_t screen_id,
 	}
 
 	// send request
-	ret = send_request(data, ser, s_ext->cid, CMD_METHOD_SET_TOUCH_CALIBRATION,
-				cb, ext, ext_buf);
+	ret = send_request(data, s_ext->set_touch_calibration_registry, ser, s_ext->cid,
+			CMD_METHOD_SET_TOUCH_CALIBRATION, cb, ext, ext_buf);
 	if (ret < 0 || ret >= IPC_TOKEN_NUM) {
-		IPC_LOG_ERR("send method fail %d.\n", ret);
+		IPC_LOG_ERR("send method fail %" PRId32 ".\n", ret);
 		return ret;
 	}
 
 	return RESULT_SUCCESS;
 }
 
-static inline int32_t call_set_touch_calibration_callback(serdes_t *des)
+static inline int32_t call_set_touch_calibration_callback(des_buf_t *des)
 {
 	int32_t ret = 0;
 	callback_registration_t *reg = NULL;
 	des_buf_t *buf = NULL;
-	uint32_t len = 0;
 	com_client_data_t *data = s_data;
+	bst_touch_set_touch_calibration_callback_t cb = NULL;
 	bst_touch_ErrorEnum_t err = 0;
-	bst_touch_set_touch_calibration_callback_t cb;
 
 
-	if (!des || !data)
+	if (!des || !data || !s_ext)
 		return -ERR_APP_PARAM;
 
-	reg = &data->method_registry[des->header.tok];
-	if (!reg->busy || reg->cmd != CMD_METHOD_SET_TOUCH_CALIBRATION) {
+	reg = &s_ext->set_touch_calibration_registry[des->header.tok];
+	if (!reg->busy) {
 		IPC_LOG_ERR("callback registry is invalid.\n");
 		return -ERR_APP_TOK;
 	}
-	buf = reg->ext_buf ? reg->ext_buf : &data->des_buf;
-	clear_des_buf(buf);
+	if (reg->ext_buf) {
+		buf = reg->ext_buf;
+		(void)ipc_memcpy(buf, des, sizeof(des_buf_t));
+	}
+	else
+		buf = des;
+	// set info (for callback function)
 	data->info.uuid = ipc_msg_get_uuid(des->header);
-	data->info.timestamp = des->recv_end_time;
+	data->info.timestamp = des->timestamp;
 
 	// deserialize arguments
-	len = ipc_des_get_all(des, (uint8_t *)buf->data_buf);
-	if (len <= 0)
+	if (buf->unavail_data_size >= IPC_MAX_DATA_SIZE)
 		return -ERR_APP_SERDES;
-	buf->unavail_data_size = IPC_MAX_DATA_SIZE - len;
 
 	if (ret >= 0)
 		ret = deserialize_bst_touch_ErrorEnum(buf, &err);
 
 	if (ret < 0)
 		return -ERR_APP_SERDES;
-	if (err == BST_TOUCH_NO_ERROR) {
-	
-		if (ret < 0)
-			return -ERR_APP_SERDES;
-	}
+
 
 	// call callback function
 	cb = (bst_touch_set_touch_calibration_callback_t)(reg->cb);
 	if (cb)
 		cb(err, reg->ext, &data->info);
-#ifndef IPC_RTE_BAREMETAL
-	notify_callback_registry(reg);
-#endif
-	clear_registry(reg);
 
 	return RESULT_SUCCESS;
 }
@@ -458,6 +472,8 @@ static void get_touch_calibration_sync_callback(
 		return;
 	*out->cali_info = (bst_touch_calibration_info_t *)cali_info;
 	*out->err = err;
+
+	IPC_SEM_POST(&out->sem);
 }
 
 static int32_t call_get_touch_calibration_sync(const uint32_t screen_id,
@@ -476,6 +492,7 @@ static int32_t call_get_touch_calibration_sync(const uint32_t screen_id,
 
 	if (!data || !s_ext)
 		return -ERR_APP_PARAM;
+	IPC_SEM_INIT(&out.sem, 0);
 	ser = &serdes;
 	(void)ipc_ser_init(ser);
 
@@ -486,24 +503,23 @@ static int32_t call_get_touch_calibration_sync(const uint32_t screen_id,
 	}
 
 	// send request
-	ret = send_request(data, ser, s_ext->cid, CMD_METHOD_GET_TOUCH_CALIBRATION,
-				get_touch_calibration_sync_callback, &out, ext_buf);
+	ret = send_request(data, s_ext->get_touch_calibration_registry, ser, s_ext->cid,
+			CMD_METHOD_GET_TOUCH_CALIBRATION, get_touch_calibration_sync_callback, &out, ext_buf);
 	if (ret < 0 || ret >= IPC_TOKEN_NUM) {
-		IPC_LOG_ERR("send method fail %d.\n", ret);
+		IPC_LOG_ERR("send method fail %" PRId32 ".\n", ret);
 		return ret;
 	}
 
 	//wait for reply
-	reg = &data->method_registry[ret];
-	reg->disable_gc = true;
+	reg = &s_ext->get_touch_calibration_registry[ret];
 	if (timeout_ms <= 0)
-		ret = wait_on_registry(reg);
+		IPC_SEM_WAIT(&out.sem);
 	else
-		ret = timedwait_on_registry(reg, timeout_ms);
-	if (ret < 0) {
-		clear_registry(reg);
+		IPC_SEM_TIMED_WAIT(&out.sem, timeout_ms);
+	if (ret < 0)
 		IPC_LOG_ERR("wait timeout\n");
-	}
+	clear_registry(reg);
+	IPC_SEM_DESTROY(&out.sem);
 
 	return ret;
 }
@@ -515,7 +531,7 @@ static int32_t call_get_touch_calibration_async(const uint32_t screen_id,
 				des_buf_t *ext_buf)
 {
 	int32_t ret = 0;
-#ifdef IPC_RTE_BAREMETAL
+#ifdef IPC_SHARED_SERIALIZER
 	serdes_t *ser = NULL;
 #else
 	serdes_t serdes = { 0 };
@@ -525,7 +541,7 @@ static int32_t call_get_touch_calibration_async(const uint32_t screen_id,
 
 	if (!data || !s_ext)
 		return -ERR_APP_PARAM;
-#ifdef IPC_RTE_BAREMETAL
+#ifdef IPC_SHARED_SERIALIZER
 	ser = &data->serializer;
 #endif
 	(void)ipc_ser_init(ser);
@@ -537,46 +553,48 @@ static int32_t call_get_touch_calibration_async(const uint32_t screen_id,
 	}
 
 	// send request
-	ret = send_request(data, ser, s_ext->cid, CMD_METHOD_GET_TOUCH_CALIBRATION,
-				cb, ext, ext_buf);
+	ret = send_request(data, s_ext->get_touch_calibration_registry, ser, s_ext->cid,
+			CMD_METHOD_GET_TOUCH_CALIBRATION, cb, ext, ext_buf);
 	if (ret < 0 || ret >= IPC_TOKEN_NUM) {
-		IPC_LOG_ERR("send method fail %d.\n", ret);
+		IPC_LOG_ERR("send method fail %" PRId32 ".\n", ret);
 		return ret;
 	}
 
 	return RESULT_SUCCESS;
 }
 
-static inline int32_t call_get_touch_calibration_callback(serdes_t *des)
+static inline int32_t call_get_touch_calibration_callback(des_buf_t *des)
 {
 	int32_t ret = 0;
 	callback_registration_t *reg = NULL;
 	des_buf_t *buf = NULL;
-	uint32_t len = 0;
 	com_client_data_t *data = s_data;
+	bst_touch_get_touch_calibration_callback_t cb = NULL;
 	bst_touch_calibration_info_t *cali_info = NULL;
 	bst_touch_ErrorEnum_t err = 0;
-	bst_touch_get_touch_calibration_callback_t cb;
 
 
-	if (!des || !data)
+	if (!des || !data || !s_ext)
 		return -ERR_APP_PARAM;
 
-	reg = &data->method_registry[des->header.tok];
-	if (!reg->busy || reg->cmd != CMD_METHOD_GET_TOUCH_CALIBRATION) {
+	reg = &s_ext->get_touch_calibration_registry[des->header.tok];
+	if (!reg->busy) {
 		IPC_LOG_ERR("callback registry is invalid.\n");
 		return -ERR_APP_TOK;
 	}
-	buf = reg->ext_buf ? reg->ext_buf : &data->des_buf;
-	clear_des_buf(buf);
+	if (reg->ext_buf) {
+		buf = reg->ext_buf;
+		(void)ipc_memcpy(buf, des, sizeof(des_buf_t));
+	}
+	else
+		buf = des;
+	// set info (for callback function)
 	data->info.uuid = ipc_msg_get_uuid(des->header);
-	data->info.timestamp = des->recv_end_time;
+	data->info.timestamp = des->timestamp;
 
 	// deserialize arguments
-	len = ipc_des_get_all(des, (uint8_t *)buf->data_buf);
-	if (len <= 0)
+	if (buf->unavail_data_size >= IPC_MAX_DATA_SIZE)
 		return -ERR_APP_SERDES;
-	buf->unavail_data_size = IPC_MAX_DATA_SIZE - len;
 
 	if (ret >= 0)
 		ret = deserialize_bst_touch_ErrorEnum(buf, &err);
@@ -594,10 +612,180 @@ static inline int32_t call_get_touch_calibration_callback(serdes_t *des)
 	cb = (bst_touch_get_touch_calibration_callback_t)(reg->cb);
 	if (cb)
 		cb(cali_info, err, reg->ext, &data->info);
+
+	return RESULT_SUCCESS;
+}
+
+static inline int32_t serialize_touch_debug_cmd(
+				serdes_t *ser,
+				const char *cmd_str
+				)
+{
+	int32_t ret = 0;
+
+	if (ret >= 0)
+		ret = serialize_string(ser, cmd_str);
+
+	if (ret < 0)
+		return -ERR_APP_SERDES;
+	else
+		return RESULT_SUCCESS;
+}
 #ifndef IPC_RTE_BAREMETAL
-	notify_callback_registry(reg);
-#endif
+
+static void touch_debug_cmd_sync_callback(
+				const char *result_str,
+				const bst_touch_ErrorEnum_t err,
+				void *ext,
+				const ext_info_t *info
+				)
+{
+	touch_debug_cmd_out_t *out = (touch_debug_cmd_out_t *)ext;
+
+	if (!out)
+		return;
+	*out->result_str = (char *)result_str;
+	*out->err = err;
+
+	IPC_SEM_POST(&out->sem);
+}
+
+static int32_t call_touch_debug_cmd_sync(const char *cmd_str,
+				char **result_str,
+				bst_touch_ErrorEnum_t *err,
+				int64_t timeout_ms,
+				des_buf_t *ext_buf)
+{
+	int32_t ret = 0;
+	serdes_t serdes = { 0 };
+	serdes_t *ser = NULL;
+	touch_debug_cmd_out_t out = {.result_str = result_str,
+				.err = err};
+	callback_registration_t *reg = NULL;
+	com_client_data_t *data = s_data;
+
+	if (!data || !s_ext)
+		return -ERR_APP_PARAM;
+	IPC_SEM_INIT(&out.sem, 0);
+	ser = &serdes;
+	(void)ipc_ser_init(ser);
+
+	ret = serialize_touch_debug_cmd(ser, cmd_str);
+	if (ret != 0) {
+		IPC_LOG_ERR("serialize fail.\n");
+		return -ERR_APP_SERDES;
+	}
+
+	// send request
+	ret = send_request(data, s_ext->touch_debug_cmd_registry, ser, s_ext->cid,
+			CMD_METHOD_TOUCH_DEBUG_CMD, touch_debug_cmd_sync_callback, &out, ext_buf);
+	if (ret < 0 || ret >= IPC_TOKEN_NUM) {
+		IPC_LOG_ERR("send method fail %" PRId32 ".\n", ret);
+		return ret;
+	}
+
+	//wait for reply
+	reg = &s_ext->touch_debug_cmd_registry[ret];
+	if (timeout_ms <= 0)
+		IPC_SEM_WAIT(&out.sem);
+	else
+		IPC_SEM_TIMED_WAIT(&out.sem, timeout_ms);
+	if (ret < 0)
+		IPC_LOG_ERR("wait timeout\n");
 	clear_registry(reg);
+	IPC_SEM_DESTROY(&out.sem);
+
+	return ret;
+}
+#endif
+
+static int32_t call_touch_debug_cmd_async(const char *cmd_str,
+				bst_touch_touch_debug_cmd_callback_t cb,
+				void *ext,
+				des_buf_t *ext_buf)
+{
+	int32_t ret = 0;
+#ifdef IPC_SHARED_SERIALIZER
+	serdes_t *ser = NULL;
+#else
+	serdes_t serdes = { 0 };
+	serdes_t *ser = &serdes;
+#endif
+	com_client_data_t *data = s_data;
+
+	if (!data || !s_ext)
+		return -ERR_APP_PARAM;
+#ifdef IPC_SHARED_SERIALIZER
+	ser = &data->serializer;
+#endif
+	(void)ipc_ser_init(ser);
+
+	ret = serialize_touch_debug_cmd(ser, cmd_str);
+	if (ret != 0) {
+		IPC_LOG_ERR("serialize fail.\n");
+		return -ERR_APP_SERDES;
+	}
+
+	// send request
+	ret = send_request(data, s_ext->touch_debug_cmd_registry, ser, s_ext->cid,
+			CMD_METHOD_TOUCH_DEBUG_CMD, cb, ext, ext_buf);
+	if (ret < 0 || ret >= IPC_TOKEN_NUM) {
+		IPC_LOG_ERR("send method fail %" PRId32 ".\n", ret);
+		return ret;
+	}
+
+	return RESULT_SUCCESS;
+}
+
+static inline int32_t call_touch_debug_cmd_callback(des_buf_t *des)
+{
+	int32_t ret = 0;
+	callback_registration_t *reg = NULL;
+	des_buf_t *buf = NULL;
+	com_client_data_t *data = s_data;
+	bst_touch_touch_debug_cmd_callback_t cb = NULL;
+	char *result_str = NULL;
+	bst_touch_ErrorEnum_t err = 0;
+
+
+	if (!des || !data || !s_ext)
+		return -ERR_APP_PARAM;
+
+	reg = &s_ext->touch_debug_cmd_registry[des->header.tok];
+	if (!reg->busy) {
+		IPC_LOG_ERR("callback registry is invalid.\n");
+		return -ERR_APP_TOK;
+	}
+	if (reg->ext_buf) {
+		buf = reg->ext_buf;
+		(void)ipc_memcpy(buf, des, sizeof(des_buf_t));
+	}
+	else
+		buf = des;
+	// set info (for callback function)
+	data->info.uuid = ipc_msg_get_uuid(des->header);
+	data->info.timestamp = des->timestamp;
+
+	// deserialize arguments
+	if (buf->unavail_data_size >= IPC_MAX_DATA_SIZE)
+		return -ERR_APP_SERDES;
+
+	if (ret >= 0)
+		ret = deserialize_bst_touch_ErrorEnum(buf, &err);
+
+	if (ret < 0)
+		return -ERR_APP_SERDES;
+	if (err == BST_TOUCH_NO_ERROR) {
+		if (ret >= 0)
+			ret = deserialize_string(buf, &result_str);
+		if (ret < 0)
+			return -ERR_APP_SERDES;
+	}
+
+	// call callback function
+	cb = (bst_touch_touch_debug_cmd_callback_t)(reg->cb);
+	if (cb)
+		cb(result_str, err, reg->ext, &data->info);
 
 	return RESULT_SUCCESS;
 }
@@ -622,17 +810,18 @@ static int32_t subscribe_location_info(
 
 	ser = &data->serializer;
 
-	// send request
-	ret = send_request(data, ser, s_ext->cid, CMD_METHOD_SUB_LOCATION_INFO,
-				cb2, ext2, NULL);
-	if (ret < 0 || ret >= IPC_TOKEN_NUM) {
-		IPC_LOG_ERR("send fail %d.\n", ret);
-		return ret;
-	}
-
 	// set registry
 	s_ext->location_info_registry.busy = true;
-	(void)add_registry(&s_ext->location_info_registry, (void *)cb, ext, ext_buf);
+	(void)set_registry(&s_ext->location_info_registry, (void *)cb, ext, ext_buf);
+
+	// send request
+	ret = send_request(data, data->common_registry, ser, s_ext->cid,
+			CMD_METHOD_SUB_LOCATION_INFO, cb2, ext2, NULL);
+	if (ret < 0 || ret >= IPC_TOKEN_NUM) {
+		IPC_LOG_ERR("send fail %" PRId32 ".\n", ret);
+		clear_registry(&s_ext->location_info_registry);
+		return ret;
+	}
 
 	return RESULT_SUCCESS;
 }
@@ -644,27 +833,26 @@ static int32_t unsubscribe_location_info(broadcast_sub_unsub_callback_t cb, void
 	serdes_t *ser = NULL;
 	com_client_data_t *data = s_data;
 
-	if (!data)
+	if (!data || !s_ext || !s_ext->location_info_registry.busy)
 		return -ERR_APP_PARAM;
 
 	ser = &data->serializer;
 
 	// send request
-	ret = send_request(data, ser, s_ext->cid, CMD_METHOD_UNSUB_LOCATION_INFO,
-				cb, ext, NULL);
+	ret = send_request(data, data->common_registry, ser, s_ext->cid,
+			CMD_METHOD_UNSUB_LOCATION_INFO, cb, ext, NULL);
 	if (ret < 0 || ret >= IPC_TOKEN_NUM) {
-		IPC_LOG_ERR("send fail %d.\n", ret);
+		IPC_LOG_ERR("send fail %" PRId32 ".\n", ret);
 		return ret;
 	}
 
 	return RESULT_SUCCESS;
 }
 
-static inline int32_t call_location_info_callback(serdes_t *des)
+static inline int32_t call_location_info_callback(des_buf_t *des)
 {
 	int32_t ret = 0;
 	des_buf_t *buf = NULL;
-	uint32_t len = 0;
 	com_client_data_t *data = s_data;
 	callback_registration_t *reg = NULL;
 	bst_touch_location_info_callback_t cb = NULL;
@@ -683,13 +871,15 @@ static inline int32_t call_location_info_callback(serdes_t *des)
 	}
 
 	data->info.uuid = ipc_msg_get_uuid(des->header);
-	data->info.timestamp = des->recv_end_time;
-	buf = reg->ext_buf ? reg->ext_buf : &data->des_buf;
-	clear_des_buf(buf);
-	len = ipc_des_get_all(des, (uint8_t *)buf->data_buf);
-	if (len <= 0)
+	data->info.timestamp = des->timestamp;
+	if (reg->ext_buf) {
+		buf = reg->ext_buf;
+		(void)ipc_memcpy(buf, des, sizeof(des_buf_t));
+	}
+	else
+		buf = des;
+	if (buf->unavail_data_size >= IPC_MAX_DATA_SIZE)
 		return -ERR_APP_SERDES;
-	buf->unavail_data_size = IPC_MAX_DATA_SIZE - len;
 
 	if (ret >= 0)
 		ret = deserialize_32(buf, (uint32_t *)&screen_id);
@@ -710,7 +900,7 @@ static inline int32_t call_location_info_callback(serdes_t *des)
 }
 
 // dispatch_broadcast
-static inline int32_t dispatch_broadcast(serdes_t *des)
+static inline int32_t dispatch_broadcast(des_buf_t *des)
 {
 	int32_t ret = 0;
 
@@ -723,7 +913,6 @@ static inline int32_t dispatch_broadcast(serdes_t *des)
 		break;
 	default:
 		ret = -ERR_APP_UNKNOWN_CMD;
-		IPC_LOG_ERR("unknown broadcast message %d.\n", des->header.cmd);
 		break;
 	}
 
@@ -731,7 +920,7 @@ static inline int32_t dispatch_broadcast(serdes_t *des)
 }
 
 // dispatch_reply
-static inline int32_t dispatch_reply(serdes_t *des)
+static inline int32_t dispatch_reply(des_buf_t *des)
 {
 	int32_t ret = 0;
 	com_client_data_t *data = s_data;
@@ -749,6 +938,9 @@ static inline int32_t dispatch_reply(serdes_t *des)
 	case CMD_METHOD_GET_TOUCH_CALIBRATION:
 		ret = call_get_touch_calibration_callback(des);
 		break;
+	case CMD_METHOD_TOUCH_DEBUG_CMD:
+		ret = call_touch_debug_cmd_callback(des);
+		break;
 	case CMD_METHOD_SUB_LOCATION_INFO:
 		ret = call_broadcast_sub_unsub_callback(data, des);
 		break;
@@ -759,7 +951,6 @@ static inline int32_t dispatch_reply(serdes_t *des)
 		break;
 	default:
 		ret = -ERR_APP_UNKNOWN_CMD;
-		IPC_LOG_ERR("unknown reply message %d.\n", des->header.cmd);
 		break;
 	}
 
@@ -769,7 +960,12 @@ static inline int32_t dispatch_reply(serdes_t *des)
 // register availablity changed callback function
 static int32_t register_avail_changed_cb(avail_changed_callback_t cb, void *ext)
 {
-	return reg_avail_changed_cb(s_data, cb, ext);
+	if (!s_ext)
+		return -ERR_APP_PARAM;
+
+	s_ext->avail_changed_cb = cb;
+	s_ext->avail_ext = ext;
+	return 0;
 }
 
 // initialize client
@@ -789,24 +985,35 @@ int32_t bst_touch_client_init(com_client_data_t *data, bst_touch_client_t *clien
 	client->client_request_location_init_sync = call_client_request_location_init_sync;
 #endif
 	client->client_request_location_init_async = call_client_request_location_init_async;
-#ifndef IPC_RTE_BAREMETAL
+(void)init_registry(ext->client_request_location_init_registry);
+	#ifndef IPC_RTE_BAREMETAL
 	client->set_touch_calibration_sync = call_set_touch_calibration_sync;
 #endif
 	client->set_touch_calibration_async = call_set_touch_calibration_async;
-#ifndef IPC_RTE_BAREMETAL
+(void)init_registry(ext->set_touch_calibration_registry);
+	#ifndef IPC_RTE_BAREMETAL
 	client->get_touch_calibration_sync = call_get_touch_calibration_sync;
 #endif
 	client->get_touch_calibration_async = call_get_touch_calibration_async;
+(void)init_registry(ext->get_touch_calibration_registry);
+	#ifndef IPC_RTE_BAREMETAL
+	client->touch_debug_cmd_sync = call_touch_debug_cmd_sync;
+#endif
+	client->touch_debug_cmd_async = call_touch_debug_cmd_async;
+(void)init_registry(ext->touch_debug_cmd_registry);
 
 	client->location_info_sub = subscribe_location_info;
 	client->location_info_unsub = unsubscribe_location_info;
 	(void)init_registry(&ext->location_info_registry);
+
 	client->dispatch_broadcast = dispatch_broadcast;
 	client->dispatch_reply = dispatch_reply;
 
 	// set ext
-	if (ext->cid == 0)
-		ext->cid = CID;
+	ext->cid = CID;
+	ext->ccid = CCID;
+	ext->cid_mask = CID_MASK;
+	ext->status = false;
 
 	return 0;
 }
@@ -814,6 +1021,7 @@ int32_t bst_touch_client_init(com_client_data_t *data, bst_touch_client_t *clien
 void bst_touch_client_destroy(void)
 {
 	destroy_registry(&s_ext->location_info_registry);
+
 	s_data = NULL;
 	s_ext = NULL;
 }

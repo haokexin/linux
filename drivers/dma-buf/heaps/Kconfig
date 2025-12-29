@@ -51,3 +51,12 @@ config DMABUF_MSGBX_R5MEM
 	  SOC R5. If your board supports msgbx, you will get dma-buf address 
 	  from SOC R5. And you can use this buffer with dma-buf API. All pids
 	  are PID0(ADAS : CPU_0, IVI : CPU_4, DB : CPUMP2_0)
+
+config DMABUF_HEAPS_SRAM
+	bool "DMA-BUF SRAM Heap"
+	depends on DMABUF_HEAPS
+	default n
+	help
+	  Choose this option to enable the SRAM heap. This heap is backed by
+	  the SRAM region. If your system has these regions, you should say Y
+	  here.

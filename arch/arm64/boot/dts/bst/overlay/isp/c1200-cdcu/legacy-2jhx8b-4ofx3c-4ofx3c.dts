@@ -1,0 +1,55 @@
+/dts-v1/;
+/plugin/;
+
+#include "../common/isp-csi-map.dtsi"
+#include "base-isp.dtsi"
+#include "base-csi-deser-camera.dtsi"
+#include "base-desers-3max96724.dtsi"
+
+&isp {
+	slab = "isp/common/slab-1x8b-4x3c-4x3c-1x8b.bin";
+	usage = "Stability, performance test";
+};
+&deser0_rx1 {
+	rx-rate = <6>;
+};
+&camera0 {
+	#include "../cameras/ox08b_raw14_jh_1920x1080.dtsi"
+	status = "okay";
+};
+&camera1 {
+	#include "../cameras/ox08b_raw14_jh_1920x1080.dtsi"
+	status = "okay";
+};
+&camera4 {
+	#include "../cameras/ox03c_raw14_of_1920x1080.dtsi"
+	status = "okay";
+};
+&camera5 {
+	#include "../cameras/ox03c_raw14_of_1920x1080.dtsi"
+	status = "okay";
+};
+&camera6 {
+	#include "../cameras/ox03c_raw14_of_1920x1080.dtsi"
+	status = "okay";
+};
+&camera7 {
+	#include "../cameras/ox03c_raw14_of_1920x1080.dtsi"
+	status = "okay";
+};
+&camera8 {
+	#include "../cameras/ox03c_raw14_of_1920x1080.dtsi"
+	status = "okay";
+};
+&camera9 {
+	#include "../cameras/ox03c_raw14_of_1920x1080.dtsi"
+	status = "okay";
+};
+&camera10 {
+	#include "../cameras/ox03c_raw14_of_1920x1080.dtsi"
+	status = "okay";
+};
+&camera11 {
+	#include "../cameras/ox03c_raw14_of_1920x1080.dtsi"
+	status = "okay";
+};

@@ -1,0 +1,14 @@
+//sample-client.fdepl
+import "safety-inf.fdepl"
+
+define com.bst.ipc.deployment for provider as safetylibClient {
+    ProviderType = Client
+    RTE = LinuxKernel
+    SrcEndID = CPU_4
+    FID = F1
+    SID = 10
+    instance com.bst.ipc.safety.safetylib {
+        DstEndID = SAFETY_0
+        
+    }
+}

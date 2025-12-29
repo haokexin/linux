@@ -32,6 +32,8 @@
 #include "arm-smmu-v3.h"
 #include "../../../dma-iommu.h"
 #include "../../../iommu-sva.h"
+#include "io-pgtable-arm.h"
+#include "bst-smmu-iova.h"
 
 static bool disable_bypass;
 module_param(disable_bypass, bool, 0444);
@@ -92,7 +94,8 @@ static struct arm_smmu_option_prop arm_smmu_options[] = {
 #define MSG_SWITCH1_MAX_PID (0x50)
 #define IPC_SEM_BASE (0x30100000)
 #define IPC_SEM_SZIE (0x100000)
-#define LOCK_ID (0x3)
+#define LOCK_ID_COREIP (0x2)
+#define LOCK_ID_SOC (0x3)
 #define MST_ID_LOCK (1)
 
 #define IPC_SHARE_BUFF msgbx_end_device_t
@@ -114,9 +117,10 @@ static void __iomem *g_ipc_sem_base;
 static int get_lock(uint8_t sem_id)
 {
 	int data;
+	int ret;
 	UN_REG_SEM sem_reg;
 
-	if (sem_id != LOCK_ID)
+	if ((sem_id != LOCK_ID_SOC) && (sem_id != LOCK_ID_COREIP))
 		return -1;
 
 	sem_reg.data = IPC_SEM_BASE;
@@ -124,11 +128,9 @@ static int get_lock(uint8_t sem_id)
 	sem_reg.bit.bank_id = 0;
 	sem_reg.bit.mst_id = MST_ID_LOCK;
 
-	do {
-		data = readl_relaxed(g_ipc_sem_base + (sem_reg.data - IPC_SEM_BASE));
-	} while (data != 0);
+	ret = readl_relaxed_poll_timeout_atomic(g_ipc_sem_base + (sem_reg.data - IPC_SEM_BASE), data, data == 0, 0, 1000);
 
-	return data;
+	return ret;
 }
 
 static int release_lock(uint8_t sem_id)
@@ -136,7 +138,7 @@ static int release_lock(uint8_t sem_id)
 	UN_REG_SEM sem_reg;
 
 	/* do not need */
-	if (sem_id != LOCK_ID)
+	if ((sem_id != LOCK_ID_SOC) && (sem_id != LOCK_ID_COREIP))
 		return -1;
 
 	sem_reg.data = IPC_SEM_BASE;
@@ -922,13 +924,23 @@ static int arm_smmu_cmdq_issue_cmdlist(struct arm_smmu_device *smmu,
 		struct arm_smmu_cmdq *cmdq = arm_smmu_get_cmdq(smmu);
 		struct arm_smmu_ll_queue llq;
 		int ret = 0;
+		u8 sem_id;
 
 		llq.max_n_shift = cmdq->q.llq.max_n_shift;
 
-		/* 1. get ipc_sem resources */
-		get_lock(3);
+		if (smmu->features & ARM_SMMU_FEAT_STAGE2_ONLY)
+			sem_id = LOCK_ID_COREIP;
+		else
+			sem_id = LOCK_ID_SOC;
 
+retry:	/* to avoid a deadlock, disable interrupts before acquiring the semaphore */
 		spin_lock_irqsave((spinlock_t *)&smmu->cmdq.lock, flags);
+		/* 1. get ipc_sem resources */
+		if (get_lock(sem_id)) {
+			spin_unlock_irqrestore((spinlock_t *)&smmu->cmdq.lock, flags);
+			goto retry;
+		}
+
 		old_prod = prod = readl_relaxed(cmdq->q.prod_reg);
 		cons = readl_relaxed(cmdq->q.cons_reg);
 
@@ -973,9 +985,10 @@ static int arm_smmu_cmdq_issue_cmdlist(struct arm_smmu_device *smmu,
 			}
 		}
 
-		spin_unlock_irqrestore((spinlock_t *)&smmu->cmdq.lock, flags);
 		/* 5. release ipc_sem resources */
-		release_lock(3);
+		release_lock(sem_id);
+		spin_unlock_irqrestore((spinlock_t *)&smmu->cmdq.lock, flags);
+
 		return ret;
 	}
 }
@@ -1467,7 +1480,7 @@ static void arm_smmu_write_strtab_ent(struct arm_smmu_master *master, u32 sid,
 		u64 strw = smmu->features & ARM_SMMU_FEAT_E2H ?
 			STRTAB_STE_1_STRW_EL2 : STRTAB_STE_1_STRW_NSEL1;
 
-		BUG_ON(ste_live);
+		/* BUG_ON(ste_live); safety_reset_a78 */
 		dst[1] = cpu_to_le64(
 			 FIELD_PREP(STRTAB_STE_1_S1DSS, STRTAB_STE_1_S1DSS_SSID0) |
 			 FIELD_PREP(STRTAB_STE_1_S1CIR, STRTAB_STE_1_S1C_CACHE_WBRA) |
@@ -1492,7 +1505,10 @@ static void arm_smmu_write_strtab_ent(struct arm_smmu_master *master, u32 sid,
 	}
 
 	if (s2_cfg) {
-		BUG_ON(ste_live);
+		/* BUG_ON(ste_live); SMMU_FEAT_MULTI_OS_S2 */
+		if (ste_live == true)
+			dev_info(master->dev, "s2_ste_live %s %d, sid = 0x%x\n", __func__, __LINE__, sid);
+
 		dst[2] = cpu_to_le64(
 			 FIELD_PREP(STRTAB_STE_2_S2VMID, s2_cfg->vmid) |
 			 FIELD_PREP(STRTAB_STE_2_VTCR, s2_cfg->vtcr) |
@@ -2231,12 +2247,26 @@ static void arm_smmu_domain_free(struct iommu_domain *domain)
 		mutex_lock(&arm_smmu_asid_lock);
 		if (cfg->cdcfg.cdtab)
 			arm_smmu_free_cd_tables(smmu_domain);
+
+		if (!(smmu->features & ARM_SMMU_FEAT_MULTI_OS))
+			; /* single system starts from 0 */
+		else {
+			#ifdef CONFIG_BST_C1200_ADAS
+			#define ASID_OFFSET 0x10
+			#elif defined(CONFIG_BST_C1200_IVI)
+			#define ASID_OFFSET 0X20
+			#else
+			#define ASID_OFFSET 0X0
+			#endif
+			cfg->cd.asid -= ASID_OFFSET;
+		}
+
 		arm_smmu_free_asid(&cfg->cd);
 		mutex_unlock(&arm_smmu_asid_lock);
 	} else {
 		struct arm_smmu_s2_cfg *cfg = &smmu_domain->s2_cfg;
 
-		if (cfg->vmid)
+		if ((cfg->vmid) && (!(smmu->features & ARM_SMMU_FEAT_MULTI_OS)))
 			arm_smmu_bitmap_free(smmu->vmid_map, cfg->vmid);
 	}
 
@@ -2277,19 +2307,19 @@ static int arm_smmu_domain_finalise_s1(struct arm_smmu_domain *smmu_domain,
 		goto out_free_asid;
 
 
-	if (!(smmu->features & ARM_SMMU_FEAT_MULTI_OS)) {
+	if (!(smmu->features & ARM_SMMU_FEAT_MULTI_OS))
 		cfg->cd.asid	= (u16)asid; /* single system starts from 0 */
-	} else {
-	#ifdef CONFIG_BST_C1200_ADAS
-	#define ASID_OFFSET 0x10
-	#elif defined(CONFIG_BST_C1200_IVI)
-	#define ASID_OFFSET 0X20
-	#else
-	#define ASID_OFFSET 0X0
-	#endif
+	else {
+		#ifdef CONFIG_BST_C1200_ADAS
+		#define ASID_OFFSET 0x10
+		#elif defined(CONFIG_BST_C1200_IVI)
+		#define ASID_OFFSET 0X20
+		#else
+		#define ASID_OFFSET 0X0
+		#endif
 
-	cfg->cd.asid	= (u16)asid + ASID_OFFSET;
-}
+		cfg->cd.asid	= (u16)asid + ASID_OFFSET;
+	}
 
 	/* cmn */ /* cd.ttbr */
 	cfg->cd.ttbr	= pgtbl_cfg->arm_lpae_s1_cfg.ttbr | cmn_addr_offset;
@@ -2340,9 +2370,13 @@ static int arm_smmu_domain_finalise_s2(struct arm_smmu_domain *smmu_domain,
 	if (smmu->features & ARM_SMMU_FEAT_TCU_CMN)
 		cmn_addr_offset = CMN_TCU_ADDR_OFFSET_SET;
 
-	vmid = arm_smmu_bitmap_alloc(smmu->vmid_map, smmu->vmid_bits);
-	if (vmid < 0)
-		return vmid;
+
+	if (!(smmu->features & ARM_SMMU_FEAT_MULTI_OS)) {
+		vmid = arm_smmu_bitmap_alloc(smmu->vmid_map, smmu->vmid_bits);
+		if (vmid < 0)
+			return vmid;
+	} else
+		vmid = master->streams->id;
 
 	vtcr = &pgtbl_cfg->arm_lpae_s2_cfg.vtcr;
 	cfg->vmid	= (u16)vmid;
@@ -2414,6 +2448,12 @@ static int arm_smmu_domain_finalise(struct iommu_domain *domain,
 		.iommu_dev	= smmu->dev,
 	};
 
+	if ((smmu_domain->stage == ARM_SMMU_DOMAIN_S2) && (smmu->features & ARM_SMMU_FEAT_MULTI_OS))
+		pgtbl_cfg.quirks = (master->streams->id << 16) | SMMU_FEAT_MULTI_OS_S2;
+
+	if (master->cmn_dev_offset_flag)
+		pgtbl_cfg.quirks |= SMMU_FEAT_SPECIAL_CMN_DEV_FLAG;
+
 	pgtbl_ops = alloc_io_pgtable_ops(fmt, &pgtbl_cfg, smmu_domain);
 	if (!pgtbl_ops)
 		return -ENOMEM;
@@ -2463,7 +2503,7 @@ static void arm_smmu_install_ste_for_dev(struct arm_smmu_master *master)
 		u32 sid = master->streams[i].id;
 		__le64 *step = arm_smmu_get_step_for_sid(smmu, sid);
 
-		dev_info(master->dev, "cmn_smmu!!!! %s %d, master->num_sids = 0x%x, i = 0x%x\n", __func__, __LINE__, master->num_streams, i);
+		dev_info(master->dev, "cmn_smmu!!!! %s %d, master->num_sids = 0x%x, i = 0x%x, sid 0x%x\n", __func__, __LINE__, master->num_streams, i, sid);
 
 		/* Bridged PCI devices may end up with duplicated IDs */
 		for (j = 0; j < i; j++)
@@ -2592,6 +2632,11 @@ static void arm_smmu_detach_dev(struct arm_smmu_master *master)
 
 	master->domain = NULL;
 	master->ats_enabled = false;
+
+	/* coreip mulit_os, don't change ste_table */
+	if ((smmu_domain->stage == ARM_SMMU_DOMAIN_S2) && (smmu_domain->smmu->features & ARM_SMMU_FEAT_MULTI_OS))
+		return;
+
 	arm_smmu_install_ste_for_dev(master);
 }
 
@@ -2878,6 +2923,9 @@ static struct iommu_device *arm_smmu_probe_device(struct device *dev)
 	master->smmu = smmu;
 	INIT_LIST_HEAD(&master->bonds);
 	dev_iommu_priv_set(dev, master);
+
+	/* Read special master cmn_dev add offset flag */
+	master->cmn_dev_offset_flag = of_property_read_bool(dev->of_node, "smmu-cmn-dev-offset");
 
 	ret = arm_smmu_insert_master(smmu, master);
 	if (ret)
@@ -3532,7 +3580,11 @@ static int arm_smmu_device_disable(struct arm_smmu_device *smmu)
 {
 	int ret;
 
-	ret = arm_smmu_write_reg_sync(smmu, 0, ARM_SMMU_CR0, ARM_SMMU_CR0ACK);
+	if (!(smmu->features & ARM_SMMU_FEAT_MULTI_OS))
+		ret = arm_smmu_write_reg_sync(smmu, 0, ARM_SMMU_CR0, ARM_SMMU_CR0ACK);
+	else
+		ret = 0;
+
 	if (ret)
 		dev_err(smmu->dev, "failed to clear cr0\n");
 
@@ -3873,6 +3925,22 @@ static int arm_smmu_device_hw_probe(struct arm_smmu_device *smmu)
 	smmu->priq.q.llq.max_n_shift = min_t(u32, PRIQ_MAX_SZ_SHIFT,
 					     FIELD_GET(IDR1_PRIQS, reg));
 
+	if (smmu->features & ARM_SMMU_FEAT_MULTI_OS) {
+		reg = readl_relaxed(smmu->base + ARM_SMMU_CMDQ_BASE);
+		smmu->cmdq.q.llq.max_n_shift = min_t(u32, smmu->cmdq.q.llq.max_n_shift,
+							FIELD_GET(Q_BASE_LOG2SIZE, reg));
+
+		reg = readl_relaxed(smmu->base + ARM_SMMU_EVTQ_BASE);
+		smmu->evtq.q.llq.max_n_shift = min_t(u32, smmu->evtq.q.llq.max_n_shift,
+							FIELD_GET(Q_BASE_LOG2SIZE, reg));
+
+		reg = readl_relaxed(smmu->base + ARM_SMMU_PRIQ_BASE);
+		smmu->priq.q.llq.max_n_shift = min_t(u32, smmu->priq.q.llq.max_n_shift,
+							FIELD_GET(Q_BASE_LOG2SIZE, reg));
+
+		dev_info(smmu->dev, "cmdq.max_n_shift = 0x%x\n", smmu->cmdq.q.llq.max_n_shift);
+	}
+
 	/* SID/SSID sizes */
 	smmu->ssid_bits = 0;
 	smmu->sid_bits = 13;
@@ -4121,6 +4189,13 @@ static int arm_smmu_device_probe(struct platform_device *pdev)
 			return ret;
 	}
 
+	/* coreip mulit_os, init msgbox */
+	if ((smmu->features & ARM_SMMU_FEAT_STAGE2_ONLY) && (smmu->features & ARM_SMMU_FEAT_MULTI_OS)) {
+		ret = smmu_msgbox_init();
+		if (ret)
+			return ret;
+	}
+
 	/* Set bypass mode according to firmware probing result */
 	bypass = !!ret;
 
@@ -4220,14 +4295,16 @@ static int arm_smmu_device_remove(struct platform_device *pdev)
 	arm_smmu_device_disable(smmu);
 	iopf_queue_free(smmu->evtq.iopf);
 
+	/* coreip mulit_os, exit msgbox */
+	if ((smmu->features & ARM_SMMU_FEAT_STAGE2_ONLY) && (smmu->features & ARM_SMMU_FEAT_MULTI_OS))
+		smmu_msgbox_exit();
+
 	return 0;
 }
 
 static void arm_smmu_device_shutdown(struct platform_device *pdev)
 {
-	struct arm_smmu_device *smmu = platform_get_drvdata(pdev);
-
-	arm_smmu_device_disable(smmu);
+	arm_smmu_device_remove(pdev);
 }
 
 static void smmuv3_save_disable(struct arm_smmu_device *smmu)
@@ -4250,7 +4327,6 @@ static void smmuv3_save_disable(struct arm_smmu_device *smmu)
 	smmu_s2r_ctx->smmu_evtq_base = readq_relaxed(smmu_base + SMMU_EVENTQ_BASE);
 	smmu_s2r_ctx->smmu_evtq_prod = readl_relaxed(smmu_base + SMMU_EVENTQ_PROD);
 	smmu_s2r_ctx->smmu_evtq_cons = readl_relaxed(smmu_base + SMMU_EVENTQ_CONS);
-
 	dev_info(smmu->dev, "%s %d line\n", __func__, __LINE__);
 }
 
@@ -4281,7 +4357,8 @@ static int bst_smmu_device_suspend(struct platform_device *pdev, pm_message_t st
 {
 	struct arm_smmu_device *smmu = platform_get_drvdata(pdev);
 
-	smmuv3_save_disable(smmu);
+	if (!(smmu->features & ARM_SMMU_FEAT_MULTI_OS))
+		smmuv3_save_disable(smmu);
 
 	return 0;
 }
@@ -4289,7 +4366,8 @@ static int bst_smmu_device_resume(struct platform_device *pdev)
 {
 	struct arm_smmu_device *smmu = platform_get_drvdata(pdev);
 
-	smmuv3_restore(smmu);
+	if (!(smmu->features & ARM_SMMU_FEAT_MULTI_OS))
+		smmuv3_restore(smmu);
 
 	return 0;
 }

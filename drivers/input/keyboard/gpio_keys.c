@@ -4,7 +4,6 @@
  *
  * Copyright 2005 Phil Blundell
  * Copyright 2010, 2011 David Jander <david@protonic.nl>
- * Copyright (C) 2024 Black Sesame Technologies
  */
 
 #include <linux/module.h>
@@ -30,7 +29,6 @@
 #include <linux/of_irq.h>
 #include <linux/spinlock.h>
 #include <dt-bindings/input/gpio-keys.h>
-#include <linux/pm_wakeirq.h>
 
 struct gpio_button_data {
 	const struct gpio_keys_button *button;
@@ -675,7 +673,7 @@ static int gpio_keys_setup_key(struct platform_device *pdev,
 		dev_err(dev, "Unable to claim irq %d; error %d\n",
 			bdata->irq, error);
 		return error;
-	}	
+	}
 
 	return 0;
 }

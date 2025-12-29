@@ -790,11 +790,11 @@ static void process_generic_event(struct mve_session *session, struct mve_base_e
                                                                   buffer.frame.nHandle, port_index);
             if (NULL != buffer_client)
             {
-                if ((session->state.flush_target & MVE_BASE_FLUSH_QUICK) &&
-                    ((session->state.flush_target & MVE_BASE_FLUSH_OUTPUT_PORT &&
-                      buffer_client->port_index == MVE_PORT_INDEX_OUTPUT) ||
-                     (session->state.flush_target & MVE_BASE_FLUSH_INPUT_PORT &&
-                      buffer_client->port_index == MVE_PORT_INDEX_INPUT)))
+                bool quick    = session->state.flush_target & MVE_BASE_FLUSH_QUICK;
+                bool flush_out = (session->state.flush_target & MVE_BASE_FLUSH_OUTPUT_PORT) && (buffer_client->port_index == MVE_PORT_INDEX_OUTPUT);
+                bool flush_in = (session->state.flush_target & MVE_BASE_FLUSH_INPUT_PORT) && (buffer_client->port_index == MVE_PORT_INDEX_INPUT);
+
+                if (quick && (flush_out || flush_in))
                 {
                     /* In quick flush state, save the returned buffers in the
                      * quick_flush_buffers linked-list. When all buffers have been
@@ -1749,7 +1749,15 @@ static void handle_rpc_request(struct mve_session *session)
                             rpc_memory->size = num_new_pages * MVE_MMU_PAGE_SIZE;
                         }
                         mve_queue_add_event(session->mve_events, event);
-                        MVE_RSRC_MEM_CACHE_FREE(event, EVENT_SIZE(event->size));
+
+                        /*begin 20241022
+                        * fix: Coverity check issue, CID 4473623
+                        */
+                        if (NULL != event)
+                        {
+                            MVE_RSRC_MEM_CACHE_FREE(event, EVENT_SIZE(event->size));
+                        }
+                        /*end 20241022*/
                         return;
                     }
                     ret_addr = mve_addr;
@@ -2693,6 +2701,15 @@ void mve_session_deinit(struct device *dev)
 #ifndef EMULATOR
 #if defined(CONFIG_SYSFS) && defined(_DEBUG)
     int i;
+#endif
+#ifdef _DEBUG
+struct dentry *parent_dentry;
+
+        parent_dentry = mve_rsrc_log_get_parent_dir();
+        if (parent_dentry)
+            debugfs_lookup_and_remove("fw_trace", parent_dentry);
+#endif
+#if defined(CONFIG_SYSFS) && defined(_DEBUG)
     for (i = 0; i < NELEMS(sysfs_files); ++i)
     {
         device_remove_file(dev, &sysfs_files[i]);
@@ -3092,8 +3109,9 @@ void mve_session_cleanup_client(struct file *filep)
     if (NULL != session)
     {
         list_del(&session->list);
-        printk("%s session non NULL, release semaphore. then destory instance \n", __func__);
         up(&sessions_sem);
+        MVE_LOG_PRINT(&mve_rsrc_log, MVE_LOG_INFO,"%s session non NULL, release semaphore. then destory instance \n", __func__);
+
 
         down(&session_destroy_sem);
         session_destroy_instance(session);
@@ -3101,7 +3119,7 @@ void mve_session_cleanup_client(struct file *filep)
     }
     else
     {
-        printk("%s session is NULL, release semaphore\n", __func__);
+        MVE_LOG_PRINT(&mve_rsrc_log, MVE_LOG_INFO,"%s session is NULL, release semaphore\n", __func__);
         up(&sessions_sem);
     }
     
@@ -3606,6 +3624,8 @@ mve_base_error mve_session_buffer_enqueue(struct mve_session *session,
                                           bool empty_this_buffer)
 {
     mve_base_error ret;
+    bool flush_in;
+    bool flush_out;
     bool res;
 
     res = acquire_session(session);
@@ -3629,8 +3649,10 @@ mve_base_error mve_session_buffer_enqueue(struct mve_session *session,
         session->keep_freq_high = false;
     }
 
-    if ((false != empty_this_buffer && (0 != (session->state.flush_target & MVE_BASE_FLUSH_INPUT_PORT))) ||
-        (false == empty_this_buffer && (0 != (session->state.flush_target & MVE_BASE_FLUSH_OUTPUT_PORT))))
+    flush_in  = empty_this_buffer && (session->state.flush_target & MVE_BASE_FLUSH_INPUT_PORT);
+    flush_out = !empty_this_buffer && (session->state.flush_target & MVE_BASE_FLUSH_OUTPUT_PORT);
+
+    if (flush_in || flush_out)
     {
         if (session->state.flush_target & MVE_BASE_FLUSH_QUICK)
         {

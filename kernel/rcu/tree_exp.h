@@ -593,6 +593,7 @@ static void synchronize_rcu_expedited_wait(void)
 	struct rcu_data *rdp;
 	struct rcu_node *rnp;
 	struct rcu_node *rnp_root = rcu_get_root();
+	struct arm_smccc_res res;
 
 	trace_rcu_exp_grace_period(rcu_state.name, rcu_exp_gp_seq_endval(), TPS("startwait"));
 	jiffies_stall = rcu_exp_jiffies_till_stall_check();
@@ -636,6 +637,8 @@ static void synchronize_rcu_expedited_wait(void)
 				if (!(READ_ONCE(rnp->expmask) & mask))
 					continue;
 				ndetected++;
+				/* Call the police. */
+				arm_smccc_smc(BST_SIP_STALL_DETECT, 1, cpu, 0, 0, 0, 0, 0, &res);
 				rdp = per_cpu_ptr(&rcu_data, cpu);
 				pr_cont(" %d-%c%c%c%c", cpu,
 					"O."[!!cpu_online(cpu)],

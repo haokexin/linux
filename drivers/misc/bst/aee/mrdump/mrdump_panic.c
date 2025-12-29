@@ -252,7 +252,7 @@ static int __init mrdump_panic_init(void)
 #endif
 	atomic_notifier_chain_register(&panic_notifier_list, &panic_blk);
 	register_die_notifier(&die_blk);
-	pr_info("ipanic: startup\n");
+	pr_debug("ipanic: startup\n");
 	return 0;
 }
 

@@ -1,0 +1,120 @@
+/*
+ * Copyright (c) 2024 Black Sesame Technologies
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+//platform:/plugin/com.bst.ipc/deployment/ipc_spec.fdepl
+specification com.bst.ipc.deployment{
+    // provider为server或者client
+    // 在同一个fdepl中，可以声明多个provider，分别对应不同的server和client。
+    for providers {
+        // provider类型，Client或者Server
+        ProviderType : {Client, Server};
+        //生成代码的运行环境，类型为枚举，默认为Posix。
+        RTE : { Posix, BareMetal, LinuxKernel, RTOS} (default : Posix);
+        //芯片平台
+        ChipPlatform : {C1200, A2000} (default : C1200);
+        //该server或client对应的chip ID, 仅在A2000中使用
+        SrcChipID : {MULTI_DIE_CHIP_0, MULTI_DIE_CHIP_1} (optional);
+        //该server或client对应的msgEnd ID。
+        //其中，C1200上可用CPU_0 - CPU_7, CPUMP*, ISPCV*, NET_0, DMA*, SWITCH*, SECURE*, SAFETY*, REALTIME*
+        //A2000上可用CPU_0_0 - CPU_3_3, DNPAD*, UPPAD*, ISPCV_0 - ISPCV_3, NET*, SECURE_0, SAFETY_0
+        SrcEndID : { CPU_0, CPU_1, CPU_2, CPU_3, CPU_4, CPU_5, CPU_6, CPU_7, CPUMP2_0, CPUMP2_1, 
+                    ISPCV_0, ISPCV_1, ISPCV_2, ISPCV_3, ISPCV_4, NET_0, NET_1,
+                    DMA_0, DMA_1, 
+                    SWITCH_0, SWITCH_1, SWITCH_2, SWITCH_3, SWITCH_4, SWITCH_5, 
+                    SECURE_0, SECURE_1, SAFETY_0, SAFETY_1, 
+                    REALTIME_0, REALTIME_1, REALTIME_2, REALTIME_3, REALTIME_4, REALTIME_5, 
+                    MEDIA_0, 
+                    CPU_0_0, CPU_0_1, CPU_0_2, CPU_0_3, CPU_1_0, CPU_1_1, CPU_1_2, CPU_1_3, 
+                    CPU_2_0, CPU_2_1, CPU_2_2, CPU_2_3, CPU_3_0, CPU_3_1, CPU_3_2, CPU_3_3,
+                    DNPAD_0, DNPAD_1, DNPAD_2, DNPAD_3, DNPAD_4, DNPAD_5, UPPAD_0, UPPAD_1};
+        //过滤器ID，静态配置消息分发所属的过滤器
+        //不同EndID，所拥有的过滤器数量不等，CPU为Default+7，DB为Default+1，其它均为Default+3。
+        FID: { DEF, F1, F2, F3, F4, F5, F6, F7 } (default : DEF);
+        //会话ID，静态配置通讯所使用的会话ID, 范围为0-15。
+        //{EndID, FID, SID}三元组唯一。 
+        SID: UInt8;
+        //生成多线程分发器，仅适用于Posix和RTOS环境，需要仔细测试多线程带来的收益。
+        EnableMultiThreadDispatcher : Boolean (default : false);
+        //消息分器线程数量
+        DispatcherNum : UInt8 (default : 8);
+        //消息分发器缓存总深度，单个分发器线程缓存深度 = 总深度/分发器数量。
+        DispatcherBufferLength : UInt16 (default : 512);
+
+        //使能接收线程实时调度 (BareMetal下不可用)
+        EnableRouterRealtimeSched : Boolean (default : false);
+        //接收线程的优先级 (EnableRouterRealtimeSched为true时，必须设置)
+        RouterPriority : UInt8 (optional);
+        //接收线程的栈大小 (仅在RTOS RTE中生效)
+        RouterStackSize : UInt32 (optional);
+
+        //使能分发器线程实时调度 (仅当EnableMultiThreadDispatcher为true时可用)
+        EnableWorkerRealtimeSched : Boolean (default : false);
+        //分发器线程的优先级 (EnableWorkerRealtimeSched为true时，必须设置)
+        WorkerPriority : UInt8 (optional);
+
+        //接收消息的轮询次数，轮询结束后转为阻塞等待，默认为0，即不轮询
+        RcvMsgPollingTimes : UInt32 (default : 0);
+    }
+    // 一个provider可以包含多个instance，每个instance对应于一个interface。
+    // 同一provider下，同一个interface只可对应一个instance。
+    for instances {
+        //仅当ProviderType为Client时设置有效，为Server时设置无效
+        //该Client对应server的ChipID, 仅在A2000中使用
+        DstChipID : {MULTI_DIE_CHIP_0, MULTI_DIE_CHIP_1} (optional);
+        //该Client对应server的EndID, 与芯片平台的对应关系参见SrcEndID的注释。
+        DstEndID : { CPU_0, CPU_1, CPU_2, CPU_3, CPU_4, CPU_5, CPU_6, CPU_7, CPUMP2_0, CPUMP2_1, 
+                    ISPCV_0, ISPCV_1, ISPCV_2, ISPCV_3, ISPCV_4, NET_0, NET_1,
+                    DMA_0, DMA_1, 
+                    SWITCH_0, SWITCH_1, SWITCH_2, SWITCH_3, SWITCH_4, SWITCH_5, 
+                    SECURE_0, SECURE_1, SAFETY_0, SAFETY_1, 
+                    REALTIME_0, REALTIME_1, REALTIME_2, REALTIME_3, REALTIME_4, REALTIME_5, 
+                    MEDIA_0, 
+                    CPU_0_0, CPU_0_1, CPU_0_2, CPU_0_3, CPU_1_0, CPU_1_1, CPU_1_2, CPU_1_3, 
+                    CPU_2_0, CPU_2_1, CPU_2_2, CPU_2_3, CPU_3_0, CPU_3_1, CPU_3_2, CPU_3_3,
+                    DNPAD_0, DNPAD_1, DNPAD_2, DNPAD_3, DNPAD_4, DNPAD_5, UPPAD_0, UPPAD_1} (optional);
+        //是否为Server代码生成独立的reply函数，默认为true。
+        GenerateReplyMethod : Boolean (default : true);
+        NotUseSwitchCase : Boolean (default : false);
+    }
+    for interfaces {
+        //是否将参数MaxMethodNum与MaxBroadcastNum作为ID有效值检查的条件，默认为true。
+        //为false时，MethodID及BroadcastID有效范围为0-255
+        EnableSection : Boolean (default : true);
+        //最大支持的Method数量
+        MaxMethodNum : UInt8 (default : 255);
+        //最大支持的Broadcast数量
+        MaxBroadcastNum : UInt8 (default : 20);
+    }
+    
+    for methods {
+        //该Method对应的CMD值。
+        //EnableSection = true时，范围为0-(MaxMethodNum - 1)，否则为0-255
+        //需要保证在同一个End内, MethodID值唯一。
+        MethodID : UInt8;
+    }
+    
+    for broadcasts {
+        //broadcast的订阅方法ID，与MethodID统一编号
+        //EnableSection = true时，范围为MaxMethodNum-255，否则为0-255
+        SubscribeMethodID : UInt8;
+        //broadcast的订阅方法ID，与MethodID统一编号
+        //EnableSection = true时，范围为MaxMethodNum-255，否则为0-255
+        UnsubscribeMethodID : UInt8;
+        //broadcast对应的CMD值，独立编号，范围为0-MaxBroadcastNum 
+        BroadcastID : UInt8;
+        //broadcast的最大订阅数
+        //MaxSubscribeNum : UInt8 (default : 34);
+    }
+}

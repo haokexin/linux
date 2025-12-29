@@ -37,7 +37,9 @@
 #include <linux/slab.h>
 #include <asm-generic/gpio.h>
 #include <linux/pm_wakeirq.h>
+#include <linux/kernel.h>
 
+#include <linux/bst_samphore.h>
 #include "../gpiolib.h"
 #include "../gpiolib-acpi.h"
 
@@ -60,6 +62,7 @@
 #define GPIO_INTTYPE_LEVEL	0x38
 #define GPIO_INT_POLARITY	0x3c
 #define GPIO_INTSTATUS		0x40
+#define GPIO_RAW_INTSTATUS	0x44
 #define GPIO_PORTA_DEBOUNCE	0x48
 #define GPIO_PORTA_EOI		0x4c
 #define GPIO_EXT_PORTA		0x50
@@ -92,6 +95,8 @@
 struct dwapb_gpio;
 
 #ifdef CONFIG_PM_SLEEP
+extern struct bst_samphore *lock;
+
 /* Store GPIO context across system-wide suspend/resume transitions */
 struct dwapb_context {
 	u32 data;
@@ -217,6 +222,7 @@ static u32 dwapb_do_irq(struct dwapb_gpio *gpio)
 {
 	struct gpio_chip *gc = &gpio->ports[0].gc;
 	unsigned long irq_status;
+	unsigned long raw_irq_status;
 	irq_hw_number_t hwirq;
 
 #if LEVEL_TRIGGER_TEST
@@ -233,13 +239,43 @@ static u32 dwapb_do_irq(struct dwapb_gpio *gpio)
 		int gpio_irq = irq_find_mapping(gc->irq.domain, hwirq);		
 		u32 irq_type = irq_get_trigger_type(gpio_irq);
 
+		/**
+		 * If it is an interrupt from gpiof 11, it does not need to be processed
+		 * and should be handed over to RT for handling.
+		 */
+		if (hwirq == 11 && gc->base == 160) {  // gpiof 11 used for SW3.
+			continue;
+		}
+
 		generic_handle_irq(gpio_irq);
 
 		if ((irq_type & IRQ_TYPE_SENSE_MASK) == IRQ_TYPE_EDGE_BOTH)
 			dwapb_toggle_trigger(gpio, hwirq);
 	}
 
-	return irq_status;
+    raw_irq_status = dwapb_read(gpio, GPIO_RAW_INTSTATUS);
+    for_each_clear_bit(hwirq, &irq_status, DWAPB_MAX_GPIOS) {
+
+		for_each_set_bit(hwirq, &raw_irq_status, DWAPB_MAX_GPIOS) {		
+		    int gpio_irq = irq_find_mapping(gc->irq.domain, hwirq);		
+		    u32 irq_type = irq_get_trigger_type(gpio_irq);
+
+		    /**
+		     * If it is an interrupt from gpiof 11, it does not need to be processed
+		     * and should be handed over to RT for handling.
+		     */
+		    if (hwirq == 11 && gc->base == 160) {  // gpiof 11 used for SW3.
+			    continue;
+		    }
+
+		    generic_handle_irq(gpio_irq);
+
+		    if ((irq_type & IRQ_TYPE_SENSE_MASK) == IRQ_TYPE_EDGE_BOTH)
+			    dwapb_toggle_trigger(gpio, hwirq);
+	    }	
+	}
+
+	return IRQ_HANDLED;
 }
 
 static void dwapb_irq_handler(struct irq_desc *desc)
@@ -263,6 +299,11 @@ static void dwapb_irq_ack(struct irq_data *d)
 	struct dwapb_gpio *gpio = to_dwapb_gpio(gc);
 	u32 val = BIT(irqd_to_hwirq(d));
 	unsigned long flags;
+
+	// If it is an interrupt from the SW3 button(gpio171: gpiof 11), do not clear the interrupt.
+	if (val & BIT(11) && gc->base == 160) {
+		val &= ~BIT(11);
+	}
 
 	raw_spin_lock_irqsave(&gc->bgpio_lock, flags);
 	dwapb_write(gpio, GPIO_PORTA_EOI, val);
@@ -478,6 +519,7 @@ static void dwapb_configure_irqs(struct dwapb_gpio *gpio,
 	pirq->irqchip.irq_set_type = dwapb_irq_set_type;
 	pirq->irqchip.irq_enable = dwapb_irq_enable;
 	pirq->irqchip.irq_disable = dwapb_irq_disable;
+	pirq->irqchip.flags = IRQCHIP_IMMUTABLE;
 #ifdef CONFIG_PM_SLEEP
 	pirq->irqchip.irq_set_wake = dwapb_irq_set_wake;
 #endif
@@ -497,9 +539,11 @@ static void dwapb_configure_irqs(struct dwapb_gpio *gpio,
 		 * Request a shared IRQ since where MFD would have devices
 		 * using the same irq pin
 		 */
+
 		err = devm_request_irq(gpio->dev, pp->irq[0],
-				       dwapb_irq_handler_mfd,
-				       IRQF_SHARED, DWAPB_DRIVER_NAME, gpio);	
+				        dwapb_irq_handler_mfd,
+				        IRQF_SHARED, DWAPB_DRIVER_NAME, gpio);      
+
 		if (err) {
 			dev_err(gpio->dev, "error requesting IRQ\n");
 			goto err_kfree_pirq;
@@ -589,7 +633,7 @@ static void dwapb_get_irq(struct device *dev, struct fwnode_handle *fwnode,
 			pp->irq[j] = irq;
 			irq_desc = irq_to_desc(irq);
 			hwirq =  irq_desc->irq_data.hwirq;		
-			printk("%s:irq=%d, hwirq=%lu\n",__FILE__,irq,hwirq);	
+			//printk("%s:irq=%d, hwirq=%lu\n",__FILE__,irq,hwirq);	
 			if (hwirq==WAKE_UP_SPI) {
 				printk("setup wakeup source for irq %d\n", irq);
 				device_init_wakeup(dev, 1);
@@ -650,8 +694,7 @@ static struct dwapb_platform_data *dwapb_gpio_get_pdata(struct device *dev)
 		}
 
 		if (fwnode_property_read_u32(fwnode, "chipnum-base",
-					 &pp->gpio_base) || pp->gpio_base < 0
-					 || pp->gpio_base >= (ARCH_NR_GPIOS - pp->ngpio)) {
+					 &pp->gpio_base) || pp->gpio_base >= (ARCH_NR_GPIOS - pp->ngpio)) {
 			dev_info(dev,
 				 "failed to get gpio chip number base for port%d\n",
 				 i);
@@ -666,8 +709,8 @@ static struct dwapb_platform_data *dwapb_gpio_get_pdata(struct device *dev)
 			if (gpio_index_in_sys < 4) {
 				gpio_index_in_lsp = gpio_index_in_sys;
 				if (gpio_index_in_lsp != 3) {
-					lsp_crm_reg_gpio_intr_sel = devm_ioremap(dev, 0x20000020, 4);
-					lsp_crm_reg_gpio_com_intr_mask = devm_ioremap(dev, 0x20000100, 4);
+					lsp_crm_reg_gpio_intr_sel = devm_ioremap(dev, LSP0_CRM_REG_GPIO_INTR_SEL, 4);
+					lsp_crm_reg_gpio_com_intr_mask = devm_ioremap(dev, LSP0_CRM_REG_GPIO_INTR_MASK, 4);
 
 					value = ioread32(lsp_crm_reg_gpio_intr_sel);
 					value &= ~(0xff << (gpio_index_in_lsp * 8));
@@ -683,8 +726,8 @@ static struct dwapb_platform_data *dwapb_gpio_get_pdata(struct device *dev)
 				gpio_index_in_lsp = gpio_index_in_sys - 4;
 
 				if (gpio_index_in_lsp != 3) {
-					lsp_crm_reg_gpio_intr_sel = devm_ioremap(dev, 0x20020020, 4);
-					lsp_crm_reg_gpio_com_intr_mask = devm_ioremap(dev, 0x20020100, 4);
+					lsp_crm_reg_gpio_intr_sel = devm_ioremap(dev, LSP1_CRM_REG_GPIO_INTR_SEL, 4);
+					lsp_crm_reg_gpio_com_intr_mask = devm_ioremap(dev, LSP1_CRM_REG_GPIO_INTR_MASK, 4);
 
 					value = ioread32(lsp_crm_reg_gpio_intr_sel);
 					value &= ~(0xff << (gpio_index_in_lsp * 8));
@@ -842,12 +885,32 @@ static int dwapb_gpio_probe(struct platform_device *pdev)
 }
 
 #ifdef CONFIG_PM_SLEEP
+static u32 dwapb_gpio_get_pins_used_map(struct gpio_chip *gc)
+{
+	struct gpio_desc *desc;
+	unsigned int gpio_offset  = 0;
+	u32 pins_used_map = 0;
+
+	for_each_gpio_desc(gc, desc) {
+		if (test_bit(FLAG_REQUESTED, &desc->flags)) {
+			pins_used_map |= (1 << gpio_offset);
+		}
+
+		gpio_offset++;
+	}
+
+	return pins_used_map;
+}
+
 static int dwapb_gpio_suspend(struct device *dev)
 {
 	struct dwapb_gpio *gpio = dev_get_drvdata(dev);
 	struct gpio_chip *gc	= &gpio->ports[0].gc;
 	unsigned long flags;
+	u32 pins_used_map;
 	int i;
+
+	pins_used_map = dwapb_gpio_get_pins_used_map(gc);
 
 	raw_spin_lock_irqsave(&gc->bgpio_lock, flags);
 	for (i = 0; i < gpio->nr_ports; i++) {
@@ -856,24 +919,24 @@ static int dwapb_gpio_suspend(struct device *dev)
 		struct dwapb_context *ctx = gpio->ports[i].ctx;
 
 		offset = GPIO_SWPORTA_DDR + idx * GPIO_SWPORT_DDR_STRIDE;
-		ctx->dir = dwapb_read(gpio, offset);
+		ctx->dir = dwapb_read(gpio, offset) & pins_used_map;
 
 		offset = GPIO_SWPORTA_DR + idx * GPIO_SWPORT_DR_STRIDE;
-		ctx->data = dwapb_read(gpio, offset);
+		ctx->data = dwapb_read(gpio, offset) & pins_used_map;
 
 		offset = GPIO_EXT_PORTA + idx * GPIO_EXT_PORT_STRIDE;
-		ctx->ext = dwapb_read(gpio, offset);
+		ctx->ext = dwapb_read(gpio, offset) & pins_used_map;
 
 		/* Only port A can provide interrupts */
 		if (idx == 0) {
-			ctx->int_mask	= dwapb_read(gpio, GPIO_INTMASK);
-			ctx->int_en	= dwapb_read(gpio, GPIO_INTEN);
-			ctx->int_pol	= dwapb_read(gpio, GPIO_INT_POLARITY);
-			ctx->int_type	= dwapb_read(gpio, GPIO_INTTYPE_LEVEL);
-			ctx->int_deb	= dwapb_read(gpio, GPIO_PORTA_DEBOUNCE);
+			ctx->int_mask	= dwapb_read(gpio, GPIO_INTMASK) & pins_used_map;
+			ctx->int_en	= dwapb_read(gpio, GPIO_INTEN) & pins_used_map;
+			ctx->int_pol	= dwapb_read(gpio, GPIO_INT_POLARITY) & pins_used_map;
+			ctx->int_type	= dwapb_read(gpio, GPIO_INTTYPE_LEVEL) & pins_used_map;
+			ctx->int_deb	= dwapb_read(gpio, GPIO_PORTA_DEBOUNCE) & pins_used_map;
 
 			/* Mask out interrupts */
-			dwapb_write(gpio, GPIO_INTMASK, ~ctx->wake_en);
+			//dwapb_write(gpio, GPIO_INTMASK, ~ctx->wake_en);
 		}
 	}
 	raw_spin_unlock_irqrestore(&gc->bgpio_lock, flags);
@@ -889,6 +952,7 @@ static int dwapb_gpio_resume(struct device *dev)
 	struct gpio_chip *gc	= &gpio->ports[0].gc;
 	unsigned long flags;
 	int i, err;
+	u32 pins_used_map;
 
 	err = clk_bulk_prepare_enable(DWAPB_NR_CLOCKS, gpio->clks);
 	if (err) {
@@ -896,33 +960,53 @@ static int dwapb_gpio_resume(struct device *dev)
 		return err;
 	}
 
+	pins_used_map = dwapb_gpio_get_pins_used_map(gc);
 	raw_spin_lock_irqsave(&gc->bgpio_lock, flags);
+	get_sem_lock(lock);
 	for (i = 0; i < gpio->nr_ports; i++) {
 		unsigned int offset;
 		unsigned int idx = gpio->ports[i].idx;
 		struct dwapb_context *ctx = gpio->ports[i].ctx;
+		u32 regs_value = 0;
 
 		offset = GPIO_SWPORTA_DR + idx * GPIO_SWPORT_DR_STRIDE;
-		dwapb_write(gpio, offset, ctx->data);
+		regs_value = dwapb_read(gpio, offset);
+		regs_value = regs_value & ~pins_used_map;
+		dwapb_write(gpio, offset, regs_value | ctx->data);
 
 		offset = GPIO_SWPORTA_DDR + idx * GPIO_SWPORT_DDR_STRIDE;
-		dwapb_write(gpio, offset, ctx->dir);
+		regs_value = dwapb_read(gpio, offset);
+		regs_value = regs_value & ~pins_used_map;
+		dwapb_write(gpio, offset, regs_value | ctx->dir);
 
 		offset = GPIO_EXT_PORTA + idx * GPIO_EXT_PORT_STRIDE;
-		dwapb_write(gpio, offset, ctx->ext);
+		regs_value = dwapb_read(gpio, offset);
+		regs_value = regs_value & ~pins_used_map;
+		dwapb_write(gpio, offset, regs_value | ctx->ext);
 
 		/* Only port A can provide interrupts */
 		if (idx == 0) {
-			dwapb_write(gpio, GPIO_INTTYPE_LEVEL, ctx->int_type);
-			dwapb_write(gpio, GPIO_INT_POLARITY, ctx->int_pol);
-			dwapb_write(gpio, GPIO_PORTA_DEBOUNCE, ctx->int_deb);
-			dwapb_write(gpio, GPIO_INTEN, ctx->int_en);
-			dwapb_write(gpio, GPIO_INTMASK, ctx->int_mask);
+			regs_value = dwapb_read(gpio, GPIO_INTTYPE_LEVEL);
+			regs_value = regs_value & ~pins_used_map;
+			dwapb_write(gpio, GPIO_INTTYPE_LEVEL, regs_value | ctx->int_type);
+			regs_value = dwapb_read(gpio, GPIO_INT_POLARITY);
+			regs_value = regs_value & ~pins_used_map;
+			dwapb_write(gpio, GPIO_INT_POLARITY, regs_value | ctx->int_pol);
+			regs_value = dwapb_read(gpio, GPIO_PORTA_DEBOUNCE);
+			regs_value = regs_value & ~pins_used_map;
+			dwapb_write(gpio, GPIO_PORTA_DEBOUNCE, regs_value | ctx->int_deb);
+			regs_value = dwapb_read(gpio, GPIO_INTEN);
+			regs_value = regs_value & ~pins_used_map;
+			dwapb_write(gpio, GPIO_INTEN, regs_value | ctx->int_en);
+			regs_value = dwapb_read(gpio, GPIO_INTMASK);
+			regs_value = regs_value & ~pins_used_map;
+			dwapb_write(gpio, GPIO_INTMASK, regs_value | ctx->int_mask);
 
 			/* Clear out spurious interrupts */
 			dwapb_write(gpio, GPIO_PORTA_EOI, 0xffffffff);
 		}
 	}
+	release_sem_lock(lock);
 	raw_spin_unlock_irqrestore(&gc->bgpio_lock, flags);
 
 	return 0;

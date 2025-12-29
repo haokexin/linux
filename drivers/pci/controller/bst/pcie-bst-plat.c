@@ -23,9 +23,23 @@
 #include <linux/platform_device.h>
 #include <linux/resource.h>
 #include <linux/types.h>
+#include <linux/spinlock.h>
 
 #include "pcie-bst.h"
 #include "pcie-bst-phy.h"
+#ifdef CONFIG_PCIE_BST_DIAGNOSTIC
+#include "pcie-bst-diagnostic.h"
+extern int send_dtc_to_safety_svc(u32 dtc);
+#endif
+
+#ifdef CONFIG_HAVE_DBI_MUTEX
+struct mutex dbi_mutex;
+#define BST_PCIE_DBI_MUTEX_LOCK() 			mutex_lock(&dbi_mutex)
+#define BST_PCIE_DBI_MUTEX_UNLOCK() 		mutex_unlock(&dbi_mutex)
+#else
+#define BST_PCIE_DBI_MUTEX_LOCK()
+#define BST_PCIE_DBI_MUTEX_UNLOCK()
+#endif
 
 #define to_bst_pcie(x)	dev_get_drvdata((x)->dev)
 
@@ -41,29 +55,7 @@ struct bst_ep_doorbell {
 	struct list_head	list;
 };
 
-struct bst_pcie {
-	struct dw_pcie			*pci;
-	enum dw_pcie_device_mode	mode;
 
-	struct pcie_phy			*phy;
-	u32				chip_type;
-	u32				ctrl_id;
-	bool				is_pre_init;
-	int				reset_gpio;
-	bool				gpio_active_high;
-	int				legacy_parent_irq;
-	struct irq_domain		*legacy_irq_domain;
-	raw_spinlock_t			legacy_irq_lock;
-
-	spinlock_t			share_dbi_lock;
-
-	u32				db_irq;
-	u32				db_irq_num;
-	unsigned long			*db_irq_win;
-	struct list_head		db_irq_list;
-	spinlock_t			db_lock;
-
-};
 
 struct dw_plat_pcie_of_data {
 	enum dw_pcie_device_mode	mode;
@@ -134,6 +126,14 @@ static void dw_plat_pcie_ep_init(struct dw_pcie_ep *ep)
 	bst_pcie->db_irq = platform_get_irq_byname_optional(pdev, "doorbell");
 	if (bst_pcie->db_irq >= 0) {
 		dev_info(dev, "EP doorbell IRQ %d\n", bst_pcie->db_irq);
+		/* Mask PTM master stobe int */
+		if (bst_pcie->ctrl_id == 0) {
+			pcie_phy_cfg(bst_pcie->phy, PCIE_X4_PTM_CTRL2, 1, BIT(6));
+			pcie_phy_cfg(bst_pcie->phy, PCIE_X4_PTM_CTRL1, 1, BIT(9));
+		} else if (bst_pcie->ctrl_id == 1) {
+			pcie_phy_cfg(bst_pcie->phy, PCIE_X2_PTM_CTRL2, 1, BIT(6));
+			pcie_phy_cfg(bst_pcie->phy, PCIE_X2_PTM_CTRL1, 1, BIT(9));
+		}
 		ret = devm_request_irq(dev, bst_pcie->db_irq, bst_pcie_ep_db_handler,
 				0, "pcie_ep_db", bst_pcie);
 		if (ret) {
@@ -160,12 +160,12 @@ int bst_pcie_ep_db_irq_alloc(struct pci_epc *epc, u8 func_no, u8 vfunc_no)
 
 	free_irq = (int)find_first_zero_bit(&bst_pcie->db_irq_win[func_no], bst_pcie->db_irq_num);
 	if (free_irq < 0) {
-		spin_unlock(&bst_pcie->db_lock);
+		// spin_unlock(&bst_pcie->db_lock);
 		return -EINVAL;
 	}
 
 	set_bit(free_irq, &bst_pcie->db_irq_win[func_no]);
-	spin_unlock(&bst_pcie->db_lock);
+	// spin_unlock(&bst_pcie->db_lock);
 
 	db = kzalloc(sizeof(*db), GFP_KERNEL);
 	if (!db)
@@ -545,6 +545,9 @@ static int bst_pcie_host_init(struct dw_pcie_rp *pp)
 	/* Set MPS */
 	bst_set_perf_mps(pci, 256);
 
+	/* Allowed reassign bus */
+	pci_add_flags(PCI_REASSIGN_ALL_BUS);
+
 	/* Legacy interrupt */
 	ret = bst_pcie_init_irq_domain(bst_pcie);
 	if (!ret) {
@@ -720,12 +723,12 @@ void c1200_axi2mem(struct dw_pcie *pci)
 	case ((PCIE_C1200_SERIES << 8) | PCIE_CTRL0):
 		pcie_phy_cfg(phy, X4_AXI_SIDEBAND_CTRL1, 0, BIT(21));
 		pcie_phy_cfg(phy, X4_AXI_SIDEBAND_CTRL4, 0, BIT(21));
-		spin_unlock(&bst_pcie->share_dbi_lock);
+		spin_unlock_irq(&bst_pcie->share_dbi_lock);
 		break;
 	case ((PCIE_C1200_SERIES << 8) | PCIE_CTRL1):
 		pcie_phy_cfg(phy, X2_AXI_SIDEBAND_CTRL1, 0, BIT(21));
 		pcie_phy_cfg(phy, X2_AXI_SIDEBAND_CTRL4, 0, BIT(21));
-		spin_unlock(&bst_pcie->share_dbi_lock);
+		spin_unlock_irq(&bst_pcie->share_dbi_lock);
 		break;
 	default:
 		break;
@@ -736,12 +739,27 @@ u32 bst_pcie_read_dbi(struct dw_pcie *pci, void __iomem *base, u32 reg, size_t s
 {
 	int ret;
 	u32 val;
+#ifdef CONFIG_PCIE_BST_DIAGNOSTIC
+	struct bst_pcie *bst_pcie = to_bst_pcie(pci);
+#endif
 
+	BST_PCIE_DBI_MUTEX_LOCK();
 	c1200_axi2cfg(pci);
 	ret = dw_pcie_read(base + reg, (int)size, &val);
 	if (ret)
+	{
 		dev_err(pci->dev, "Read DBI address failed\n");
+	#ifdef CONFIG_PCIE_BST_DIAGNOSTIC
+		if(bst_pcie->pcie_diagnostic_init_done)
+		{
+			if(bst_pcie->bst_pcie_diag->dbi_access_monitor_psm)
+				bst_pcie->bst_pcie_diag->dbi_access_failed_count++;
+		}
+	#endif
+	}
+
 	c1200_axi2mem(pci);
+	BST_PCIE_DBI_MUTEX_UNLOCK();
 
 	return val;
 }
@@ -750,79 +768,143 @@ EXPORT_SYMBOL(bst_pcie_read_dbi);
 void bst_pcie_write_dbi(struct dw_pcie *pci, void __iomem *base, u32 reg, size_t size, u32 val)
 {
 	int ret;
-
+#ifdef CONFIG_PCIE_BST_DIAGNOSTIC
+	u32 rd_val;
+	struct bst_pcie *bst_pcie = to_bst_pcie(pci);
+#endif
+	BST_PCIE_DBI_MUTEX_LOCK();
 	c1200_axi2cfg(pci);
 	ret = dw_pcie_write(base + reg, (int)size, val);
 	if (ret)
+	{
 		dev_err(pci->dev, "Write DBI address failed\n");
+	#ifdef CONFIG_PCIE_BST_DIAGNOSTIC
+		if(bst_pcie->pcie_diagnostic_init_done)
+		{
+			if(bst_pcie->bst_pcie_diag->dbi_access_monitor_psm)
+				bst_pcie->bst_pcie_diag->dbi_access_failed_count++;
+		}
+	#endif
+	}
+
+#ifdef CONFIG_PCIE_BST_DIAGNOSTIC
+	if(bst_pcie->pcie_diagnostic_init_done)
+	{
+		if(bst_pcie->bst_pcie_diag->reg_rdback_monitor_psm 
+			&& bst_pcie->bst_pcie_diag->reg_rdback_monitor_enable 
+			&& reg < PCIE_CONFIGURE_REG_SPACE_SIZE) /* Limit the register address range extend configure space, Some configuration spaces are unreadable */
+		{
+			ret = dw_pcie_read(base + reg, (int)size, &rd_val);
+			if(rd_val != val)
+			{
+				pr_err("[%s] register readback not match reg:[%x] wt_val:[%x] rd_val:[%x]\n", __FUNCTION__, reg, val, rd_val);
+				send_dtc_to_safety_svc(PSM_ID_CONFIGURE_REG_READBACK_DTC);
+			}
+		}
+	}
+#endif
+
 	c1200_axi2mem(pci);
+	BST_PCIE_DBI_MUTEX_UNLOCK();
+
 }
 EXPORT_SYMBOL(bst_pcie_write_dbi);
 
 void bst_pcie_write_dbi2(struct dw_pcie *pci, void __iomem *base, u32 reg, size_t size, u32 val)
 {
 	int ret;
-
+#ifdef CONFIG_PCIE_BST_DIAGNOSTIC
+	u32 rd_val;
+	struct bst_pcie *bst_pcie = to_bst_pcie(pci);
+#endif
+	BST_PCIE_DBI_MUTEX_LOCK();
 	c1200_axi2cfg(pci);
 	ret = dw_pcie_write(base + reg, (int)size, val);
 	if (ret)
+	{
 		dev_err(pci->dev, "write DBI address failed\n");
+	#ifdef CONFIG_PCIE_BST_DIAGNOSTIC
+		if(bst_pcie->pcie_diagnostic_init_done)
+		{
+			if(bst_pcie->bst_pcie_diag->dbi_access_monitor_psm)
+				bst_pcie->bst_pcie_diag->dbi_access_failed_count++;
+		}
+	#endif
+	}
+#ifdef CONFIG_PCIE_BST_DIAGNOSTIC
+	if(bst_pcie->pcie_diagnostic_init_done)
+	{
+		if(bst_pcie->bst_pcie_diag->reg_rdback_monitor_psm 
+			&& bst_pcie->bst_pcie_diag->reg_rdback_monitor_enable)
+		{
+			ret = dw_pcie_read(base + reg, (int)size, &rd_val);
+			if(rd_val != val)
+			{
+				pr_err("2 [%s] register readback not match reg:[%x] wt_val:[%x] rd_val:[%x]\n", __FUNCTION__, reg, val, rd_val);
+				send_dtc_to_safety_svc(PSM_ID_CONFIGURE_REG_READBACK_DTC);
+			}
+		}
+	}
+#endif
 	c1200_axi2mem(pci);
+	BST_PCIE_DBI_MUTEX_UNLOCK();
 }
 EXPORT_SYMBOL(bst_pcie_write_dbi2);
-
-static struct dw_pcie_ops bst_pcie_ops = {
-	.link_up = bst_pcie_link_up,
-	.start_link = bst_pcie_start_link,
-	.stop_link = bst_pcie_stop_link,
-};
 
 static ssize_t ltssm_status_show(struct device *dev, struct device_attribute *attr, char *buf)
 {
 	struct bst_pcie *bst_pcie = dev->driver_data;
 	struct pcie_phy *phy = bst_pcie->phy;
-	int err, len;
+	int len;
 	u32 tmp;
 	int i, offset = 0;
 
 	if (bst_pcie->ctrl_id == 0) {
 		pcie_phy_cfg(phy, X4_MISC_FUNC_CTRL0, 0, BIT(4));
 		pcie_phy_cfg(phy, X2_MISC_FUNC_CTRL0, 1, BIT(4));
-		for (i = 0; i < 32; i++) {
+		for (i = 0; i < 63; i++) {
 			tmp = pcie_phy_read(phy, 0x1f04);
 			tmp = pcie_phy_read(phy, X4_LTSSM_RD_DATA);
 
 			if (!tmp)
 				continue;
-			offset += sprintf(buf + offset, "ltssm_tr_cnt:%02X ", tmp >> 16);
-			offset += sprintf(buf + offset, "smlh_mult_cnt:%02X ", (tmp >> 8) & 0xFF);
-			offset += sprintf(buf + offset, "mac_phy_rate:%X ", (tmp >> 6) & 0x3);
-			offset += sprintf(buf + offset, "smlh_ltssm_state:%X\n", tmp & 0x3f);
+			offset += sprintf(buf + offset, "tr_cnt:%02X ", tmp >> 16);
+			offset += sprintf(buf + offset, "mult_cnt:%02X ", (tmp >> 8) & 0xFF);
+			offset += sprintf(buf + offset, "phy_rate:%X ", (tmp >> 6) & 0x3);
+			offset += sprintf(buf + offset, "ltssm_state:%X\n", tmp & 0x3f);
 		}
+		pcie_phy_cfg(phy, X4_MISC_FUNC_CLEAR_CTRL0, 0x1, BIT(1));
+		udelay(1000);
+		pcie_phy_cfg(phy, X4_MISC_FUNC_CLEAR_CTRL0, 0x1, BIT(2));
+		udelay(1000);
+		pcie_phy_cfg(phy, X4_MISC_FUNC_CLEAR_CTRL0, 0x1, BIT(0));
+		udelay(1000);
 	} else if (bst_pcie->ctrl_id == 1) {
 		pcie_phy_cfg(phy, X4_MISC_FUNC_CTRL0, 1, BIT(4));
 		pcie_phy_cfg(phy, X2_MISC_FUNC_CTRL0, 0, BIT(4));
-		for (i = 0; i < 32; i++) {
+		for (i = 0; i < 63; i++) {
 			tmp = pcie_phy_read(phy, 0x1f04);
 			tmp = pcie_phy_read(phy, X2_LTSSM_RD_DATA);
 
 			if (!tmp)
 				continue;
-			offset += sprintf(buf + offset, "ltssm_tr_cnt:%02X ", tmp >> 16);
-			offset += sprintf(buf + offset, "smlh_mult_cnt:%02X ", (tmp >> 8) & 0xFF);
-			offset += sprintf(buf + offset, "mac_phy_rate:%X ", (tmp >> 6) & 0x3);
-			offset += sprintf(buf + offset, "smlh_ltssm_state:%X\n", tmp&0x3f);
+			offset += sprintf(buf + offset, "tr_cnt:%02X ", tmp >> 16);
+			offset += sprintf(buf + offset, "mult_cnt:%02X ", (tmp >> 8) & 0xFF);
+			offset += sprintf(buf + offset, "phy_rate:%X ", (tmp >> 6) & 0x3);
+			offset += sprintf(buf + offset, "ltssm_state:%X\n", tmp&0x3f);
 		}
+		pcie_phy_cfg(phy, X2_MISC_FUNC_CLEAR_CTRL0, 0x1, BIT(1));
+		udelay(1000);
+		pcie_phy_cfg(phy, X2_MISC_FUNC_CLEAR_CTRL0, 0x1, BIT(2));
+		udelay(1000);
+		pcie_phy_cfg(phy, X2_MISC_FUNC_CLEAR_CTRL0, 0x1, BIT(0));
+		udelay(1000);
 	} else {
 		len = 0;
 		return len;
 	}
 
 	len = offset;
-
-	if (err)
-		return -EINVAL;
-
 	return len;
 }
 static DEVICE_ATTR_RO(ltssm_status);
@@ -1014,7 +1096,9 @@ static ssize_t phy_cr_store(struct device *dev, struct device_attribute *attr, c
 		}
 	}
 	if (rw)
+	{
 		c1200_write_phy_cr(phy, ctrl, addr, data);
+	}
 	else
 		c1200_read_phy_cr(phy, ctrl, addr, &phy->last_cr_value);
 out:
@@ -1031,6 +1115,10 @@ static ssize_t phy_cr_show(struct device *dev, struct device_attribute *attr, ch
 }
 static DEVICE_ATTR_RW(phy_cr);
 
+#ifdef CONFIG_PCIE_BST_DIAGNOSTIC
+	DEVICE_ATTR_RW(diagnostic);
+#endif
+
 static struct attribute *bst_pcie_dev_attrs[] = {
 	&dev_attr_ltssm_status.attr,
 	&dev_attr_ltssm_en.attr,
@@ -1039,6 +1127,9 @@ static struct attribute *bst_pcie_dev_attrs[] = {
 	&dev_attr_shared_dbi.attr,
 #endif
 	&dev_attr_phy_cr.attr,
+#ifdef CONFIG_PCIE_BST_DIAGNOSTIC
+	&dev_attr_diagnostic.attr,
+#endif
 	NULL,
 };
 
@@ -1049,9 +1140,18 @@ static struct attribute_group bst_pcie_attr_group = {
 static int bst_pcie_suspend_noirq(struct device *dev)
 {
 	struct bst_pcie *bst_pcie = dev_get_drvdata(dev);
-
 	bst_pcie_stop_link(bst_pcie->pci);
 
+	return 0;
+}
+static int bst_pcie_suspend(struct device *dev)
+{
+	struct bst_pcie *bst_pcie = dev_get_drvdata(dev);
+#ifdef CONFIG_PCIE_BST_DIAGNOSTIC
+	if(bst_pcie->bst_pcie_diag->diag_status == PCIE_DIAG_RUNNING_STATE)
+		bst_pcie->bst_pcie_diag->diag_status = PCIE_DIAG_SUSPEND_STATE; // suspend diagnostic
+	pr_info("suspend diagnostic first\n");
+#endif
 	return 0;
 }
 
@@ -1066,12 +1166,123 @@ static int bst_pcie_resume_noirq(struct device *dev)
 
 	return 0;
 }
+static int bst_pcie_resume(struct device *dev)
+{
+	struct bst_pcie *bst_pcie = dev_get_drvdata(dev);
+#ifdef CONFIG_PCIE_BST_DIAGNOSTIC
+	if(bst_pcie->bst_pcie_diag->diag_status == PCIE_DIAG_SUSPEND_STATE)
+		bst_pcie->bst_pcie_diag->diag_status = PCIE_DIAG_RUNNING_STATE; // resume diagnostic
+	pr_info("resume diagnostic\n");
+#endif
+
+	return 0;
+}
 
 
 static const struct dev_pm_ops bst_pcie_pm_ops = {
 	.suspend_noirq = bst_pcie_suspend_noirq,
 	.resume_noirq = bst_pcie_resume_noirq,
+	.suspend = bst_pcie_suspend,
+	.resume = bst_pcie_resume,
 };
+
+#ifdef CONFIG_PCIE_BST_RESET
+static struct bst_pcie *rcdev_to_pcie_host(struct reset_controller_dev *rcd)
+{
+	return container_of(rcd, struct bst_pcie, rcdev);
+}
+
+static int bst_pcie_reset_assert(struct reset_controller_dev *rcdev, unsigned long id)
+{
+	struct bst_pcie *bst_pcie = rcdev_to_pcie_host(rcdev);
+	struct pcie_phy *phy = bst_pcie->phy;
+	u32 dev_info;
+	u32 button_rst = 0;
+	dev_info = (bst_pcie->chip_type << 8) | bst_pcie->ctrl_id;
+	button_rst = pcie_phy_read(phy, CRM_CTRL);
+
+	switch (dev_info)
+	{
+	case ((PCIE_C1200_SERIES << 8) | PCIE_CTRL0):  /*C1200 ctrl0 */
+		button_rst &= ~(1<<4); // warm reset
+		break;
+	case ((PCIE_C1200_SERIES << 8) | PCIE_CTRL1): /*C1200 ctrl1 */
+		button_rst &= ~(1<<5); // warm reset
+		break;
+	default:
+		pr_err("state: ctrl_id error\n");
+		return -1;
+	}
+	//pr_info("bst_pcie_reset_assert btn rst:0x%x\n", button_rst);
+	pcie_phy_write(phy, CRM_CTRL, button_rst);
+	usleep_range(1000, 1100);
+	return 0;
+}
+
+static int bst_pcie_reset_deassert(struct reset_controller_dev *rcdev, unsigned long id)
+{
+	struct bst_pcie *bst_pcie = rcdev_to_pcie_host(rcdev);
+	struct pcie_phy *phy = bst_pcie->phy;
+	u32 dev_info;
+	u32 button_rst = 0;
+	dev_info = (bst_pcie->chip_type << 8) | bst_pcie->ctrl_id;
+	button_rst = pcie_phy_read(phy, CRM_CTRL);
+
+	switch (dev_info)
+	{
+	case ((PCIE_C1200_SERIES << 8) | PCIE_CTRL0):  /*C1200 ctrl0 */
+		button_rst |= (1<<4); 		// // warm reset
+		break;
+	case ((PCIE_C1200_SERIES << 8) | PCIE_CTRL1): /*C1200 ctrl1 */
+		button_rst |= (1<<5);       // // warm reset
+		break;
+	default:
+		pr_err("state: ctrl_id error\n");
+		return -1;
+	}
+
+	pcie_phy_write(phy, CRM_CTRL, button_rst);
+	//button_rst = pcie_phy_read(phy, CRM_CTRL);
+	//pr_info("bst_pcie_reset_deassert btn rst:0x%x\n", button_rst);
+	usleep_range(1000, 1100);
+	return 0;
+}
+
+static const struct reset_control_ops bst_pcie_reset_ops = {
+	.assert = bst_pcie_reset_assert,
+	.deassert = bst_pcie_reset_deassert,
+};
+
+static void bst_pcie_reset(struct reset_controller_dev *rcdev)
+{
+#ifdef CONFIG_PCIE_BST_DIAGNOSTIC
+	struct bst_pcie *bst_pcie = rcdev_to_pcie_host(rcdev);
+	if(bst_pcie->bst_pcie_diag->diag_status == PCIE_DIAG_RUNNING_STATE)
+		bst_pcie->bst_pcie_diag->diag_status = PCIE_DIAG_SUSPEND_STATE; // suspend diagnostic
+	pr_info("suspend diagnostic\n");
+#endif
+	bst_pcie_reset_assert(rcdev, 0);
+	bst_pcie_reset_deassert(rcdev, 0);
+#ifdef CONFIG_PCIE_BST_DIAGNOSTIC
+	if(bst_pcie->bst_pcie_diag->diag_status == PCIE_DIAG_SUSPEND_STATE)
+		bst_pcie->bst_pcie_diag->diag_status = PCIE_DIAG_RUNNING_STATE; // resume diagnostic
+	pr_info("resume diagnostic\n");
+#endif
+}
+#endif
+static void bst_pcie_shutdown(struct platform_device *pdev)
+{
+#ifdef CONFIG_PCIE_BST_RESET
+	struct bst_pcie *bst_pcie = platform_get_drvdata(pdev);
+#ifdef CONFIG_PCIE_BST_DIAGNOSTIC
+	if(bst_pcie->bst_pcie_diag->diag_status == PCIE_DIAG_RUNNING_STATE)
+		bst_pcie->bst_pcie_diag->diag_status = PCIE_DIAG_SHUTDOWN_STATE; // stop diagnostic
+	pr_info("stop diagnostic first\n");
+#endif
+	bst_pcie_reset(&bst_pcie->rcdev);
+#endif
+	dev_info(&pdev->dev, "Shutdown\n");
+}
 
 static int dw_plat_pcie_probe(struct platform_device *pdev)
 {
@@ -1081,6 +1292,11 @@ static int dw_plat_pcie_probe(struct platform_device *pdev)
 	int ret;
 	const struct dw_plat_pcie_of_data *data;
 	enum dw_pcie_device_mode mode;
+	struct dw_pcie_ops *bst_pcie_ops;
+
+#ifdef CONFIG_HAVE_DBI_MUTEX
+	mutex_init(&dbi_mutex);
+#endif
 
 	data = of_device_get_match_data(dev);
 	if (!data)
@@ -1101,17 +1317,23 @@ static int dw_plat_pcie_probe(struct platform_device *pdev)
 	bst_pcie->pci = pci;
 	bst_pcie->mode = mode;
 
+	// INIT SPIN LOCK
+	spin_lock_init(&bst_pcie->share_dbi_lock);
+
 	/* Creat phy struct */
 	bst_pcie->phy = devm_kzalloc(dev, sizeof(*bst_pcie->phy), GFP_KERNEL);
 	if (!bst_pcie->phy)
 		return -ENOMEM;
 	bst_pcie->phy->dev = dev;
+	#ifdef CONFIG_PCIE_BST_DIAGNOSTIC
+	bst_pcie->phy->bst_pcie = bst_pcie;
+	#endif
 	bst_pcie->phy->is_pre_init = &bst_pcie->is_pre_init;
 	bst_pcie->phy->ctrl_id = &bst_pcie->ctrl_id;
 	bst_pcie->phy->chip_type = &bst_pcie->chip_type;
 
 	ret = of_property_read_u32(dev->of_node, "controller-id", &bst_pcie->ctrl_id);
-	if (ret || (bst_pcie->ctrl_id > 1) || (bst_pcie->ctrl_id < 0)) {
+	if (ret) {
 		pr_err("controller-id Undefined. set to 0\n");
 		bst_pcie->ctrl_id = 0;
 	}
@@ -1144,9 +1366,29 @@ static int dw_plat_pcie_probe(struct platform_device *pdev)
 
 	platform_set_drvdata(pdev, bst_pcie);
 
-	pci->ops = &bst_pcie_ops;
+	bst_pcie_ops = devm_kzalloc(dev, sizeof(*bst_pcie_ops), GFP_KERNEL);
+	bst_pcie_ops->link_up = bst_pcie_link_up;
+	bst_pcie_ops->start_link = bst_pcie_start_link;
+	bst_pcie_ops->stop_link = bst_pcie_stop_link;
+	pci->ops = bst_pcie_ops;
 
-	bst_pcie_phyinit(bst_pcie->phy);
+	ret = bst_pcie_phyinit(bst_pcie->phy);
+	if (ret) {
+		pr_info("bst pcie phy init failed ret:%d\n", ret);
+		bst_pcie_phydeinit(bst_pcie->phy);
+		return ret;
+	}
+#ifdef CONFIG_PCIE_BST_RESET
+	/* Fire up the reset controller. Failure here is non-fatal. */
+	bst_pcie->rcdev.of_node = dev->of_node;
+	bst_pcie->rcdev.ops = &bst_pcie_reset_ops;
+	bst_pcie->rcdev.owner = dev->driver->owner;
+	bst_pcie->rcdev.nr_resets = 1;
+	ret = devm_reset_controller_register(dev, &bst_pcie->rcdev);
+	if (ret)
+		pr_warn("pcie bst Failed to register reset controller\n");
+	// bst_pcie_reset(&bst_pcie->rcdev);
+#endif
 
 	dma_set_mask_and_coherent(pci->dev, DMA_BIT_MASK(64));
 
@@ -1156,9 +1398,9 @@ static int dw_plat_pcie_probe(struct platform_device *pdev)
 			return -ENODEV;
 
 #ifdef CONFIG_ARCH_BSTC1200
-		bst_pcie_ops.read_dbi = bst_pcie_read_dbi,
-		bst_pcie_ops.write_dbi = bst_pcie_write_dbi,
-		bst_pcie_ops.write_dbi2 = bst_pcie_write_dbi2,
+		bst_pcie_ops->read_dbi = bst_pcie_read_dbi,
+		bst_pcie_ops->write_dbi = bst_pcie_write_dbi,
+		bst_pcie_ops->write_dbi2 = bst_pcie_write_dbi2,
 #endif
 		ret = dw_plat_add_pcie_port(bst_pcie, pdev);
 		break;
@@ -1168,9 +1410,9 @@ static int dw_plat_pcie_probe(struct platform_device *pdev)
 
 #ifdef CONFIG_ARCH_BSTC1200
 #ifndef CONFIG_PCIE_BST_EP_USE_OUTBOUND
-		bst_pcie_ops.read_dbi = NULL;
-		bst_pcie_ops.write_dbi = NULL;
-		bst_pcie_ops.write_dbi2 = NULL;
+		bst_pcie_ops->read_dbi = NULL;
+		bst_pcie_ops->write_dbi = NULL;
+		bst_pcie_ops->write_dbi2 = NULL;
 
 		switch ((bst_pcie->chip_type << 8) | bst_pcie->ctrl_id) {
 		case ((PCIE_C1200_SERIES << 8) | PCIE_CTRL0):
@@ -1185,9 +1427,9 @@ static int dw_plat_pcie_probe(struct platform_device *pdev)
 			break;
 		}
 #else
-		bst_pcie_ops.read_dbi = bst_pcie_read_dbi,
-		bst_pcie_ops.write_dbi = bst_pcie_write_dbi,
-		bst_pcie_ops.write_dbi2 = bst_pcie_write_dbi2,
+		bst_pcie_ops->read_dbi = bst_pcie_read_dbi,
+		bst_pcie_ops->write_dbi = bst_pcie_write_dbi,
+		bst_pcie_ops->write_dbi2 = bst_pcie_write_dbi2,
 #endif
 #endif
 		pci->ep.ops = &pcie_ep_ops;
@@ -1198,6 +1440,11 @@ static int dw_plat_pcie_probe(struct platform_device *pdev)
 		ret = -EINVAL;
 		break;
 	}
+	
+#ifdef CONFIG_PCIE_BST_DIAGNOSTIC
+	bst_pcie->phy->bst_pcie = bst_pcie;
+	pcie_bst_diag_init(bst_pcie);
+#endif
 
 	if (ret)
 		bst_pcie_phydeinit(bst_pcie->phy);
@@ -1273,6 +1520,7 @@ static struct platform_driver dw_plat_pcie_driver = {
 	},
 	.probe = dw_plat_pcie_probe,
 	.remove = dw_plat_pcie_remove,
+	.shutdown = bst_pcie_shutdown,
 };
 module_platform_driver(dw_plat_pcie_driver);
 

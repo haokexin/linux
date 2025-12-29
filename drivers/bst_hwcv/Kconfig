@@ -1,8 +1,29 @@
 config BST_HWCV
-    tristate "Support BST HWCV"
-    depends on ARM64
-    depends on HAS_DMA
-    select BST_CVSMM
-    help
-        BST HWCV driver is included
-    default m
+	tristate "BST HWCV Driver"
+	depends on ARM64
+	help
+		Enable HWCV driver.
+
+config BST_HWCV_PROC_FS
+	bool "Enable HWCV procfs"
+	select BST_HWCV_DEBUGGER
+	depends on PROC_FS
+	help
+		Enable procfs to debug HWCV driver.
+
+config BST_HWCV_DEBUG_FS
+	bool "Enable HWCV debugfs"
+	select BST_HWCV_DEBUGGER
+	depends on DEBUG_FS
+	help
+		Enable debugfs to debug HWCV driver.
+
+config BST_HWCV_DEBUGGER
+	bool
+	help
+		Enable the debugger of HWCV, you can use procfs and debugfs for debugging.
+
+config BST_HWCV_MULTI_OS
+	bool "Enable HWCV multi os support"
+	help
+		Enable multi os support.

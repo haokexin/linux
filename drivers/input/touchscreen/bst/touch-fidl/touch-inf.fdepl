@@ -1,0 +1,27 @@
+//xxx-inf.fdepl
+import "platform:/plugin/com.bst.os.idl/deployment/ipc_spec.fdepl"
+//import "/home/xpc/prj/msgbx_ipc/idl-tools/plugin/com.bst.os.idl/deployment/ipc_spec.fdepl"
+import "touch.fidl"
+
+define com.bst.ipc.deployment for interface com.bst.ipc.soc.bst_touch {
+    MaxMethodNum = 95
+    MaxBroadcastNum = 255
+
+    method client_request_location_init {
+        MethodID = 90
+    }
+    method set_touch_calibration {
+        MethodID = 91
+    }
+    method get_touch_calibration {
+        MethodID = 92
+    }
+    method touch_debug_cmd {
+        MethodID = 93
+    }
+    broadcast location_info {
+        SubscribeMethodID = 95
+        UnsubscribeMethodID = 96
+        BroadcastID = 36
+    }
+}

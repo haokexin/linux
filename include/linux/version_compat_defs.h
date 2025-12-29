@@ -25,6 +25,7 @@
 #include <linux/version.h>
 #include <linux/highmem.h>
 #include <linux/timer.h>
+#include <linux/iopoll.h>
 
 #if (KERNEL_VERSION(4, 4, 267) < LINUX_VERSION_CODE)
 #include <linux/overflow.h>
@@ -41,7 +42,11 @@
 
 #if KERNEL_VERSION(4, 16, 0) > LINUX_VERSION_CODE
 typedef unsigned int __poll_t;
+
+#ifndef HRTIMER_MODE_REL_SOFT
+#define HRTIMER_MODE_REL_SOFT HRTIMER_MODE_REL
 #endif
+#endif /* KERNEL_VERSION(4, 16, 0) > LINUX_VERSION_CODE */
 
 #if KERNEL_VERSION(4, 9, 78) >= LINUX_VERSION_CODE
 
@@ -184,6 +189,7 @@ static inline void kbase_kunmap_atomic(void *address)
 
 #define dma_fence fence
 #define dma_fence_ops fence_ops
+#define dma_fence_cb fence_cb
 #define dma_fence_context_alloc(a) fence_context_alloc(a)
 #define dma_fence_init(a, b, c, d, e) fence_init(a, b, c, d, e)
 #define dma_fence_get(a) fence_get(a)
@@ -241,10 +247,105 @@ static inline void vm_flags_clear(struct vm_area_struct *vma, vm_flags_t flags)
 }
 #endif
 
+static inline void kbase_unpin_user_buf_page(struct page *page)
+{
+#if KERNEL_VERSION(5, 9, 0) > LINUX_VERSION_CODE
+	put_page(page);
+#else
+	unpin_user_page(page);
+#endif
+}
+
+static inline long kbase_get_user_pages(unsigned long start, unsigned long nr_pages,
+					unsigned int gup_flags, struct page **pages,
+					struct vm_area_struct **vmas)
+{
+#if ((KERNEL_VERSION(6, 5, 0) > LINUX_VERSION_CODE) && !defined(__ANDROID_COMMON_KERNEL__)) || \
+	((KERNEL_VERSION(6, 4, 0) > LINUX_VERSION_CODE) && defined(__ANDROID_COMMON_KERNEL__))
+	return get_user_pages(start, nr_pages, gup_flags, pages, vmas);
+#else
+	return get_user_pages(start, nr_pages, gup_flags, pages);
+#endif
+}
+
+static inline long kbase_pin_user_pages_remote(struct task_struct *tsk, struct mm_struct *mm,
+					       unsigned long start, unsigned long nr_pages,
+					       unsigned int gup_flags, struct page **pages,
+					       struct vm_area_struct **vmas, int *locked)
+{
+#if KERNEL_VERSION(4, 10, 0) > LINUX_VERSION_CODE
+	return get_user_pages_remote(tsk, mm, start, nr_pages, gup_flags, pages, vmas);
+#elif KERNEL_VERSION(5, 6, 0) > LINUX_VERSION_CODE
+	return get_user_pages_remote(tsk, mm, start, nr_pages, gup_flags, pages, vmas, locked);
+#elif KERNEL_VERSION(5, 9, 0) > LINUX_VERSION_CODE
+	return pin_user_pages_remote(tsk, mm, start, nr_pages, gup_flags, pages, vmas, locked);
+#elif ((KERNEL_VERSION(6, 5, 0) > LINUX_VERSION_CODE) && !defined(__ANDROID_COMMON_KERNEL__)) || \
+	((KERNEL_VERSION(6, 4, 0) > LINUX_VERSION_CODE) && defined(__ANDROID_COMMON_KERNEL__))
+	return pin_user_pages_remote(mm, start, nr_pages, gup_flags, pages, vmas, locked);
+#else
+	return pin_user_pages_remote(mm, start, nr_pages, gup_flags, pages, locked);
+#endif
+}
+
 #if (KERNEL_VERSION(6, 4, 0) <= LINUX_VERSION_CODE)
 #define KBASE_CLASS_CREATE(owner, name) class_create(name)
 #else
 #define KBASE_CLASS_CREATE(owner, name) class_create(owner, name)
+#endif /* (KERNEL_VERSION(6, 4, 0) <= LINUX_VERSION_CODE) */
+
+#if KERNEL_VERSION(5, 0, 0) > LINUX_VERSION_CODE
+#define kbase_totalram_pages() totalram_pages
+#else
+#define kbase_totalram_pages() totalram_pages()
+#endif /* KERNEL_VERSION(5, 0, 0) > LINUX_VERSION_CODE */
+
+#ifndef read_poll_timeout_atomic
+#define read_poll_timeout_atomic(op, val, cond, delay_us, timeout_us, delay_before_read, args...) \
+	({                                                                                        \
+		const u64 __timeout_us = (timeout_us);                                            \
+		s64 __left_ns = __timeout_us * NSEC_PER_USEC;                                     \
+		const unsigned long __delay_us = (delay_us);                                      \
+		const u64 __delay_ns = __delay_us * NSEC_PER_USEC;                                \
+		if (delay_before_read && __delay_us)                                              \
+			udelay(__delay_us);                                                       \
+		if (__timeout_us)                                                                 \
+			__left_ns -= __delay_ns;                                                  \
+		do {                                                                              \
+			(val) = op(args);                                                         \
+			if (__timeout_us) {                                                       \
+				if (__delay_us) {                                                 \
+					udelay(__delay_us);                                       \
+					__left_ns -= __delay_ns;                                  \
+				}                                                                 \
+				__left_ns--;                                                      \
+			}                                                                         \
+		} while (!(cond) && (!__timeout_us || (__left_ns > 0)));                          \
+		(cond) ? 0 : -ETIMEDOUT;                                                          \
+	})
 #endif
+
+#if (KERNEL_VERSION(4, 11, 0) > LINUX_VERSION_CODE)
+
+#define kbase_refcount_t atomic_t
+#define kbase_refcount_read(x) atomic_read(x)
+#define kbase_refcount_set(x, v) atomic_set(x, v)
+#define kbase_refcount_dec_and_test(x) atomic_dec_and_test(x)
+#define kbase_refcount_dec(x) atomic_dec(x)
+#define kbase_refcount_inc_not_zero(x) atomic_inc_not_zero(x)
+#define kbase_refcount_inc(x) atomic_inc(x)
+
+#else
+
+#include <linux/refcount.h>
+
+#define kbase_refcount_t refcount_t
+#define kbase_refcount_read(x) refcount_read(x)
+#define kbase_refcount_set(x, v) refcount_set(x, v)
+#define kbase_refcount_dec_and_test(x) refcount_dec_and_test(x)
+#define kbase_refcount_dec(x) refcount_dec(x)
+#define kbase_refcount_inc_not_zero(x) refcount_inc_not_zero(x)
+#define kbase_refcount_inc(x) refcount_inc(x)
+
+#endif /* (KERNEL_VERSION(4, 11, 0) > LINUX_VERSION_CODE) */
 
 #endif /* _VERSION_COMPAT_DEFS_H_ */

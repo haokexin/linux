@@ -1,13 +1,20 @@
-/* SPDX-License-Identifier: GPL-2.0 OR BSD-3-Clause
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2 of the License, or
- * (at your option) any later version.
+/* SPDX-License-Identifier: GPL-2.0 OR Apache 2.0
  *
- * This program is also distributed under the terms of the BSD 3-Clause
+ * Copyright (c) 2024 Black Sesame Technologies
+ *
+ * This program is also distributed under the terms of the Apache 2.0
  * License.
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
- * Copyright (C) 2023 Black Sesame Technologies. Inc.
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 #ifndef _IPC_HW_COMMON_H
 #define _IPC_HW_COMMON_H
@@ -30,39 +37,27 @@ enum _ipc_hw_device_type_t {
 };
 #define ipc_hw_device_type_t enum _ipc_hw_device_type_t
 
-enum _ipc_type_t {
-	MSGBX_ROLE_CLIENT_ONLY = 1,
-	MSGBX_ROLE_SERVER_ONLY = 2,
-	MSGBX_ROLE_HYBRID = 3,
-	MSGBX_ROLE_TYPE_MAX
-};
-#define ipc_type_t enum _ipc_type_t
-
 /**
  * ipc_init_params: ipc hardware device static init param
  * @mbx_device:
- * @mbx_role:
  * @msgbx_end_mgt_flag:
  */
 struct _ipc_init_params_t {
-	// static device setting
 	ipc_hw_device_type_t mbx_device;
-	ipc_type_t mbx_type;
-	// special device setting
-	uint64_t spec_cfg;
-	// optional device setting
-	// state management setting
 	uint8_t msgbx_end_mgt_flag;
+	uint8_t rsv[3];
+	uint64_t spec_cfg;
 };
 #define ipc_init_params_t struct _ipc_init_params_t
 
 struct _msgbx_hw_info_t {
-	uint8_t mbx_version : 4; // RO, version checking
-	uint8_t mbx_flt_cnt : 4; // RO, flt checking
-	uint8_t mbx_end_id : 8; // RO, for msg header
-	uint8_t mbx_txfifo_depth : 8; // RO
-	uint8_t mbx_rxfifo_depth : 8; // RO
-	uint8_t is_64_bit; // RO, reserved
+	uint8_t mbx_version;
+	uint8_t mbx_flt_cnt;
+	uint8_t mbx_end_id;
+	uint8_t mbx_txfifo_depth;
+	uint8_t mbx_rxfifo_depth;
+	uint8_t is_64_bit;
+	uint8_t chipid;
 };
 #define msgbx_hw_info_t struct _msgbx_hw_info_t
 
@@ -70,87 +65,110 @@ struct _msgbx_hw_info_t {
 // msgbx filter config
 struct _msgbx_flt_cfg_t {
 	uint8_t flt_id;
-	// optional setting, msgbx filter general config, use bit offset refer to different config
 	uint8_t mbx_flt_mgt_flag;
+	uint8_t flt_rxfifo_st;
+	uint8_t flt_rxfifo_end;
 };
 #define msgbx_flt_cfg_t struct _msgbx_flt_cfg_t
 
-enum _ipc_flt_rule_typ_t {
-	IPC_FLT_RULE_PID = 1,
-	IPC_FLT_RULE_LEN = 2,
-	IPC_FLT_RULE_USER = 3,
-	IPC_FLT_RULE_MAX,
+enum _msgbx_flt_rule_typ_t {
+	MSGBX_FLT_RULE_PID = 1,
+	MSGBX_FLT_RULE_LEN = 2,
+	MSGBX_FLT_RULE_USER = 3,
+	MSGBX_FLT_RULE_CHIPID,
+	MSGBX_FTT_RULE_NONSEC,
+	MSGBX_FLT_RULE_MAX,
 };
-#define ipc_flt_rule_typ_t enum _ipc_flt_rule_typ_t
+#define msgbx_flt_rule_typ_t enum _msgbx_flt_rule_typ_t
 
 struct _msgbx_flt_rule_pid_t
 {
-	uint16_t mbx_rx_pid_end : 8;       // RW
-	uint16_t mbx_rx_pid_st : 8;        // RW
-	uint8_t mbx_pid_flt_invert : 1;    // RW
+	uint8_t mbx_rx_pid_end;
+	uint8_t mbx_rx_pid_st;
+	uint8_t mbx_pid_flt_invert;
 };
 #define msgbx_flt_rule_pid_t struct _msgbx_flt_rule_pid_t
 
+struct _msgbx_flt_rule_chip_pid_t
+{
+	uint8_t mbx_rx_chip_pid_end;
+	uint8_t mbx_rx_chip_pid_st;
+	uint8_t mbx_chip_pid_flt_invert;
+};
+#define msgbx_flt_rule_chip_pid_t struct _msgbx_flt_rule_chip_pid_t
+
 struct _msgbx_flt_rule_len_t {
-	uint8_t mbx_len_flt_invert : 1;
 	uint8_t mbx_rx_len_end : 4;
 	uint8_t mbx_rx_len_st : 4;
+	uint8_t mbx_len_flt_invert;
 };
 #define msgbx_flt_rule_len_t struct _msgbx_flt_rule_len_t
 
-enum _ipc_flt_rule_location_t {
-	IPC_FLT_RULE_HEADER = 1,
-	IPC_FLT_RULE_PAY1 = 2,
-	IPC_FLT_RULE_PAY2 = 3,
-	IPC_FLT_RULE_PAY3 = 4,
-	IPC_FLT_RULE_PAY4 = 5,
-	IPC_FLT_RULE_PAY_MAX,
+enum _msgbx_flt_rule_location_t {
+	MSGBX_FLT_RULE_HEADER = 0,
+	MSGBX_FLT_RULE_PAY1,
+	MSGBX_FLT_RULE_PAY2,
+	MSGBX_FLT_RULE_PAY3,
+	MSGBX_FLT_RULE_PAY4,
+	MSGBX_FLT_RULE_PAY_MAX,
 };
-#define ipc_flt_rule_location_t enum _ipc_flt_rule_location_t
+#define msgbx_flt_rule_location_t enum _msgbx_flt_rule_location_t
 
 struct _msgbx_flt_rule_user_t {
-	ipc_flt_rule_location_t cfg_loc;
-	uint32_t msgh_combi_lh_comp; // default is enable
-	uint32_t msgh_flilter_invert; // default is disable
-	uint64_t tx_reserved_filter_mask : 64;
-	uint64_t rx_res_min : 64;
-	uint64_t rx_res_max : 64;
+	uint8_t msg_combi_lh_comp;
+	uint8_t msg_flilter_invert;
+	uint8_t rsv[2];
+	uint32_t rx_res_mask;
+	uint32_t rx_res_maskh;
+	uint32_t rx_res_min;
+	uint32_t rx_res_minh;
+	uint32_t rx_res_max;
+	uint32_t rx_res_maxh;
 };
 #define msgbx_flt_rule_user_t struct _msgbx_flt_rule_user_t
 
 struct _msgbx_flt_rule_cfg_t {
-	ipc_flt_rule_typ_t cfg_type;
+	uint8_t cfg_type;
+	uint8_t cfg_loc;
+	uint8_t filter_combi_mode;
+	uint8_t rsv;
 	union {
 		msgbx_flt_rule_pid_t rule_pid;
 		msgbx_flt_rule_len_t rule_len;
 		msgbx_flt_rule_user_t rule_user;
+		msgbx_flt_rule_chip_pid_t rule_chipid;
+		uint8_t rule_nonsec_sel;
 	};
 };
 #define msgbx_flt_rule_cfg_t struct _msgbx_flt_rule_cfg_t
-
 // msgbx state management ------------------------------------------------------------------------
 // state management enable flag bit
-#define MSGBX_TX_OVERFLOW_EN_BIT 0x04 // only available for msgbx default filter
-#define MSGBX_RX_OVERFLOW_EN_BIT 0x02
-#define MSGBX_RX_UNDERFLOW_EN_BIT 0x01
+#define MSGBX_TX_MSGBX_ERR_EN_BIT 0x20
+#define MSGBX_RX_OVERFLOW_EN_BIT 0x04
+#define MSGBX_RX_UNDERFLOW_EN_BIT 0x02
 
-enum _ipc_err_msg_typ_t {
-	IPC_MSB_END_ERR_TYP = 1,
-	IPC_MSB_FIL_ERR_TYP = 2, // default filter err & config filter err
+enum _msgbx_err_code_t {
+	MSGBX_ERR_RX_UNDERFLOW = 1,
+	MSGBX_ERR_RX_OVERFLOW = 2,
+	MSGBX_ERR_ECC_RX_MULTIP,
+	MSGBX_ERR_ECC_RX_DETECT,
+	MSGBX_ERR_PARITY_HWDATA,
+	MSGBX_ERR_PARITY_HADDR,
+	MSGBX_ERR_TX_MSG_ERR,
+	MSGBX_ERR_TX_OVERFLOW,
 	IPC_ERR_TYP_MAX
 };
-#define ipc_err_msg_typ_t enum _ipc_err_msg_typ_t
+#define msgbx_err_code_t enum _msgbx_err_code_t
 
 struct _msgbx_flt_info_t {
-	uint32_t mbx_rxfifo_end_addr : 10; // RW, this info is got from hw impl
-	uint32_t mbx_rxfifo_st_addr : 10; // RW
+	uint8_t mbx_rxfifo_end_addr;
+	uint8_t mbx_rxfifo_st_addr;
 };
 #define msgbx_flt_info_t struct _msgbx_flt_info_t
 
 struct _msgbx_flt_device_t {
 	msgbx_flt_cfg_t cfg;
 	msgbx_flt_info_t info;
-	msgbx_flt_rule_cfg_t rule;
 };
 #define msgbx_flt_device_t struct _msgbx_flt_device_t
 
@@ -164,13 +182,28 @@ struct _msgbx_hw_device_t {
 
 // msgbx error msg
 struct _msgbx_err_msg_t {
-	uint8_t type : 4; // msgbx. msgend, msgflt
-	uint8_t id : 4;
-	uint8_t msg : 8; // overflow, underflow, threshold
-	uint64_t res : 16;
+	uint8_t fid;
+	uint8_t err_code;
 };
 #define msgbx_err_msg_t struct _msgbx_err_msg_t
-// maybe it has big-endian or little-endian issue
+
+// hw rx/tx counter
+struct _msgbox_hw_counter_t {
+	uint64_t def_tx_cnt;
+	uint64_t rx_cnt;
+	uint64_t overflow_intr_cnt;
+	uint64_t rx_thrs_intr_cnt;
+};
+#define msgbox_hw_counter_t struct _msgbox_hw_counter_t
+// clear hw counter bit offset
+#define MSGBX_DEF_OVERFLOW_CNT_CLR_BIT 0x8
+#define MSGBX_DEF_THRS_CNT_CLR_BIT 0x4
+#define MSGBX_DEF_RXMSG_CNT_CLR_BIT 0x2
+#define MSGBX_DEF_TXMSG_CNT_CLR_BIT 0x1
+
+#define MSGBX_FLT_OVERFLOW_CNT_CLR_BIT 0x4
+#define MSGBX_FLT_THRS_CNT_CLR_BIT 0x2
+#define MSGBX_FLT_RXMSG_CNT_CLR_BIT 0x1
 
 //usage for miscdev of msgbox
 struct handle_info_t {
@@ -220,6 +253,22 @@ struct user_msg_t {
 	rw_msg_t msg;
 };
 
+struct query_info_t{
+	uint8_t end_id;
+	uint8_t handle;
+	uint32_t polling_times;
+};
+
+struct mmap_session_t {
+	uint8_t end_id;
+	uint8_t handle;
+};
+
+struct endmap_t {
+	uint8_t end_id;
+	sts_endmap_t endmap;
+};
+
 enum reg_type {
 	REG_TYPE_RX_FF_ADDR, //End_Default_RxFIFO_ADDRR or End_filter1_RxFIFO_ADDRR
 	REG_TYPE_RX_FF_THRD, //End_default_RxThrs_CFGR or End_filter_Thrs_CFGR
@@ -239,12 +288,7 @@ enum reg_type {
 	REG_TYPE_PAY_MAX, //End_filter1_MsgPx_MaxR or End_filter1_MsgPx_MaxHR
 };
 
-typedef int32_t(*create_handle_t)(const uint8_t endid, const uint8_t fid,
-				const uint8_t sid, const uint8_t cid, uint8_t *handle);
-typedef int32_t(*send_msg)(const uint8_t endid, const uint8_t handle, serdes_t *msg);
-
 #define IPC_MSG_IO 'N'
-
 #define IPC_MSG_IO_LAYER_START \
 		_IOW(IPC_MSG_IO, 1, uint8_t)
 #define IPC_MSG_IO_LAYER_STOP \
@@ -262,7 +306,7 @@ typedef int32_t(*send_msg)(const uint8_t endid, const uint8_t handle, serdes_t *
 #define IPC_MSG_IO_UNREGISTER_METHOD \
 		_IOW(IPC_MSG_IO, 8, struct method_info_t)
 #define IPC_MSG_IO_QUERY_MSG \
-		_IOR(IPC_MSG_IO, 9, struct handle_t)
+		_IOR(IPC_MSG_IO, 9, struct query_info_t)
 #define IPC_MSG_IO_RELEASE_RECV_WAIT \
 		_IOW(IPC_MSG_IO, 10, struct handle_t)
 #define IPC_MSG_IO_SET_REGS \
@@ -271,5 +315,7 @@ typedef int32_t(*send_msg)(const uint8_t endid, const uint8_t handle, serdes_t *
 		_IOW(IPC_MSG_IO, 12, struct user_msg_t)
 #define IPC_MSG_IO_USER_GET_MSG \
 		_IOWR(IPC_MSG_IO, 13, struct user_msg_t)
+#define IPC_MSG_IO_USER_GET_ENDMAP \
+		_IOWR(IPC_MSG_IO, 14, struct endmap_t)
 
 #endif

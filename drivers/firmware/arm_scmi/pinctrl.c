@@ -99,7 +99,7 @@ static int scmi_pinctrl_get_group_name(const struct scmi_protocol_handle *ph,
 {
 	struct scmi_pinctrl_info *pi = ph->get_priv(ph);
 
-	if (selector > SCMI_PINCTRL_MAX_GROUPS_CNT)
+	if (selector >= SCMI_PINCTRL_MAX_GROUPS_CNT)
 		return -EINVAL;
 
 	if (!pi->groups[selector].has_name) {

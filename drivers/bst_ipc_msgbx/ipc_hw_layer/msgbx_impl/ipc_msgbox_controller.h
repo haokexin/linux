@@ -14,7 +14,9 @@
 
 #include <linux/workqueue.h>
 #include <bst/bstipc_cfg.h>
-#include <bst/ipc_common.h>
+#include <bst/ipc_lflist_siso.h>
+#include "../../ipc_trans_layer/include/ipc_trans_common.h"
+#include <bst/ipc_hw_impl.h>
 
 #define MSGBOX_MAX_FILTER_NUM (8)
 #define CPU_MSGEND_PPI_NUM (4)
@@ -39,9 +41,6 @@ extern void msgbx_dbg_sysfs_exit(struct device *dev);
 #define PRINT_DEBUG IPC_LOG_ERR
 #endif
 
-#define IPC_SHARE_BUFF msgbx_end_device_t
-#define IPC_SHARE_MSG_BUFF ipc_ses_t
-
 union un_reg_sem {
 	struct {
 		u32 res:2;
@@ -61,18 +60,19 @@ struct ipc_msgbox {
 	void __iomem *rxfifo_base;
 	void __iomem *txfifo_base;
 	void __iomem *ipc_sem_base;
-	u32 spi_count;
+	u32 irq_count;
 	u32 msgend_count;
 	u32 filter_num;
 };
 
 struct st_msgbx_end_para {
 	// end private data
-	bool mdev_is_init;
+#if defined(MSGBX_HW_TYPE_C1200)
 	u16 irq[MSGBOX_MAX_FILTER_NUM];
+#elif defined(MSGBX_HW_TYPE_A2000)
+	u16 irq[CPU_MSGEND_PPI_NUM];
+#endif
 	void *private_data;
-
-	// end common data
 	struct ipc_msgbox *ipc_msgbx;
 };
 #define ST_MSGBX_END_PARA struct st_msgbx_end_para
@@ -85,7 +85,11 @@ struct st_msg_message64 {
 			u64 len:4;
 			u64 is_64_bit:1;
 			u64 nonsec:1;
-			u64 res:42;
+			u64 is_eof : 1;
+			u64 resh : 1;
+			u64 sid : 4;
+			u64 fid : 4;
+			u64 res:32;
 		} bit;
 		u64 data;
 	} head;
@@ -98,6 +102,13 @@ enum {
 	RES_ID_FILTER_CSR = 0,
 	RES_ID_RXFIFO,
 	RES_ID_TXFIFI,
+};
+
+enum {
+	PPI_DEFAULT = 0,
+	PPI_NUM1,
+	PPI_NUM2,
+	PPI_NUM3,
 };
 
 enum {
@@ -149,6 +160,7 @@ enum {
 	FILTER1_BUFF_INTR,
 };
 
+#if defined(MSGBX_HW_TYPE_C1200)
 enum {
 	DEF_FILTER_RX_THRS_INTR = (1 << 0),
 	DEF_FILTER_RX_UNDERFLOW_INTR = (1 << 1),
@@ -158,6 +170,18 @@ enum {
 	DEF_FILTER_MSGBX_END_POOL_STATUS_INTR = (1 << 5),
 	DEF_FILTER_BUFF_INTR = (1 << 6),
 };
+#elif defined(MSGBX_HW_TYPE_A2000)
+enum {
+	DEF_FILTER_RX_THRS_INTR = (1 << 0),
+	DEF_FILTER_RX_UNDERFLOW_INTR = (1 << 1),
+	DEF_FILTER_RX_OVERFLOW_INTR = (1 << 2),
+	DEF_FILTER_TX_THRS_INTR = (1 << 3),
+	DEF_FILTER_TX_OVERFLOW_INTR = (1 << 4),
+	DEF_FILTER_TX_ERR_INTR = (1 << 5),
+	DEF_FILTER_END_ST_NTF_INTR = (1 << 6),
+	DEF_FILTER_BUFF_INTR = (1 << 7),
+};
+#endif
 
 enum {
 	COMBI_MODE_AND = 0,
@@ -165,11 +189,20 @@ enum {
 	COMBI_MODE_RES,
 };
 
+#define REGS_FLT_NUM(regs)	((regs & 0x1E00ul) >> 9)
+
 #define FILTER1_RES_LOW_BIT_MASK (0xfff00000ull)
 #define FILTER1_PAYLOAD_LOW_BIT_MASK (0xffffffffull)
 
-#define MSGBOX_RXFIFO_OFFSET (0x10000)
-#define MSGBOX_TXFIFO_OFFSET (0x11000)
+#define MSGBOX_RXFIFO_OFFSET (0x10000u)
+
+#if defined(MSGBX_HW_TYPE_C1200)
+#define MSGBOX_TXFIFO_OFFSET (0x11000u)
+#elif defined(MSGBX_HW_TYPE_A2000)
+#define MSGBOX_TXFIFO_OFFSET (0x18000u)
+#define MSGBOX_IRQ_REG	(0x25000ul)
+#endif
+
 #define FILTER_MAX 7
 #define FILTER_CSR_SIZE (0x200)
 /* default filter csr offset */
@@ -181,10 +214,19 @@ enum {
 #define DEF_Tx_FIFO_Available (0x28)
 #define DEF_DEFAULT_RXTHRS_CFGR (0x30)
 #define DEF_FLT_RXFIFO_STATUS (0x38)
+
+#if defined(MSGBX_HW_TYPE_C1200)
 #define DEF_FLT_INTER_EN (0x60)
-#define DEF_FLT_STATUS_R (0x58)
+#define DEF_FLT_INTER_CLR_R (0x58)
 #define DEF_FLT_INTER_R (0x68)
 #define DEF_FLT_VERSION_R (0x78)
+#elif defined(MSGBX_HW_TYPE_A2000)
+#define DEF_FLT_INTER_R (0x58)
+#define DEF_FLT_INTER_EN (0x60)
+#define DEF_FLT_INTER_CLR_R (0x68)
+#define DEF_FLT_VERSION_R (0x78)
+#define DEF_FLT_END_MASK_R (0x80)
+#endif
 
 #define END_RXFIFO_ADDR_RX_FIFO_ST_ADDR_SHIFT_U32 (0)
 #define END_RXFIFO_ADDR_RX_FIFO_END_ADDR_SHIFT_U32 (10)
@@ -237,10 +279,10 @@ enum {
 #define	End_filter_Thrs_CFGR	0x118
 #define	End_filter_RxFIFO_StatusR	0x120
 
-#define FILTER1_STATUS_R (0x128)
+#define FILTER1_INTER_ST_R (0x128)
 #define FILTER1_EN_INTER (0x130)
-#define FILTER1_INTER_R (0x138)
-#define FILTER_INTER_R_OFFSET (FILTER1_INTER_R - FILTER1_STATUS_R)
+#define FILTER1_INTER_CLR_R (0x138)
+#define FILTER_INTER_R_OFFSET (FILTER1_INTER_CLR_R - FILTER1_INTER_ST_R)
 
 /* end fmu register */
 #define END_FMU_SAFETY_INTR (0x8000)
@@ -254,10 +296,39 @@ enum {
 #define DEF_FILTER_THRES (1)
 /* rxfifo depth */
 #define END_FILTER_RX_FIFO_DEPTH (8)
+#define DEF_FILTER_ST_ADDR CONFIG_MSGBOX_DEF_FLT_ST_ADDR
+#define DEF_FILTER_END_ADDR CONFIG_MSGBOX_DEF_FLT_END_ADDR
 
 /* msg header bits */
 #define MSGHEADER_IS_64BIT (20)
 #define MSGHEADER_IS_NONSEC (21)
+
+/* ppi select reg */
+#define CORE0_FILTER_PPI_SEL_REG	0x00
+#define CORE0_PPI0_STATUS_REG		0x04
+#define CORE0_PPI1_STATUS_REG		0x08
+#define CORE0_PPI2_STATUS_REG		0x0c
+#define CORE0_PPI3_STATUS_REG		0x10
+
+#define CORE1_FILTER_PPI_SEL_REG	0x20
+#define CORE1_PPI0_STATUS_REG		0x24
+#define CORE1_PPI1_STATUS_REG		0x28
+#define CORE1_PPI2_STATUS_REG		0x2c
+#define CORE1_PPI3_STATUS_REG		0x30
+
+#define CORE2_FILTER_PPI_SEL_REG	0x40
+#define CORE2_PPI0_STATUS_REG		0x44
+#define CORE2_PPI1_STATUS_REG		0x48
+#define CORE2_PPI2_STATUS_REG		0x4c
+#define CORE2_PPI3_STATUS_REG		0x50
+
+#define CORE3_FILTER_PPI_SEL_REG	0x60
+#define CORE3_PPI0_STATUS_REG		0x64
+#define CORE3_PPI1_STATUS_REG		0x68
+#define CORE3_PPI2_STATUS_REG		0x6c
+#define CORE3_PPI3_STATUS_REG		0x70
+
+#define INVALID_FILTER_PPI_SEL_REG	0xff
 
 /* parameter is error */
 #define  ERR_PARA 1
@@ -283,12 +354,12 @@ union flt1_rx_fifo_cfgr {
 		u32 msgp3_filter_en:1;
 		u32 msgp4_filter_en:1;	//BIT4
 		u32 res:3;
-		u32 msgh_flilter_invert:1;	//BIT8
+		u32 msg_flilter_invert:1;	//BIT8
 		u32 msgp1_filter_invert:1;
 		u32 msgp2_filter_invert:1;	//BIT10
 		u32 msgp3_filter_invert:1;
 		u32 msgp4_filter_invert:1;	//BIT12
-		u32 msgh_combi_lh_comp:1;	//BIT13
+		u32 msg_combi_lh_comp:1;	//BIT13
 		u32 msgp1_combi_lh_comp:1;
 		u32 msgp2_combi_lh_comp:1;
 		u32 msgp3_combi_lh_comp:1;
@@ -327,6 +398,9 @@ enum {
 	MSG_FILTER1_RULE_PAYLOAD4,
 };
 
+#define ENMU_END_ID(node_id, core_id) (node_id << 4 | core_id)
+
+#if defined(MSGBX_HW_TYPE_C1200)
 enum {
 	PID_CMN_MSG_END0 = 0x10,
 	PID_CMN_MSG_END1,
@@ -364,6 +438,45 @@ enum {
 	PID_R5_REALTIME_END5,
 	PID_MEDIA_MSG_END0 = 0xA0,
 };
+#define MAX_END_ID		(PID_MEDIA_MSG_END0 + 1)
+#elif defined(MSGBX_HW_TYPE_A2000)
+enum {
+	ID_A78_MSG_NODE0_END0 = ENMU_END_ID(0, 0),
+	ID_A78_MSG_NODE0_END1 = ENMU_END_ID(0, 1),
+	ID_A78_MSG_NODE0_END2 = ENMU_END_ID(0, 2),
+	ID_A78_MSG_NODE0_END3 = ENMU_END_ID(0, 3),
+	ID_A78_MSG_NODE1_END0 = ENMU_END_ID(1, 0),
+	ID_A78_MSG_NODE1_END1 = ENMU_END_ID(1, 1),
+	ID_A78_MSG_NODE1_END2 = ENMU_END_ID(1, 2),
+	ID_A78_MSG_NODE1_END3 = ENMU_END_ID(1, 3),
+	ID_A78_MSG_NODE2_END0 = ENMU_END_ID(2, 0),
+	ID_A78_MSG_NODE2_END1 = ENMU_END_ID(2, 1),
+	ID_A78_MSG_NODE2_END2 = ENMU_END_ID(2, 2),
+	ID_A78_MSG_NODE2_END3 = ENMU_END_ID(2, 3),
+	ID_A78_MSG_NODE3_END0 = ENMU_END_ID(3, 0),
+	ID_A78_MSG_NODE3_END1 = ENMU_END_ID(3, 1),
+	ID_A78_MSG_NODE3_END2 = ENMU_END_ID(3, 2),
+	ID_A78_MSG_NODE3_END3 = ENMU_END_ID(3, 3),
+	ID_R52_DOWN_PADSYS_MSG_NODE4_END0 = ENMU_END_ID(4, 0),
+	ID_R52_DOWN_PADSYS_MSG_NODE4_END1 = ENMU_END_ID(4, 1),
+	ID_R52_DOWN_PADSYS_MSG_NODE4_END2 = ENMU_END_ID(4, 2),
+	ID_R52_DOWN_PADSYS_MSG_NODE4_END3 = ENMU_END_ID(4, 3),
+	ID_R52_DOWN_PADSYS_MSG_NODE4_END4 = ENMU_END_ID(4, 4),
+	ID_R52_DOWN_PADSYS_MSG_NODE4_END5 = ENMU_END_ID(4, 5),
+	ID_ISP_CV_MSG_NODE5_END0 = ENMU_END_ID(5, 0),
+	ID_ISP_CV_MSG_NODE5_END1 = ENMU_END_ID(5, 1),
+	ID_ISP_CV_MSG_NODE5_END2 = ENMU_END_ID(5, 2),
+	ID_ISP_CV_MSG_NODE5_END3 = ENMU_END_ID(5, 3),
+	ID_SEC_MSG_NODE6_END0 = ENMU_END_ID(6, 0),
+	ID_SAFE_MSG_NODE7_END0 = ENMU_END_ID(7, 0),
+	ID_NET_MSG_NODE8_END0 = ENMU_END_ID(8, 0),
+	ID_NET_MSG_NODE8_END1 = ENMU_END_ID(8, 1),
+	ID_R52_UP_PADSYS_MSG_NODE9_END0 = ENMU_END_ID(9, 0),
+	ID_R52_UP_PADSYS_MSG_NODE9_END1 = ENMU_END_ID(9, 1),
+};
+#define MAX_END_ID		(ID_R52_UP_PADSYS_MSG_NODE9_END1 + 1)
+#endif
+
 
 /* define for smp call */
 struct st_msg_hw_init {
@@ -393,6 +506,7 @@ struct st_msg_hw_clr_flt_cfg {
 struct st_msg_hw_send_msg {
 	rw_msg_t *msg;
 	int ret;
+	uint64_t send_time;
 	struct completion done;
 	struct work_struct wk;
 };
@@ -433,11 +547,10 @@ struct st_msg_hw_err_hdl {
 };
 #define ST_MSG_HW_ERR_HDL struct st_msg_hw_err_hdl
 
-#define MAX_END_ID		(PID_MEDIA_MSG_END0 + 1)
-
 struct msgbox_statis {
 	uint64_t rx_thrs_stats[NR_CPUS];
 	uint64_t rx_overflow_stats[NR_CPUS];
+	uint64_t rx_underflow_stats[NR_CPUS];
 	uint64_t tx_overflow_stats[NR_CPUS];
 	uint64_t tx_fifo_unavail_stats[NR_CPUS];
 	uint64_t tx_stats[NR_CPUS][MAX_END_NUM];
@@ -469,11 +582,11 @@ struct msgbox_statis {
 	do { \
 		ret = _check(_para, cpu_id);\
 		if (ret) {\
-			kfree(_para->msg); \
-			kfree(_para); \
+			return ret; \
 		} else { \
 			INIT_WORK(&_para->wk, _func); \
-			queue_work_on(cpu_id, wq, &_para->wk); \
+			ret = queue_work_on(cpu_id, wq, &_para->wk) ? 0 : 1 ; \
+			return ret; \
 		} \
 	} while (0)
 
@@ -481,12 +594,8 @@ struct msgbox_statis {
 
 /**********************extern functions ***************************/
 extern struct msgbox_statis *msgbx_get_statis(void);
-extern int32_t ipc_hw_recv_msg_notify(const uint8_t cpuid, const uint8_t fid, const rw_msg_t *msg);
-extern int32_t ipc_hw_err_msg_notify(const uint8_t cpuid, const uint8_t fid);
-#ifndef CONFIG_MSGBOX_MISCDEV_MOD
-extern int ipc_msgbx_miscdev_init(ST_MSGBX_END_PARA * st_end_para, u8 dev_id);
-extern void ipc_msgbx_miscdev_exit(ST_MSGBX_END_PARA *st_end_para);
-#endif
+extern int ipc_msgbx_miscdev_init(void);
+extern void ipc_msgbx_miscdev_exit(void);
 extern void *msgbx_get_filter_base(u32 fid);
 
 #endif

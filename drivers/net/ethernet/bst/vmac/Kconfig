@@ -1,0 +1,24 @@
+config BST_VMAC_ETH
+	tristate "bst vmac Ethernet driver"
+	depends on (BST_C1200_DB || BST_C1200_IVI)
+	default y
+	help
+	  This is the driver for the Ethernet IPs built around a
+	  	IMG IP Core.
+
+if BST_VMAC_ETH
+
+config BST_VMAC_PLATFORM
+	tristate "bst vmac platform bus support"
+	depends on BST_VMAC_ETH
+	default y
+	help
+	  This selects the platform specific bus support for the BST VMAC driver.
+	  This is the driver used on several SoCs:
+	  BST C1200
+
+	  If you have a controller with this interface, say Y or M here.
+
+	  If unsure, say N.
+
+endif

@@ -8,11 +8,13 @@
 #include <linux/module.h>
 #include <linux/mman.h>
 #include <linux/of.h>
+#include <linux/io.h>
 #include "bst_cvsmm.h"
 
-int has_cv_dsp2_iommu_map = 0;
-int has_cv_dsp3_iommu_map = 0;
+int has_cv_dsp2_iommu_map;
 EXPORT_SYMBOL(has_cv_dsp2_iommu_map);
+
+int has_cv_dsp3_iommu_map;
 EXPORT_SYMBOL(has_cv_dsp3_iommu_map);
 
 static int bst_cvsmm_probe(struct platform_device *pdev);
@@ -42,6 +44,70 @@ static struct platform_driver bst_cvsmm_driver = {
 		},
 };
 
+static void __init bst_cvshareram_init(struct device *dev)
+{
+	u32 val;
+	void __iomem *csr_dsp_base;
+	void __iomem *csr_cirbuf0, *csr_cirbuf1, *csr_cirbuf2, *csr_cirbuf3;
+
+	csr_dsp_base = devm_ioremap(dev, 0x51000000, 4);
+	csr_cirbuf0 = devm_ioremap(dev, 0x51038100, 4);
+	csr_cirbuf1 = devm_ioremap(dev, 0x51038400, 4);
+	csr_cirbuf2 = devm_ioremap(dev, 0x51039100, 4);
+	csr_cirbuf3 = devm_ioremap(dev, 0x51039400, 4);
+
+	val = ioread32(csr_dsp_base);
+	iowrite32((val | 0x30), csr_dsp_base);
+	val = ioread32(csr_dsp_base);
+	iowrite32((val | 0xc0), csr_dsp_base);
+
+	val = ioread32(csr_cirbuf0);
+	iowrite32((val | 0x20), csr_cirbuf0);
+
+	val = ioread32(csr_cirbuf1);
+	iowrite32((val | 0x20), csr_cirbuf1);
+
+	val = ioread32(csr_cirbuf2);
+	iowrite32((val | 0x20), csr_cirbuf2);
+
+	val = ioread32(csr_cirbuf3);
+	iowrite32((val | 0x20), csr_cirbuf3);
+
+	devm_iounmap(dev, csr_dsp_base);
+	devm_iounmap(dev, csr_cirbuf0);
+	devm_iounmap(dev, csr_cirbuf1);
+	devm_iounmap(dev, csr_cirbuf2);
+	devm_iounmap(dev, csr_cirbuf3);
+
+	pr_info("cvshareram_init success\n");
+}
+
+static void __init bst_cv_freq_monitor_en(struct device *dev)
+{
+	u32 val;
+	void __iomem *csr_freq_monitor_CTRL0;
+	void __iomem *csr_freq_monitor_CTRL1;
+
+	csr_freq_monitor_CTRL0 = devm_ioremap(dev, 0x51000110, 4);
+	csr_freq_monitor_CTRL1 = devm_ioremap(dev, 0x51000114, 4);
+
+	val = ioread32(csr_freq_monitor_CTRL0);
+	iowrite32((val | (56700 << 12)), csr_freq_monitor_CTRL0);
+	val = ioread32(csr_freq_monitor_CTRL0);
+	iowrite32((val | (63 << 4)), csr_freq_monitor_CTRL0);
+
+	val = ioread32(csr_freq_monitor_CTRL1);
+	iowrite32((val | 17), csr_freq_monitor_CTRL1);
+
+	val = ioread32(csr_freq_monitor_CTRL0);
+	iowrite32((val | 1), csr_freq_monitor_CTRL0);
+
+	devm_iounmap(dev, csr_freq_monitor_CTRL0);
+	devm_iounmap(dev, csr_freq_monitor_CTRL1);
+
+	pr_info("%s success\n", __func__);
+}
+
 static int bst_cvsmm_probe(struct platform_device *pdev)
 {
 	int ret;
@@ -63,6 +129,10 @@ static int bst_cvsmm_probe(struct platform_device *pdev)
 
 	pbst_cvsmm->pdev = pdev;
 	platform_set_drvdata(pdev, pbst_cvsmm);
+
+	bst_cvshareram_init(dev_cvsmm);
+	bst_cv_freq_monitor_en(dev_cvsmm);
+
 	return 0;
 }
 

@@ -1,4 +1,5 @@
-/* SPDX-License-Identifier: GPL-2.0+
+// SPDX-License-Identifier: GPL-2.0+
+/*
  *
  * Copyright (c) 2024 Black Sesame Technologies
  */
@@ -42,17 +43,17 @@
 #include <asm/mman.h>
 #include <asm/cacheflush.h>
 
-#define BST_LWNN_DRIVER_NAME            "bst_lwnn"
+#define BST_LWNN_DRIVER_NAME "bst_lwnn"
 
-#define BST_LWNN_VER_MAJOR              0
-#define BST_LWNN_VER_MINOR              5
-#define BST_LWNN_VER_PATCH              2
-#define BST_LWNN_RELEASE_MONTH          3
-#define BST_LWNN_RELEASE_DATE           19
-#define BST_LWNN_RELEASE_YEAR           2024
+#define BST_LWNN_VER_MAJOR 0
+#define BST_LWNN_VER_MINOR 6
+#define BST_LWNN_VER_PATCH 0
+#define BST_LWNN_RELEASE_MONTH 11
+#define BST_LWNN_RELEASE_DATE 25
+#define BST_LWNN_RELEASE_YEAR 2024
 
-#define BST_LWNN_FW_VER_MAJOR           1
-#define BST_LWNN_FW_VER_MINOR           0
+#define BST_LWNN_FW_VER_MAJOR 1
+#define BST_LWNN_FW_VER_MINOR 0
 
 struct bst_lwnn;
 
@@ -66,50 +67,60 @@ struct bst_lwnn;
 #include "bst_lwnn_sysfile.h"
 #include "bst_lwnn_miscdev.h"
 
-#define BST_LWNN_DEBUG_PRINT          2
-#define BST_LWNN_LOG_PRINT            1
-#define BST_LWNN_NO_PRINT             0
+#define BST_LWNN_DEBUG_PRINT 2
+#define BST_LWNN_LOG_PRINT 1
+#define BST_LWNN_NO_PRINT 0
 
-#define BST_LWNN_TRACE_PRINTK(format,...)       do { \
-    if (bst_lwnn_print_level >= BST_LWNN_DEBUG_PRINT) \
-        printk(KERN_INFO "[%s]: %s %d: " format "\n", BST_LWNN_DRIVER_NAME, __FUNCTION__, __LINE__, ##__VA_ARGS__); \
-} while (0)
+#define BST_LWNN_TRACE_PRINTK(format, ...)                                   \
+	do {                                                                 \
+		if (bst_lwnn_print_level >= BST_LWNN_DEBUG_PRINT)            \
+			printk(KERN_INFO "[%s]: %s %d: " format "\n",        \
+			       BST_LWNN_DRIVER_NAME, __FUNCTION__, __LINE__, \
+			       ##__VA_ARGS__);                               \
+	} while (0)
 
-#define BST_LWNN_STAGE_PRINTK(format,...)       do { \
-    if (bst_lwnn_print_level >= BST_LWNN_LOG_PRINT) \
-        printk(KERN_INFO "[%s]: %s %d: " format "\n", BST_LWNN_DRIVER_NAME, __FUNCTION__, __LINE__, ##__VA_ARGS__); \
-} while (0)
+#define BST_LWNN_STAGE_PRINTK(format, ...)                                   \
+	do {                                                                 \
+		if (bst_lwnn_print_level >= BST_LWNN_LOG_PRINT)              \
+			printk(KERN_INFO "[%s]: %s %d: " format "\n",        \
+			       BST_LWNN_DRIVER_NAME, __FUNCTION__, __LINE__, \
+			       ##__VA_ARGS__);                               \
+	} while (0)
 
-#define BST_LWNN_DEV_ERR(dev, format,...)       dev_err(dev, "%s %d: " format "\n", __FUNCTION__, __LINE__, ##__VA_ARGS__)
-#define BST_LWNN_DEV_INFO(dev, format,...)      dev_info(dev, "%s %d: " format "\n", __FUNCTION__, __LINE__, ##__VA_ARGS__)
+#define BST_LWNN_DEV_ERR(dev, format, ...)                          \
+	dev_err(dev, "%s %d: " format "\n", __FUNCTION__, __LINE__, \
+		##__VA_ARGS__)
+#define BST_LWNN_DEV_INFO(dev, format, ...)                          \
+	dev_info(dev, "%s %d: " format "\n", __FUNCTION__, __LINE__, \
+		 ##__VA_ARGS__)
 
-#define BST_LWNN_DSP_STATE_OFFLINE    0
-#define BST_LWNN_DSP_STATE_INIT       1
-#define BST_LWNN_DSP_STATE_ONLINE     2
-#define BST_LWNN_DSP_STATE_ERROR      3
+#define BST_LWNN_DSP_STATE_OFFLINE 0
+#define BST_LWNN_DSP_STATE_INIT 1
+#define BST_LWNN_DSP_STATE_ONLINE 2
+#define BST_LWNN_DSP_STATE_ERROR 3
 
 #define BST_LWNN_MAX_DSPNUM 4
 
-#define RT_CMD_INIT                 0
-#define RT_CMD_RUN_MODEL            1
-#define RT_CMD_EXIT                 0xFF
+#define RT_CMD_INIT 0
+#define RT_CMD_RUN_MODEL 1
+#define RT_CMD_EXIT 0xFF
 
 // msg interface
 enum {
-	BST_LWNN_MSG_INTERFACE_IPC,	// default
+	BST_LWNN_MSG_INTERFACE_IPC, // default
 	BST_LWNN_MSG_INTERFACE_MSGBOX,
 };
 
 struct bst_lwnn {
 	struct platform_device *pdev;
 	int32_t dsp_num;
-	struct mutex mutex;	//mutex to protect state
+	struct mutex mutex; //mutex to protect state
 	enum {
 		BST_LWNN_OFFLINE = 0,
 		BST_LWNN_INIT,
 		BST_LWNN_ONLINE,
 		BST_LWNN_ERROR
-	} state;		//device state
+	} state; //device state
 
 	/*
 	   We do not dynamically allocate space for DSP specific metadata for two

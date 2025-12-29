@@ -1804,7 +1804,7 @@ static void android_device_destroy(struct gadget_info *gi)
 
 	if (gi->dev == android_device)
 		android_device = NULL;
-
+	flush_work(&gi->work);
 	device_destroy(gi->dev->class, gi->dev->devt);
 }
 #else

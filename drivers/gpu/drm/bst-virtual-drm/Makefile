@@ -5,10 +5,11 @@ ccflags-y := \
 	-I $(srctree)/drivers/bst_ipc_msgbx/include \
 	-I $(srctree)/drivers/bst_ipc_msgbx/ipc_app_layer/include \
 	-I $(srctree)/drivers/bst_ipc_msgbx/ipc_trans_layer/include \
-	-I $(srctree)/$(src)/bst-fw-msg/coredev_hw_ipc/display-client/src-gen
+	-I $(srctree)/$(src)/bst-fw-msg/bst-virt-drm-msgbx/display-client/src-gen
 
 ccflags-y += -DBST_PLATFORM_C1200=0x1200 -DBST_C1200_MAX_1PIPE_LAYERS=4
 ccflags-y += -D__DISPLAY_EVENTS_MGR__
+ccflags-y += -DDISPLAY_SUPPORT_SCALE
 
 bst-virtual-drm-y := \
 	bst_virt_dc/virt_dc_dev.o \
@@ -34,5 +35,5 @@ bst-virtual-drm-y := \
 	bst_virt_drm_wb_connector.o \
 	bst_virt_drm_debugfs.o
 
-obj-$(CONFIG_DRM_BST_FW_MSG) += bst-fw-msg/
+obj-y += bst-fw-msg/
 obj-$(CONFIG_DRM_BST_VIRTUAL_DISPLAY) += bst-virtual-drm.o

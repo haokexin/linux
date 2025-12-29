@@ -115,9 +115,8 @@ void bst_kms_cleanup_private_objs(struct bst_kms_dev *kms);
 
 void bst_crtc_handle_event(struct bst_crtc *bcrtc,
 			      struct bst_events *evts);
-void bst_crtc_wait_for_hw_flip_done(struct bst_crtc *bcrtc,
+void bst_crtc_flush_and_wait_for_flip_done(struct bst_crtc *bcrtc,
 					 struct completion *input_flip_done);
-void bst_crtc_hw_flush(struct bst_crtc *bcrtc);
 struct bst_kms_dev *bst_kms_attach(struct bst_dev *mdev);
 void bst_kms_detach(struct bst_kms_dev *kms);
 

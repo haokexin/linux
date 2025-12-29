@@ -19,8 +19,12 @@
 #include <crypto/akcipher.h>
 #include <crypto/algapi.h>
 #include "bst_pke.h"
+#include "../common/bst_sa_common.h"
 
 #define PKE_ADDR(offset) (global_pke->base + offset)
+
+static unsigned int refcnt = 0;
+static DEFINE_MUTEX(refcnt_lock);
 
 struct pke {
 	struct device *dev;
@@ -99,10 +103,10 @@ void pke_set_operand_uint32_value(uint32_t *a, uint32_t a_word_len, uint32_t b)
 
 	// for (i = 0; i < word_len; i++)
 	// {
-		// printk("%08x", buf[i]);
+		// bst_dbg(1, "%08x", buf[i]);
 	// }
 
-	// printk("\r\n");
+	// bst_dbg(1, "\r\n");
 // }
 
 uint32_t big_div2n(uint32_t a[], int32_t aWordLen, uint32_t n)
@@ -286,7 +290,7 @@ void pke_clear_interrupt(void)
 				   PKE_ADDR(PKE_RISR));
 }
 
-static void __attribute__((unused)) pke_enable_interrupt(void)
+void pke_enable_interrupt(void)
 {
 	uint32_t flag = (uint32_t)1;
 
@@ -294,7 +298,7 @@ static void __attribute__((unused)) pke_enable_interrupt(void)
 				   PKE_ADDR(PKE_IMCR));
 }
 
-static void __attribute__((unused)) pke_disable_interrupt(void)
+void pke_disable_interrupt(void)
 {
 	uint32_t mask = ~((uint32_t)1);
 
@@ -946,6 +950,7 @@ uint32_t bst_rsa_mod_exp(MPI res, MPI base, MPI exp, MPI mod)
 {
 	int32_t flag;
 	uint32_t ret;
+	uint32_t ret_rsa_success = RSA_SUCCESS;
 	uint32_t e_bit_len = exp->nbits;
 	uint32_t n_bit_len = mod->nbits;
 	uint32_t base_bit_len = base->nbits;
@@ -999,12 +1004,12 @@ uint32_t bst_rsa_mod_exp(MPI res, MPI base, MPI exp, MPI mod)
 			goto free_room;
 		} else {
 			uint32_clear((uint32_t *)res->d, n_word_len);
-			ret = RSA_SUCCESS;
+			ret = ret_rsa_success;
 			goto free_room;
 		}
 	} else if (uint32_big_num_check_zero((uint32_t *)e->d, e_word_len)) {
 		pke_set_operand_uint32_value((uint32_t *)res->d, n_word_len, 1);
-		ret = RSA_SUCCESS;
+		ret = ret_rsa_success;
 		goto free_room;
 	}
 
@@ -1028,12 +1033,12 @@ void sm2_print(uint8_t *array, uint8_t len, uint32_t line)
 {
 	int i;
 	if (array == NULL) {
-		printk("sm2_print array NULL: %d", line);
+		bst_dbg(1, "sm2_print array NULL: %d", line);
 		return;
 	}
-	printk("sm2_print: %d", line);
+	bst_dbg(1, "sm2_print: %d", line);
 	for (i = 0; i < len; i++) {
-		printk("0x%02x", array[i]);
+		bst_dbg(1, "0x%02x", array[i]);
 	}
 }
 
@@ -1042,14 +1047,15 @@ uint32_t sm2_sign_with_k(const struct pke_ec_curve *sm2_curve, uint32_t e[8],
 {
 	uint32_t tmp1[SM2_WORD_LEN], tmp2[SM2_WORD_LEN];
 	uint32_t ret;
+	uint32_t ret_sm2_success = SM2_SUCCESS;
 
 	if (e == NULL || k == NULL || dA == NULL || r == NULL || s == NULL)
 		return SM2_BUFFER_NULL;
 
 	// make sure k in [1, n-1]
 	ret = uint32_integer_check(k, sm2_curve->eccp_n, SM2_WORD_LEN,
-							   SM2_ZERO_ALL, SM2_INTEGER_TOO_BIG, SM2_SUCCESS);
-	if (ret != SM2_SUCCESS)
+							   SM2_ZERO_ALL, SM2_INTEGER_TOO_BIG, ret_sm2_success);
+	if (ret != ret_sm2_success)
 		return ret;
 
 #ifdef SM2_HIGH_SPEED
@@ -1121,12 +1127,13 @@ uint32_t sm2_sign_with_k(const struct pke_ec_curve *sm2_curve, uint32_t e[8],
 		return SM2_SUCCESS;
 }
 
-uint32_t pke_sm2_verify(const struct pke_ec_curve *sm2_curve, uint8_t *E,
-						uint8_t *pub_key, uint8_t *signature)
+uint32_t pke_sm2_verify(const struct pke_ec_curve *sm2_curve, uint8_t E[32],
+						uint8_t pub_key[65], uint8_t signature[64])
 {
 	uint32_t e[SM2_WORD_LEN], r[SM2_WORD_LEN], s[SM2_WORD_LEN], tmp[SM2_WORD_LEN * 4];
 	uint32_t *t = e;
 	uint32_t ret = 0;
+	uint32_t ret_sm2_success = SM2_SUCCESS;
 
 	if (pub_key == NULL || signature == NULL)//E == NULL ||
 		return SM2_BUFFER_NULL;
@@ -1145,16 +1152,16 @@ uint32_t pke_sm2_verify(const struct pke_ec_curve *sm2_curve, uint8_t *E,
 	// make sure r in [1, n-1]
 	reverse_byte_array(signature, (uint8_t *)r, SM2_BYTE_LEN);
 	ret = uint32_integer_check(r, sm2_curve->eccp_n, SM2_WORD_LEN,
-							   SM2_ZERO_ALL, SM2_INTEGER_TOO_BIG, SM2_SUCCESS);
-	if (ret != SM2_SUCCESS)
+							   SM2_ZERO_ALL, SM2_INTEGER_TOO_BIG, ret_sm2_success);
+	if (ret != ret_sm2_success)
 		goto END;
 
 	// make sure s in [1, n-1]
 	reverse_byte_array(signature + SM2_BYTE_LEN, (uint8_t *)s,
 					   SM2_BYTE_LEN);
 	ret = uint32_integer_check(s, sm2_curve->eccp_n, SM2_WORD_LEN,
-							   SM2_ZERO_ALL, SM2_INTEGER_TOO_BIG, SM2_SUCCESS);
-	if (ret != SM2_SUCCESS)
+							   SM2_ZERO_ALL, SM2_INTEGER_TOO_BIG, ret_sm2_success);
+	if (ret != ret_sm2_success)
 		goto END;
 
 	// t = (r+s) mod n
@@ -1235,6 +1242,7 @@ uint32_t pke_sm2_sign(const struct pke_ec_curve *curve, uint8_t E[32],
 	uint32_t e[SM2_WORD_LEN], k[SM2_WORD_LEN], dA[SM2_WORD_LEN];
 	uint32_t r[SM2_WORD_LEN], s[SM2_WORD_LEN];
 	uint32_t ret;
+	uint32_t ret_sm2_success = SM2_SUCCESS;
 
 	if (NULL == E || NULL == pri_key || NULL == signature)
 		return SM2_BUFFER_NULL;
@@ -1249,8 +1257,8 @@ uint32_t pke_sm2_sign(const struct pke_ec_curve *curve, uint8_t E[32],
 	// make sure pri_key in [1, n-2]
 	reverse_byte_array(pri_key, (uint8_t *)dA, SM2_BYTE_LEN);
 	ret = uint32_integer_check(dA, (uint32_t *)curve->eccp_n_1, SM2_WORD_LEN,
-							   SM2_ZERO_ALL, SM2_INTEGER_TOO_BIG, SM2_SUCCESS);
-	if (ret != SM2_SUCCESS)
+							   SM2_ZERO_ALL, SM2_INTEGER_TOO_BIG, ret_sm2_success);
+	if (ret != ret_sm2_success)
 		return ret;
 
 	if (rand_k)
@@ -1263,12 +1271,12 @@ SM2_SIGN_LOOP:
 	if((SM2_ZERO_ALL == ret || SM2_INTEGER_TOO_BIG == ret) && (NULL == rand_k))
 		goto SM2_SIGN_LOOP;
 
-	if (ret == SM2_SUCCESS) {
+	if (ret == ret_sm2_success) {
 		reverse_byte_array((uint8_t *)r, signature, SM2_BYTE_LEN);
 		reverse_byte_array((uint8_t *)s, signature + SM2_BYTE_LEN,
 						   SM2_BYTE_LEN);
 
-		return SM2_SUCCESS;
+		return ret_sm2_success;
 	} else
 		return ret;
 }
@@ -1286,6 +1294,7 @@ uint32_t pke_ecdsa_verify(const struct pke_ec_curve *curve, uint8_t *E,
 	uint32_t e[ECCP_MAX_WORD_LEN], r[ECCP_MAX_WORD_LEN], s[ECCP_MAX_WORD_LEN];
 	uint32_t tmp[ECCP_MAX_WORD_LEN], x[ECCP_MAX_WORD_LEN];
 	uint32_t ret;
+	uint32_t ret_ecdsa_success = ECDSA_SUCCESS;
 
 	if (NULL == curve || NULL == pub_key_x || NULL == pub_key_y || NULL == signature)
 		return ECDSA_POINTOR_NULL;
@@ -1304,15 +1313,15 @@ uint32_t pke_ecdsa_verify(const struct pke_ec_curve *curve, uint8_t *E,
 	memset(((uint8_t *)r) + n_byte_len, 0, (n_word_len << 2) - n_byte_len);
 	reverse_byte_array(signature, (uint8_t *)r, n_byte_len);
 	ret = uint32_integer_check(r, curve->eccp_n, n_word_len,
-							   ECDSA_ZERO_ALL, ECDSA_INTEGER_TOO_BIG, ECDSA_SUCCESS);
-	if (ret != ECDSA_SUCCESS)
+							   ECDSA_ZERO_ALL, ECDSA_INTEGER_TOO_BIG, ret_ecdsa_success);
+	if (ret != ret_ecdsa_success)
 		return ret;
 	// make sure s in [1, n-1]
 	memset(((uint8_t *)s) + n_byte_len, 0, (n_word_len << 2) - n_byte_len);
 	reverse_byte_array(signature + n_byte_len, (uint8_t *)s, n_byte_len);
 	ret = uint32_integer_check(s, curve->eccp_n, n_word_len,
-							   ECDSA_ZERO_ALL, ECDSA_INTEGER_TOO_BIG, ECDSA_SUCCESS);
-	if (ret != ECDSA_SUCCESS)
+							   ECDSA_ZERO_ALL, ECDSA_INTEGER_TOO_BIG, ret_ecdsa_success);
+	if (ret != ret_ecdsa_success)
 		return ret;
 
 	// tmp = s^(-1) mod n
@@ -1408,6 +1417,7 @@ uint32_t ecdsa_sign_uint32(const struct pke_ec_curve *curve, uint32_t *e, uint32
 	uint32_t p_word_len;
 	uint32_t tmp1[ECCP_MAX_WORD_LEN];
 	uint32_t ret;
+	uint32_t ret_ecdsa_success = ECDSA_SUCCESS;
 
 	if(NULL == curve || NULL == e || NULL == k || NULL == dA || NULL == r || NULL == s)
 		return ECDSA_POINTOR_NULL;
@@ -1419,8 +1429,8 @@ uint32_t ecdsa_sign_uint32(const struct pke_ec_curve *curve, uint32_t *e, uint32
 
 	//make sure k in [1, n-1]
 	ret = uint32_integer_check(k, curve->eccp_n, n_word_len, ECDSA_ZERO_ALL, ECDSA_INTEGER_TOO_BIG,
-			ECDSA_SUCCESS);
-	if(ECDSA_SUCCESS != ret)
+		ret_ecdsa_success);
+	if(ret_ecdsa_success != ret)
 		return ret;
 
 	//get x1
@@ -1478,6 +1488,7 @@ uint32_t pke_ecdsa_sign(const struct pke_ec_curve *curve, uint8_t *E,
 	uint32_t e[ECCP_MAX_WORD_LEN], k[ECCP_MAX_WORD_LEN], dA[ECCP_MAX_WORD_LEN];
 	uint32_t r[ECCP_MAX_WORD_LEN], s[ECCP_MAX_WORD_LEN];
 	uint32_t ret;
+	uint32_t ret_ecdsa_success = ECDSA_SUCCESS;
 
 	if(NULL == curve || NULL == priv_key || NULL == signature)
 		return ECDSA_POINTOR_NULL;
@@ -1518,8 +1529,8 @@ uint32_t pke_ecdsa_sign(const struct pke_ec_curve *curve, uint8_t *E,
 	memset(((uint8_t *)dA)+n_byte_len, 0, (n_word_len<<2)-n_byte_len);
 	reverse_byte_array((uint8_t *)priv_key, (uint8_t *)dA, n_byte_len);
 	ret = uint32_integer_check(dA, curve->eccp_n, n_word_len, ECDSA_ZERO_ALL, ECDSA_INTEGER_TOO_BIG,
-			ECDSA_SUCCESS);
-	if(ECDSA_SUCCESS != ret)
+		ret_ecdsa_success);
+	if(ret_ecdsa_success != ret)
 		return ret;
 
 	//get k
@@ -1534,7 +1545,7 @@ ECDSA_SIGN_LOOP:
 	if((ECDSA_ZERO_ALL == ret || ECDSA_INTEGER_TOO_BIG == ret) && (NULL == rand_k))
 		goto ECDSA_SIGN_LOOP;
 		
-	if(ECDSA_SUCCESS != ret)
+	if(ret_ecdsa_success != ret)
 	{
 		return ret;
 	}
@@ -1543,7 +1554,7 @@ ECDSA_SIGN_LOOP:
 		reverse_byte_array((uint8_t *)r, signature, n_byte_len);
 		reverse_byte_array((uint8_t *)s, signature+n_byte_len, n_byte_len);
 
-		return ECDSA_SUCCESS;
+		return ret_ecdsa_success;
 	}
 }
 
@@ -1553,6 +1564,7 @@ static struct akcipher_alg bst_rsa = {
 	.set_priv_key = bst_rsa_set_priv_key,
 	.set_pub_key = bst_rsa_set_pub_key,
 	.max_size = bst_rsa_max_size,
+	.init = bst_rsa_init_tfm,
 	.exit = bst_rsa_exit_tfm,
 	.base = {
 		.cra_name = "bst_rsa",
@@ -1587,6 +1599,7 @@ static struct akcipher_alg bst_ecdsa = {
 	.set_pub_key = bst_ecdsa_set_pub_key,
 	.set_priv_key = bst_ecdsa_set_priv_key,
 	.max_size = bst_ecdsa_max_size,
+	.init = bst_ecdsa_init_tfm,
 	.exit = bst_ecdsa_exit_tfm,
 	.base = {
 		.cra_name = "bst_ecdsa",
@@ -1599,7 +1612,8 @@ static struct akcipher_alg bst_ecdsa = {
 
 static int bst_pke_irq_handler(struct pke *dev)
 {
-	// printk("%s:%d", __func__, __LINE__);
+	// pr_info("bst_pke_irq_handler");
+	pke_disable_interrupt();
 	return 0;
 }
 
@@ -1616,8 +1630,8 @@ static irqreturn_t bst_pke_irq(int irq, void *dev_id)
 		return IRQ_NONE;
 
 	bst_pke_irq_handler(hdev);
-	writel_relaxed(readl_relaxed(hdev->base + PKE_RISR) & (~1),
-				   hdev->base + PKE_RISR);
+	// writel_relaxed(readl_relaxed(hdev->base + PKE_RISR) & (~1),
+	// 			   hdev->base + PKE_RISR);
 
 	return IRQ_HANDLED;
 }
@@ -1657,54 +1671,79 @@ static int bst_pke_probe(struct platform_device *pdev)
 	global_pke->pke_status = PKE_IS_AVAILABLE;
 	platform_set_drvdata(pdev, pke);
 
-	ret = crypto_register_akcipher(&bst_rsa);
-	if (ret) {
-		/* Failed to register algorithm. */
-		dev_err(dev, "Failed to register pke rsa crypto.\n");
-		goto err_unregister_rsa;
-	}
-
-	ret = crypto_register_akcipher(&bst_sm2);
-	if (ret) {
-		/* Failed to register algorithm. */
-		dev_err(dev, "Failed to register pke sm2 crypto.\n");
-		goto err_unregister_sm2;
-	}
-
-	ret = crypto_register_akcipher(&bst_ecdsa);
-	if (ret) {
-		/* Failed to register algorithm. */
-		dev_err(dev, "Failed to register pke ecdsa crypto.\n");
-		goto err_unregister_ecdsa;
+	if (bst_sec_sa_pke_enable) {
+		mutex_lock(&refcnt_lock);
+		if (refcnt++ == 0) {
+			ret = crypto_register_akcipher(&bst_rsa);
+			if (ret) {
+				dev_err(dev, "Failed to register rsa\n");
+			}else{
+				dev_info(&pdev->dev, "BST rsa algorithms registered\n");
+			}
+			ret = crypto_register_akcipher(&bst_sm2);
+			if (ret) {
+				dev_err(dev, "Failed to register sm2\n");
+				crypto_unregister_akcipher(&bst_rsa);
+				refcnt--;
+				mutex_unlock(&refcnt_lock);
+				return ret;
+			}else{
+				dev_info(&pdev->dev, "BST sm2 algorithms registered\n");
+			}
+			ret = crypto_register_akcipher(&bst_ecdsa);
+			if (ret) {
+				dev_err(dev, "Failed to register ecdsa\n");
+				crypto_unregister_akcipher(&bst_rsa);
+				crypto_unregister_akcipher(&bst_sm2);
+				refcnt--;
+				mutex_unlock(&refcnt_lock);
+				return ret;
+			}else{
+				dev_info(&pdev->dev, "BST ecdsa algorithms registered\n");
+			}
+		}
+		mutex_unlock(&refcnt_lock);
+	} else {
+		dev_info(&pdev->dev, "BST hash driver loaded but algorithms disabled (bst_sec_sa_pke_enable=0)\n");
 	}
 
 	pke_get_version(pke->base, &v_major, &v_minor);
 	dev_info(dev, "Hardware version: v%d.%d\n", v_major, v_minor);
 
 	return 0;
-
-err_unregister_ecdsa:
-	crypto_unregister_akcipher(&bst_ecdsa);
-err_unregister_sm2:
-	crypto_unregister_akcipher(&bst_sm2);
-err_unregister_rsa:
-	crypto_unregister_akcipher(&bst_rsa);
-
-	return ret;
 }
 
 static int bst_pke_remove(struct platform_device *pdev)
 {
 	// struct pke *pke = platform_get_drvdata(pdev);
-
-	crypto_unregister_akcipher(&bst_rsa);
-	crypto_unregister_akcipher(&bst_sm2);
-	crypto_unregister_akcipher(&bst_ecdsa);
+	mutex_lock(&refcnt_lock);
+	if (!--refcnt) {
+		crypto_unregister_akcipher(&bst_rsa);
+		crypto_unregister_akcipher(&bst_sm2);
+		crypto_unregister_akcipher(&bst_ecdsa);
+	}
+	mutex_unlock(&refcnt_lock);
 	platform_set_drvdata(pdev, NULL);
 
 	global_pke = NULL;
 
 	return 0;
+}
+
+void sa_enbale_change_pke(void){
+	mutex_lock(&refcnt_lock);
+	if (bst_sec_sa_pke_enable && refcnt == 0) {
+		crypto_register_akcipher(&bst_rsa);
+		crypto_register_akcipher(&bst_sm2);
+		crypto_register_akcipher(&bst_ecdsa);
+		refcnt = 1;
+	} else if (!bst_sec_sa_pke_enable && refcnt) {
+		crypto_unregister_akcipher(&bst_rsa);
+		crypto_unregister_akcipher(&bst_sm2);
+		crypto_unregister_akcipher(&bst_ecdsa);
+		refcnt = 0;
+	}
+	mutex_unlock(&refcnt_lock);
 }
 
 static const struct of_device_id bst_pke_match[] = {

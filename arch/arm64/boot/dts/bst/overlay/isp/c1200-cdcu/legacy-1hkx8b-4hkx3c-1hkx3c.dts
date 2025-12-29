@@ -1,0 +1,42 @@
+/dts-v1/;
+/plugin/;
+
+#include "../common/isp-csi-map.dtsi"
+#include "base-isp.dtsi"
+#include "base-csi-deser-camera.dtsi"
+#include "base-desers-3max96724.dtsi"
+
+&isp {
+	slab = "isp/common/slab-1x8b_720p-4x3c-1x3c.bin";
+	usage = "Front, Rear, Side, 6V model";
+};
+&camera0 {
+	#include "../cameras/ox08b_raw14_hk_1920x1080.dtsi"
+	sensor-fps = <20>;
+	status = "okay";
+};
+&camera4 {
+	#include "../cameras/ox03c_raw14_hk_1920x1080.dtsi"
+	sensor-fps = <20>;
+	status = "okay";
+};
+&camera5 {
+	#include "../cameras/ox03c_raw14_hk_1920x1080.dtsi"
+	sensor-fps = <20>;
+	status = "okay";
+};
+&camera6 {
+	#include "../cameras/ox03c_raw14_hk_1920x1080.dtsi"
+	sensor-fps = <20>;
+	status = "okay";
+};
+&camera7 {
+	#include "../cameras/ox03c_raw14_hk_1920x1080.dtsi"
+	sensor-fps = <20>;
+	status = "okay";
+};
+&camera8 {
+	#include "../cameras/ox03c_raw14_hk_1920x1080.dtsi"
+	sensor-fps = <20>;
+	status = "okay";
+};

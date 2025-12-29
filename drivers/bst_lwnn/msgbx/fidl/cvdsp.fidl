@@ -165,3 +165,26 @@ interface cvdsp3{
         error ErrorEnum
     }
 }
+
+interface cvdsp_safety{
+
+    version {major 1  minor 0}
+
+    enumeration ErrorEnum {
+        NO_ERROR = 0
+        SERVER_FAIL = -1
+        ERROR_2 = -2
+        ERROR_3 = -3
+    }
+    
+    method fusaenable_method{
+        in {
+            UInt8 block_id
+        }
+        out {
+            UInt8 block_id_out
+            UInt32[4] psm_id
+        }
+        error ErrorEnum
+    }
+}

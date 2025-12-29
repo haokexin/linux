@@ -8,8 +8,21 @@
 #include <linux/tty_flip.h>
 #include <linux/serial_reg.h>
 #include <linux/dma-mapping.h>
+#include <linux/gfp.h>
+#include <linux/mm.h>
+#include <linux/delay.h>
 
 #include "8250.h"
+
+#define  ORDER_FIFO  4
+#define  TX_FIFO_SIZE (16*PAGE_SIZE)
+#define  SINGLE_SEND_SIZE     PAGE_SIZE
+
+void uart_fifo_xmit_advance(struct circ_buf *xmit, unsigned int chars)
+{
+	xmit->tail = (xmit->tail + chars) & (TX_FIFO_SIZE - 1);
+}
+
 
 static void __dma_tx_complete(void *param)
 {
@@ -19,17 +32,37 @@ static void __dma_tx_complete(void *param)
 	unsigned long	flags;
 	int		ret;
 
-	dma_sync_single_for_cpu(dma->txchan->device->dev, dma->tx_addr,
-				UART_XMIT_SIZE, DMA_TO_DEVICE);
+	if(dma->tx_transfer == 0) {
 
-	spin_lock_irqsave(&p->port.lock, flags);
+		xmit = &p->port.state->xmit;
+
+		dma_sync_single_for_cpu(dma->txchan->device->dev, dma->tx_addr,UART_XMIT_SIZE, DMA_TO_DEVICE);
+
+		spin_lock_irqsave(&p->port.lock, flags);
+
+		uart_xmit_advance(&p->port, dma->tx_size);
+
+		if (uart_circ_chars_pending(xmit) < WAKEUP_CHARS)
+			uart_write_wakeup(&p->port);
+
+	} else {
+
+		xmit = &dma->xmit;
+
+		dma_sync_single_for_cpu(dma->txchan->device->dev, dma->tx_fifo_addr,TX_FIFO_SIZE, DMA_TO_DEVICE);
+
+		spin_lock_irqsave(&p->port.lock, flags);
+
+		
+
+		uart_fifo_xmit_advance(xmit, dma->tx_size);
+
+		 if (uart_circ_chars_pending(xmit) < WAKEUP_CHARS)
+		 	uart_write_wakeup(&p->port);
+	}
 
 	dma->tx_running = 0;
-
-	uart_xmit_advance(&p->port, dma->tx_size);
-
-	if (uart_circ_chars_pending(xmit) < WAKEUP_CHARS)
-		uart_write_wakeup(&p->port);
+	
 
 	ret = serial8250_tx_dma(p);
 	if (ret || !dma->tx_running)
@@ -81,49 +114,112 @@ int serial8250_tx_dma(struct uart_8250_port *p)
 {
 	struct uart_8250_dma		*dma = p->dma;
 	struct circ_buf			*xmit = &p->port.state->xmit;
+	struct circ_buf			*xmit_fifo = &dma->xmit;
 	struct dma_async_tx_descriptor	*desc;
 	struct uart_port		*up = &p->port;
-	int ret;
+	int ret,data_len;
+
 
 	if (dma->tx_running) {
+
+
 		if (up->x_char) {
 			dmaengine_pause(dma->txchan);
 			uart_xchar_out(up, UART_TX);
 			dmaengine_resume(dma->txchan);
 		}
+
+
+
 		return 0;
 	} else if (up->x_char) {
 		uart_xchar_out(up, UART_TX);
 	}
 
-	if (uart_tx_stopped(&p->port) || uart_circ_empty(xmit)) {
+	if (uart_tx_stopped(&p->port) || (uart_circ_empty(xmit) && uart_circ_empty(xmit_fifo))) {
+
 		/* We have been called from __dma_tx_complete() */
 		return 0;
 	}
 
-	dma->tx_size = CIRC_CNT_TO_END(xmit->head, xmit->tail, UART_XMIT_SIZE);
 
-	serial8250_do_prepare_tx_dma(p);
 
-	desc = dmaengine_prep_slave_single(dma->txchan,
-					   dma->tx_addr + xmit->tail,
-					   dma->tx_size, DMA_MEM_TO_DEV,
-					   DMA_PREP_INTERRUPT | DMA_CTRL_ACK);
-	if (!desc) {
-		ret = -EBUSY;
-		goto err;
+
+
+
+	
+
+
+	if(!uart_circ_empty(xmit_fifo)) {
+	
+
+		data_len = CIRC_CNT_TO_END(xmit_fifo->head, xmit_fifo->tail, TX_FIFO_SIZE);
+
+		if(data_len < SINGLE_SEND_SIZE) {
+
+			dma->tx_size = CIRC_CNT_TO_END(xmit_fifo->head, xmit_fifo->tail, TX_FIFO_SIZE);
+
+		}else {
+			
+			dma->tx_size = SINGLE_SEND_SIZE;
+		}
+
+
+		
+		serial8250_do_prepare_tx_dma(p);
+
+		desc = dmaengine_prep_slave_single(dma->txchan,
+						dma->tx_fifo_addr + xmit_fifo->tail,
+						dma->tx_size, DMA_MEM_TO_DEV,
+						DMA_PREP_INTERRUPT | DMA_CTRL_ACK);
+		if (!desc) {
+
+			ret = -EBUSY;
+			goto err;
+		}
+
+		dma->tx_running = 1;
+		desc->callback = __dma_tx_complete;
+		desc->callback_param = p;
+		dma->tx_transfer = 1;
+		dma->tx_cookie = dmaengine_submit(desc);
+
+		dma_sync_single_for_device(dma->txchan->device->dev, dma->tx_fifo_addr,TX_FIFO_SIZE, DMA_TO_DEVICE);
+
+		dma_async_issue_pending(dma->txchan);
+
+	}
+	else {
+
+		dma->tx_size = CIRC_CNT_TO_END(xmit->head, xmit->tail, UART_XMIT_SIZE);
+
+		serial8250_do_prepare_tx_dma(p);
+
+		desc = dmaengine_prep_slave_single(dma->txchan,
+						dma->tx_addr + xmit->tail,
+						dma->tx_size, DMA_MEM_TO_DEV,
+						DMA_PREP_INTERRUPT | DMA_CTRL_ACK);
+		if (!desc) {
+			//dma->tx_running = 0;
+			ret = -EBUSY;
+			goto err;
+		}
+
+		dma->tx_running = 1;
+		desc->callback = __dma_tx_complete;
+		desc->callback_param = p;
+		dma->tx_transfer = 0;
+
+		dma->tx_cookie = dmaengine_submit(desc);
+
+		dma_sync_single_for_device(dma->txchan->device->dev, dma->tx_addr,UART_XMIT_SIZE, DMA_TO_DEVICE);
+
+		dma_async_issue_pending(dma->txchan);
+
 	}
 
-	dma->tx_running = 1;
-	desc->callback = __dma_tx_complete;
-	desc->callback_param = p;
 
-	dma->tx_cookie = dmaengine_submit(desc);
 
-	dma_sync_single_for_device(dma->txchan->device->dev, dma->tx_addr,
-				   UART_XMIT_SIZE, DMA_TO_DEVICE);
-
-	dma_async_issue_pending(dma->txchan);
 	serial8250_clear_THRI(p);
 	dma->tx_err = 0;
 
@@ -245,6 +341,7 @@ int serial8250_request_dma(struct uart_8250_port *p)
 		goto err;
 	}
 
+
 	/* TX buffer */
 	dma->tx_addr = dma_map_single(dma->txchan->device->dev,
 					p->port.state->xmit.buf,
@@ -257,7 +354,43 @@ int serial8250_request_dma(struct uart_8250_port *p)
 		goto err;
 	}
 
+
+
+
+	dma->fifo_pages = alloc_pages(GFP_KERNEL| __GFP_ZERO,ORDER_FIFO);
+	if (!dma->fifo_pages){
+
+		dma_free_coherent(dma->rxchan->device->dev, dma->rx_size,
+				  dma->rx_buf, dma->rx_addr);
+
+		dma_unmap_single(dma->txchan->device->dev, dma->tx_addr,UART_XMIT_SIZE, DMA_TO_DEVICE);
+
+		ret = -ENOMEM;
+		goto err;
+	}
+
+	dma->xmit.buf = (unsigned char *) page_address(dma->fifo_pages);
+	uart_circ_clear(&dma->xmit);
+
+	
+	/* TX fifo  buffer */
+	dma->tx_fifo_addr = dma_map_single(dma->txchan->device->dev,
+					dma->xmit.buf,
+					TX_FIFO_SIZE,
+					DMA_TO_DEVICE);
+
+	if (dma_mapping_error(dma->txchan->device->dev, dma->tx_fifo_addr)) {
+		dma_free_coherent(dma->rxchan->device->dev, dma->rx_size,dma->rx_buf, dma->rx_addr);
+		dma_unmap_single(dma->txchan->device->dev, dma->tx_addr,UART_XMIT_SIZE, DMA_TO_DEVICE);
+		__free_pages(dma->fifo_pages,ORDER_FIFO);
+		ret = -ENOMEM;
+		goto err;
+	}
+
+
 	dev_dbg_ratelimited(p->port.dev, "got both dma channels\n");
+
+	dma->tx_fifo_dma_flag = 1;
 
 	return 0;
 err:
@@ -268,12 +401,136 @@ release_rx:
 }
 EXPORT_SYMBOL_GPL(serial8250_request_dma);
 
+
+
+
+unsigned int serial8250_fifo_space(struct uart_8250_port *p) {
+	struct circ_buf *circ;
+	struct uart_8250_dma	*dma = p->dma;
+	unsigned int len;
+
+	circ = &dma->xmit;
+	if (!circ->buf) {
+		return 0;
+	}
+
+	len = CIRC_SPACE(circ->head, circ->tail, TX_FIFO_SIZE);
+
+	return len;
+}
+
+
+int serial8250_fifo_insert_chars(struct uart_8250_port *p,const unsigned char *buf, int count)
+{
+
+	struct uart_8250_dma	*dma = p->dma;
+	struct circ_buf *circ;
+	int c, ret = 0;
+	int i;
+
+
+	circ = &dma->xmit;
+	if (!circ->buf) {
+		return 0;
+	}
+
+	while(true) 
+	{
+
+		c = CIRC_SPACE(circ->head, circ->tail, TX_FIFO_SIZE);
+		if (count < c)
+			c = count;
+		if (c <= 0)
+			break;
+
+		
+
+		for(i = 0; i < c; i++) {
+
+			if(buf[i] == '\n') {
+				*(circ->buf + circ->head) = '\r';
+				circ->head = (circ->head + 1) & (TX_FIFO_SIZE - 1);
+				*(circ->buf + circ->head) = '\n';
+			}else {
+				*(circ->buf + circ->head) = buf[i];
+			}
+
+			circ->head = (circ->head + 1) & (TX_FIFO_SIZE - 1);
+		}
+
+
+		 buf += c;
+		 count -= c;
+		 ret += c;
+	}
+	
+
+
+	
+	return ret;
+}
+
+EXPORT_SYMBOL_GPL(serial8250_fifo_insert_chars);
+
+
+
+
+static void wait_for_lsr(struct uart_8250_port *up, int bits)
+{
+	unsigned int status, tmout = 1000000;
+
+	/* Wait up to 10ms for the character(s) to be sent. */
+	for (;;) {
+		status = serial_lsr_in(up);
+
+		if ((status & bits) == bits)
+			break;
+		if (--tmout == 0)
+			break;
+		udelay(1);
+	}
+}
+
+/*
+ *	Wait for transmitter & holding register to empty
+ */
+static void wait_for_xmitr(struct uart_8250_port *up, int bits)
+{
+	unsigned int tmout;
+
+	wait_for_lsr(up, bits);
+
+	/* Wait up to 1s for flow control if necessary */
+	if (up->port.flags & UPF_CONS_FLOW) {
+		for (tmout = 10000000; tmout; tmout--) {
+			unsigned int msr = serial_in(up, UART_MSR);
+			up->msr_saved_flags |= msr & MSR_SAVE_FLAGS;
+			if (msr & UART_MSR_CTS)
+				break;
+			udelay(1);
+		}
+	}
+}
+
+
+
+
+
 void serial8250_release_dma(struct uart_8250_port *p)
 {
 	struct uart_8250_dma *dma = p->dma;
 
 	if (!dma)
 		return;
+
+	dma->tx_fifo_dma_flag = 0;
+
+	
+
+	while(dma->tx_running)
+		udelay(1);
+	
+	wait_for_xmitr(p,UART_LSR_BOTH_EMPTY);
 
 	/* Release RX resources */
 	dmaengine_terminate_sync(dma->rxchan);
@@ -286,10 +543,17 @@ void serial8250_release_dma(struct uart_8250_port *p)
 	dmaengine_terminate_sync(dma->txchan);
 	dma_unmap_single(dma->txchan->device->dev, dma->tx_addr,
 			 UART_XMIT_SIZE, DMA_TO_DEVICE);
+
+	dma_unmap_single(dma->txchan->device->dev, dma->tx_fifo_addr,
+			 TX_FIFO_SIZE, DMA_TO_DEVICE);
+
+	__free_pages(dma->fifo_pages,ORDER_FIFO);
+
 	dma_release_channel(dma->txchan);
 	dma->txchan = NULL;
 	dma->tx_running = 0;
+	dma->fifo_pages = NULL;
 
-	dev_dbg_ratelimited(p->port.dev, "dma channels released\n");
+	dev_dbg(p->port.dev, "dma channels released\n");
 }
 EXPORT_SYMBOL_GPL(serial8250_release_dma);

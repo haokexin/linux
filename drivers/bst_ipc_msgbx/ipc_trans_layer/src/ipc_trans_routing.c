@@ -1,13 +1,20 @@
-// SPDX-License-Identifier: GPL-2.0 OR BSD-3-Clause
-/* This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2 of the License, or
- * (at your option) any later version.
+/* SPDX-License-Identifier: GPL-2.0 OR Apache 2.0
  *
- * This program is also distributed under the terms of the BSD 3-Clause
+ * Copyright (c) 2024 Black Sesame Technologies
+ *
+ * This program is also distributed under the terms of the Apache 2.0
  * License.
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
- * Copyright (C) 2023 Black Sesame Technologies. Inc.
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 
 /**
@@ -18,12 +25,10 @@
  * 2. receive error message from hw_layer(if defined)
  * 3. parse request and transfer to hw_layer to send message (different protocol is reserved)
  */
-#include <bst/ipc_hw_layer.h>
-#include <bst/ipc_trans_layer.h>
+
 #include "ipc_trans_routing.h"
 #include "ipc_trans_runtime.h"
 #include "ipc_trans_ses_mgt.h"
-#include "ipc_trans_sts_mgt.h"
 
 int32_t recv_dispatch(void *addr, const uint8_t fid, const rw_msg_t *msg)
 {
@@ -35,11 +40,12 @@ int32_t recv_dispatch(void *addr, const uint8_t fid, const rw_msg_t *msg)
 #endif
 #ifndef REMOVE_STS_MGT
 	uint8_t cnt = 0;
+	sts_endmap_t endmap = {0};
 #endif
 
-	// according to dispatching rules, push messages into corresponding session message queue
-	if (!addr || !msg)
-		return ret;
+	// ignore check for addr and msg, already checked in caller.
+	// if (!addr || !msg)
+	// 	return ret;
 
 	module = (msgbx_end_device_t *)addr;
 
@@ -48,19 +54,18 @@ int32_t recv_dispatch(void *addr, const uint8_t fid, const rw_msg_t *msg)
 		return -1;
 	}
 
-	// message dispatching
 	IPC_LOG_DEBUG("dispatch msg pid: %d, cid: %d, sid: %d, fid: %d",
 		      msg->header.pid, msg->header.cid, msg->header.sid,
 		      msg->header.fid);
-	IPC_LOG_DEBUG("msg type: %d, cmd: %d, tok: %d, idx: %d",
+	IPC_LOG_DEBUG("msg type: %d, cmd: %d, tok: %d, idx: %d, is_eof: %u",
 		      msg->header.typ, msg->header.cmd, msg->header.tok,
-		      msg->header.idx);
+		      msg->header.idx, msg->header.is_eof);
 
 	if (msg->header.typ == MSGBX_MSG_TYPE_REPLY ||
 	    msg->header.typ == MSGBX_MSG_TYPE_BROADCAST ||
 	    (msg->header.typ >= MSGBX_MSG_TYPE_USERDEFINED &&
 	     msg->header.typ < MSGBX_MSG_TYPE_HARDWARE)) {
-		session_comb(msg->header.sid, msg->header.fid, &session_id);
+		session_id = session_comb(msg->header.sid, msg->header.fid);
 		ret = session_msg_in(session_id, msg, addr);
 	} else if (msg->header.typ == MSGBX_MSG_TYPE_METHOD) {
 #if ((SESSION_COUNT == 1 && CHANNEL_COUNT == 1) ||                             \
@@ -84,17 +89,18 @@ int32_t recv_dispatch(void *addr, const uint8_t fid, const rw_msg_t *msg)
 		    module->g_ipc_pid == CENTRAL_MONITOR_END_ID) {
 			module->g_req_endmap_cid = msg->header.pid;
 			ret = 2;
-		} else
-			ret = ipc_end_sts_update(msg->header.pid,
-						 msg->header.cmd,
-						 msg->payload[0], addr);
+		} else {
+			endmap.lo_map = msg->payload[0];
+			endmap.hi_map = msg->payload[1];
+			ret = ipc_trans_end_sts_update(msg->header.pid, msg->header.cmd, &endmap, addr);
+		}
 #endif
 	} else {
-		IPC_LOG_WARNING(
+		IPC_LOG_DEBUG(
 			"discard msg pid: %d, cid: %d, sid: %d, fid: %d",
 			msg->header.pid, msg->header.cid, msg->header.sid,
 			msg->header.fid);
-		IPC_LOG_WARNING("msg type: %d, cmd: %d, tok: %d, idx: %d",
+		IPC_LOG_DEBUG("msg type: %d, cmd: %d, tok: %d, idx: %d",
 				msg->header.typ, msg->header.cmd,
 				msg->header.tok, msg->header.idx);
 		return ret;
@@ -102,18 +108,19 @@ int32_t recv_dispatch(void *addr, const uint8_t fid, const rw_msg_t *msg)
 
 	// ret processing
 	if (ret == 0) {
-		ipc_trans_complete(module->ops.cpuid, session_id);
+		if (msg->header.is_eof == 1)
+			ipc_trans_complete(module->g_ipc_cpuid, session_id);
 		return 0;
 	}
 #ifndef REMOVE_STS_MGT
 	if (ret == 1) {
 		if (module->g_ipc_pid == CENTRAL_MONITOR_END_ID)
-			ipc_trans_complete_sts(module->ops.cpuid);
+			ipc_trans_complete_sts(module->g_ipc_cpuid);
 
 		for (cnt = 0; cnt < CHANNEL_COUNT * SESSION_COUNT; ++cnt) {
 			if (module->g_update_ses_list[cnt] == -1)
 				break;
-			ipc_trans_complete(module->ops.cpuid,
+			ipc_trans_complete(module->g_ipc_cpuid,
 					   module->g_update_ses_list[cnt]);
 		}
 		ipc_memset(&module->g_update_ses_list, -1,
@@ -122,19 +129,75 @@ int32_t recv_dispatch(void *addr, const uint8_t fid, const rw_msg_t *msg)
 	}
 
 	if (ret == 2) {
-		ipc_trans_complete_sts(module->ops.cpuid);
+		ipc_trans_complete_sts(module->g_ipc_cpuid);
 		return 2;
 	}
 #endif
 
-	IPC_LOG_WARNING(
+	// note: add can not dispatch method error code loopback feature at here.
+	// in Linux kernel should use a special method to reply this error code
+#ifdef ENABLE_SERVER_ERROR_CODE_REPLY
+	if (ret == -2 || ret == -6) {
+		rw_msg_t reply = *msg;
+		reply.header.pid = msg->header.cid;
+		reply.header.cid = msg->header.pid;
+		reply.header.typ = MSGBX_MSG_TYPE_REPLY;
+		reply.header.is_eof = 1;
+		reply.payload[0] = (ret == -2) ? ERR_APP_SERVER_IS_NOT_AVAIL : ERR_APP_SERVER_IS_FULL;
+		ipc_hw_layer_send_msg(module->g_ipc_cpuid, &reply);
+	}
+#endif
+
+	IPC_LOG_DEBUG(
 		"ret: %d, discard msg pid: %d, cid: %d, sid: %d, fid: %d", ret,
 		msg->header.pid, msg->header.cid, msg->header.sid,
 		msg->header.fid);
-	IPC_LOG_WARNING("msg type: %d, cmd: %d, tok: %d, idx: %d push in fail",
+	IPC_LOG_DEBUG("msg type: %d, cmd: %d, tok: %d, idx: %d push in fail",
 			msg->header.typ, msg->header.cmd, msg->header.tok,
 			msg->header.idx);
 	return ret;
+}
+
+int endmap_dispatch(void *addr, const sts_endmap_t *endmap)
+{
+#if defined(MSGBX_HW_TYPE_A2000)
+#ifndef REMOVE_STS_MGT
+	int32_t ret = -1;
+	uint8_t cnt = 0;
+	msgbx_end_device_t *module = NULL;
+#if defined(MULTI_DIE_HW_VERSION)
+	uint8_t updated_chipid = 0;
+#endif
+
+	if (!addr || !endmap)
+		return ret;
+
+
+	module = (msgbx_end_device_t *)addr;
+	ret = ipc_trans_end_sts_update(0, 0, endmap, addr);
+
+	if (ret < 0)
+		return ret;
+
+#if defined(MULTI_DIE_HW_VERSION)
+	if (module->g_ipc_pid == CENTRAL_MONITOR_END_ID) {
+		updated_chipid = module->hw_info.chipid ^= 1;
+		ipc_hw_layer_update_endmap(module->g_ipc_cpuid, updated_chipid);
+	}
+#endif
+
+	for (cnt = 0; cnt < CHANNEL_COUNT * SESSION_COUNT; ++cnt) {
+		if (module->g_update_ses_list[cnt] == -1)
+			break;
+		ipc_trans_complete(module->g_ipc_cpuid,
+					module->g_update_ses_list[cnt]);
+	}
+	ipc_memset(&module->g_update_ses_list, -1,
+			sizeof(module->g_update_ses_list));
+	return 1;
+#endif
+#endif
+	return 0;
 }
 
 int32_t ipc_trans_read_msg(uint8_t fid, uint8_t mode, void *addr)
@@ -149,21 +212,16 @@ int32_t ipc_trans_read_msg(uint8_t fid, uint8_t mode, void *addr)
 	if (!addr)
 		return -1;
 	module = (msgbx_end_device_t *)addr;
-	// check mode
-	// 0 means get messages from every filter
-	// 1 means get message from specific filter
 
 	if (mode == 0) {
-		// means get all flt
-
 		for (cnt = 0; cnt < CHANNEL_COUNT; ++cnt) {
-			ret = ipc_hw_layer_get_msg(module->ops.cpuid, &recv_msg,
+			ret = ipc_hw_layer_get_msg(module->g_ipc_cpuid, &recv_msg,
 						   cnt);
 			if (ret == 0)
 				ret = recv_dispatch(addr, cnt, &recv_msg);
 		}
 	} else if (mode == 1) {
-		ret = ipc_hw_layer_get_msg(module->ops.cpuid, &recv_msg, fid);
+		ret = ipc_hw_layer_get_msg(module->g_ipc_cpuid, &recv_msg, fid);
 		if (ret == 0)
 			ret = recv_dispatch(addr, fid, &recv_msg);
 	} else {
@@ -171,57 +229,6 @@ int32_t ipc_trans_read_msg(uint8_t fid, uint8_t mode, void *addr)
 	}
 #endif
 	return ret;
-}
-
-int32_t ipc_trans_register_method(const uint8_t session_id, const uint8_t cmd,
-				  void *dev_info)
-{
-#if (SESSION_COUNT > 1)
-#if !defined(BAREMETAL_VERSION_TRUNCATE)
-	msgbx_end_device_t *module = NULL;
-	int8_t ret = -1;
-
-	if (!dev_info)
-		return -1;
-
-	module = (msgbx_end_device_t *)dev_info;
-	ret = session_isvalid(session_id, dev_info);
-	if (ret != 0)
-		return -ERR_SES_IS_INVALID;
-
-	// spec note: even cmd value is over 256, compiler will optimize and truncate it.
-	if (module->method_register_map[cmd] > 0)
-		return -ERR_REGISTER_METHOD_REPEATE;
-
-	module->method_register_map[cmd] = session_id;
-	IPC_LOG_INFO("ses %d register cmd %d success", session_id, cmd);
-#endif
-#endif
-	return 0;
-}
-
-int32_t ipc_trans_unregister_method(const uint8_t session_id, void *dev_info)
-{
-#if (SESSION_COUNT > 1)
-#if !defined(BAREMETAL_VERSION_TRUNCATE)
-	msgbx_end_device_t *module = NULL;
-	int8_t ret = -1;
-	uint8_t cnt = 0;
-
-	if (!dev_info)
-		return -1;
-
-	module = (msgbx_end_device_t *)dev_info;
-	ret = session_isvalid(session_id, dev_info);
-	if (ret != 0)
-		return -ERR_SES_IS_INVALID;
-
-	for (cnt = 0; cnt < CMD_MAX_COUNT; ++cnt)
-		if (module->method_register_map[cnt] == session_id)
-			module->method_register_map[cnt] = -1;
-#endif
-#endif
-	return 0;
 }
 
 int8_t ipc_trans_routing_init(void *addr)
@@ -240,10 +247,18 @@ int8_t ipc_trans_routing_init(void *addr)
 #endif
 #endif
 
-#if (IPC_RECV_MODE == 1)
+#if (MSGBX_RECV_MODE == 1)
 	ret = ipc_hw_layer_recv_ntf_register(addr, recv_dispatch);
-	if (ret < 0)
+	if (ret < 0) {
 		IPC_LOG_ERR("register recv func fail, ret: %d", ret);
+		return ret;
+	}
+#endif
+
+#if defined(MSGBX_HW_TYPE_A2000)
+	ret = ipc_hw_layer_endmap_ntf_register(addr, endmap_dispatch);
+	if (ret < 0)
+		IPC_LOG_ERR("register endmap func fail, ret: %d", ret);
 #endif
 	return ret;
 }

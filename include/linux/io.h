@@ -141,6 +141,7 @@ enum {
 	MEMREMAP_WC = 1 << 2,
 	MEMREMAP_ENC = 1 << 3,
 	MEMREMAP_DEC = 1 << 4,
+	MEMREMAP_NS = 1 << 5,
 };
 
 void *memremap(resource_size_t offset, size_t size, unsigned long flags);

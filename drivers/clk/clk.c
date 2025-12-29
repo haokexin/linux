@@ -2772,7 +2772,7 @@ EXPORT_SYMBOL_GPL(bst_clk_set_rate_only);
  */
 int bst_clk_set_rate_divider(struct clk *clk, unsigned long rate)
 {
-	int ret;
+	int ret = 0;
 	struct clk *parent;
 	unsigned long parent_rate = 0;
 

@@ -1,6 +1,7 @@
 config BST_SQBUFFER
 	tristate "Support BST sqbuffer"
 	depends on ARM64
+	depends on !C1200_SLT && !C1200_MASS
 	default y
 	help
 	  BST sqbuffer is a circular queue based on the producer-consumer model,

@@ -37,6 +37,9 @@
 #include <linux/context_tracking.h>
 #include <trace/events/error_report.h>
 #include <asm/sections.h>
+#ifdef CONFIG_ARCH_BST
+#include <linux/arm-smccc.h>
+#endif
 
 #define PANIC_TIMER_STEP 100
 #define PANIC_BLINK_SPD 18
@@ -50,6 +53,10 @@ static unsigned int __read_mostly sysctl_oops_all_cpu_backtrace;
 #else
 #define sysctl_oops_all_cpu_backtrace 0
 #endif /* CONFIG_SMP */
+
+#ifdef CONFIG_ARCH_BST
+#define BST_PANIC_DTC_SEND		0xc2000008
+#endif
 
 int panic_on_oops = CONFIG_PANIC_ON_OOPS_VALUE;
 static unsigned long tainted_mask =
@@ -284,6 +291,9 @@ void panic(const char *fmt, ...)
 	int state = 0;
 	int old_cpu, this_cpu;
 	bool _crash_kexec_post_notifiers = crash_kexec_post_notifiers;
+#ifdef CONFIG_ARCH_BST
+	struct arm_smccc_res res;
+#endif
 
 	if (panic_on_warn) {
 		/*
@@ -341,6 +351,10 @@ void panic(const char *fmt, ...)
 	 */
 	if (!test_taint(TAINT_DIE) && oops_in_progress <= 1)
 		dump_stack();
+#endif
+
+#ifdef CONFIG_ARCH_BST
+	arm_smccc_smc(BST_PANIC_DTC_SEND, 0, 0, 0, 0, 0, 0, 0, &res);
 #endif
 
 	/*

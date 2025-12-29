@@ -1561,6 +1561,45 @@ static void serial8250_stop_tx(struct uart_port *port)
 	serial8250_rpm_put(up);
 }
 
+static void wait_for_lsr(struct uart_8250_port *up, int bits)
+{
+	unsigned int status, tmout = 10000;
+
+	/* Wait up to 10ms for the character(s) to be sent. */
+	for (;;) {
+		status = serial_lsr_in(up);
+
+		if ((status & bits) == bits)
+			break;
+		if (--tmout == 0)
+			break;
+		udelay(1);
+		touch_nmi_watchdog();
+	}
+}
+
+/*
+ *	Wait for transmitter & holding register to empty
+ */
+static void wait_for_xmitr(struct uart_8250_port *up, int bits)
+{
+	unsigned int tmout;
+
+	wait_for_lsr(up, bits);
+
+	/* Wait up to 1s for flow control if necessary */
+	if (up->port.flags & UPF_CONS_FLOW) {
+		for (tmout = 1000000; tmout; tmout--) {
+			unsigned int msr = serial_in(up, UART_MSR);
+			up->msr_saved_flags |= msr & MSR_SAVE_FLAGS;
+			if (msr & UART_MSR_CTS)
+				break;
+			udelay(1);
+			touch_nmi_watchdog();
+		}
+	}
+}
+
 static inline void __start_tx(struct uart_port *port)
 {
 	struct uart_8250_port *up = up_to_u8250p(port);
@@ -1568,6 +1607,9 @@ static inline void __start_tx(struct uart_port *port)
 	if (up->dma && !up->dma->tx_dma(up))
 		return;
 
+	wait_for_xmitr(up, UART_LSR_BOTH_EMPTY);
+
+	
 	if (serial8250_set_THRI(up)) {
 		if (up->bugs & UART_BUG_TXEN) {
 			u16 lsr = serial_lsr_in(up);
@@ -1809,11 +1851,19 @@ u16 serial8250_rx_chars(struct uart_8250_port *up, u16 lsr)
 }
 EXPORT_SYMBOL_GPL(serial8250_rx_chars);
 
+
+
+#define UART_TFL_REG_PORT 32 
+
+
 void serial8250_tx_chars(struct uart_8250_port *up)
 {
 	struct uart_port *port = &up->port;
 	struct circ_buf *xmit = &port->state->xmit;
 	int count;
+	unsigned int tfl;
+	unsigned int fifosize = up->tx_loadsz;
+
 
 	if (port->x_char) {
 		uart_xchar_out(port, UART_TX);
@@ -1830,6 +1880,20 @@ void serial8250_tx_chars(struct uart_8250_port *up)
 
 	count = up->tx_loadsz;
 	do {
+
+		while(1) {
+
+			tfl = serial_in(up, UART_TFL_REG_PORT);
+			if(tfl >= fifosize){
+				udelay(10);
+				continue;
+			}else{
+				break;
+			}
+
+		}
+
+		
 		serial_out(up, UART_TX, xmit->buf[xmit->tail]);
 		if (up->bugs & UART_BUG_TXRACE) {
 			/*
@@ -1958,7 +2022,8 @@ int serial8250_handle_irq(struct uart_port *port, unsigned int iir)
 		d = irq_get_irq_data(port->irq);
 		if (d && irqd_is_wakeup_set(d))
 			pm_wakeup_event(tport->tty->dev, 0);
-		if (!up->dma || handle_rx_dma(up, iir))
+
+		if (uart_console(port) || !up->dma || handle_rx_dma(up, iir))
 			status = serial8250_rx_chars(up, status);
 	}
 	serial8250_modem_status(up);
@@ -2097,44 +2162,7 @@ static void serial8250_break_ctl(struct uart_port *port, int break_state)
 	serial8250_rpm_put(up);
 }
 
-static void wait_for_lsr(struct uart_8250_port *up, int bits)
-{
-	unsigned int status, tmout = 10000;
 
-	/* Wait up to 10ms for the character(s) to be sent. */
-	for (;;) {
-		status = serial_lsr_in(up);
-
-		if ((status & bits) == bits)
-			break;
-		if (--tmout == 0)
-			break;
-		udelay(1);
-		touch_nmi_watchdog();
-	}
-}
-
-/*
- *	Wait for transmitter & holding register to empty
- */
-static void wait_for_xmitr(struct uart_8250_port *up, int bits)
-{
-	unsigned int tmout;
-
-	wait_for_lsr(up, bits);
-
-	/* Wait up to 1s for flow control if necessary */
-	if (up->port.flags & UPF_CONS_FLOW) {
-		for (tmout = 1000000; tmout; tmout--) {
-			unsigned int msr = serial_in(up, UART_MSR);
-			up->msr_saved_flags |= msr & MSR_SAVE_FLAGS;
-			if (msr & UART_MSR_CTS)
-				break;
-			udelay(1);
-			touch_nmi_watchdog();
-		}
-	}
-}
 
 #ifdef CONFIG_CONSOLE_POLL
 /*
@@ -2200,7 +2228,12 @@ int serial8250_do_startup(struct uart_port *port)
 	unsigned long flags;
 	unsigned char iir;
 	int retval;
+	static int init_flag = 0;
 	u16 lsr;
+
+
+
+	//dev_err(port->dev, "%s %d\n",__func__,__LINE__);
 
 	if (!port->fifosize)
 		port->fifosize = uart_config[port->type].fifo_size;
@@ -2213,6 +2246,8 @@ int serial8250_do_startup(struct uart_port *port)
 	if (port->iotype != up->cur_iotype)
 		set_io_from_upio(port);
 
+	wait_for_xmitr(up, UART_LSR_BOTH_EMPTY);
+	
 	serial8250_rpm_get(up);
 	if (port->type == PORT_16C950) {
 		/* Wake up and initialize UART */
@@ -2440,17 +2475,34 @@ dont_test_tx_en:
 	/*
 	 * Request DMA channels for both RX and TX.
 	 */
-	if (up->dma) {
+
+	if (up->dma && !up->dma->fifo_pages) {
+
 		const char *msg = NULL;
 
-		if (uart_console(port))
-			msg = "forbid DMA for kernel console";
-		else if (serial8250_request_dma(up))
-			msg = "failed to request DMA";
-		if (msg) {
-			dev_warn_ratelimited(port->dev, "%s\n", msg);
-			up->dma = NULL;
+		//suspend: suspend->shutdown   resume :resume-> startup
+		//reboot :  shutdown->startup
+		//cold   ： startup
+		//login timeout：shutdown->startup
+
+		{
+			// if (uart_console(port))
+			// 	msg = "forbid DMA for kernel console";
+			// else 
+
+		
+			if (serial8250_request_dma(up))
+				msg = "failed to request DMA";
+			if (msg) {
+				dev_warn_ratelimited(port->dev, "%s\n", msg);
+				up->dma = NULL;
+			}
 		}
+
+		// else {
+		// 	msg = "no need request DMA";
+		// 	dev_warn_ratelimited(port->dev, "%s\n", msg);
+		// }
 	}
 
 	/*
@@ -2469,7 +2521,15 @@ dont_test_tx_en:
 		outb_p(0x80, icp);
 		inb_p(icp);
 	}
+
+	wait_for_xmitr(up, UART_LSR_BOTH_EMPTY);
+	
 	retval = 0;
+	
+	init_flag = 1;
+
+	
+	
 out:
 	serial8250_rpm_put(up);
 	return retval;
@@ -2492,6 +2552,10 @@ void serial8250_do_shutdown(struct uart_port *port)
 	/*
 	 * Disable interrupts from this port
 	 */
+
+
+	//dev_err(port->dev, "%s %d\n",__func__,__LINE__);
+
 	spin_lock_irqsave(&port->lock, flags);
 	up->ier = 0;
 	serial_port_out(port, UART_IER, 0);
@@ -2499,7 +2563,7 @@ void serial8250_do_shutdown(struct uart_port *port)
 
 	synchronize_irq(port->irq);
 
-	if (up->dma)
+	if (up->dma && up->dma->fifo_pages)
 		serial8250_release_dma(up);
 
 	spin_lock_irqsave(&port->lock, flags);
@@ -2645,10 +2709,13 @@ static unsigned char serial8250_compute_lcr(struct uart_8250_port *up,
 	return cval;
 }
 
+extern spinlock_t early_uart_spin_lock;
+
 void serial8250_do_set_divisor(struct uart_port *port, unsigned int baud,
 			       unsigned int quot, unsigned int quot_frac)
 {
 	struct uart_8250_port *up = up_to_u8250p(port);
+	unsigned long flags;
 
 	/* Workaround to enable 115200 baud on OMAP1510 internal ports */
 	if (is_omap1510_8250(up)) {
@@ -2663,12 +2730,19 @@ void serial8250_do_set_divisor(struct uart_port *port, unsigned int baud,
 	 * For NatSemi, switch to bank 2 not bank 1, to avoid resetting EXCR2,
 	 * otherwise just set DLAB
 	 */
+	spin_lock_irqsave(&early_uart_spin_lock,flags);
+
 	if (up->capabilities & UART_NATSEMI)
 		serial_port_out(port, UART_LCR, 0xe0);
 	else
 		serial_port_out(port, UART_LCR, up->lcr | UART_LCR_DLAB);
 
+	
 	serial_dl_write(up, quot);
+	serial_port_out(port, UART_LCR, (up->lcr&0x7f));
+
+	spin_unlock_irqrestore(&early_uart_spin_lock, flags);
+
 }
 EXPORT_SYMBOL_GPL(serial8250_do_set_divisor);
 
@@ -3360,6 +3434,7 @@ static void serial8250_console_restore(struct uart_8250_port *up)
 	serial8250_out_MCR(up, up->mcr | UART_MCR_DTR | UART_MCR_RTS);
 }
 
+
 /*
  * Print a string to the serial port using the device FIFO
  *
@@ -3379,12 +3454,18 @@ static void serial8250_console_fifo_write(struct uart_8250_port *up,
 		
 		for (i = 0; i < fifosize && s != end; ++i) {
 
-			tfl = serial_in(up, 32);
+			while(1) {
 
-			if(tfl >= fifosize){
-				wait_for_lsr(up, UART_LSR_THRE);
+				tfl = serial_in(up, UART_TFL_REG_PORT);
+				if(tfl >= fifosize){
+					udelay(10);
+					continue;
+				}else{
+					break;
+				}
 			}
 
+		
 			if (*s == '\n' && !cr_sent) {
 				serial_out(up, UART_TX, '\r');
 				cr_sent = true;
@@ -3392,6 +3473,7 @@ static void serial8250_console_fifo_write(struct uart_8250_port *up,
 				serial_out(up, UART_TX, *s++);
 				cr_sent = false;
 			}
+		
 
 		}
 	}
@@ -3411,17 +3493,13 @@ void serial8250_console_write(struct uart_8250_port *up, const char *s,
 {
 	struct uart_8250_em485 *em485 = up->em485;
 	struct uart_port *port = &up->port;
-	unsigned long flags;
+	//unsigned long flags;
 	unsigned int ier, use_fifo;
-	int locked = 1;
+	//int locked = 1;
 
 	touch_nmi_watchdog();
 
-	if (oops_in_progress)
-		locked = spin_trylock_irqsave(&port->lock, flags);
-	else
-		spin_lock_irqsave(&port->lock, flags);
-
+	
 	/*
 	 *	First save the IER then disable the interrupts
 	 */
@@ -3469,7 +3547,7 @@ void serial8250_console_write(struct uart_8250_port *up, const char *s,
 	 *	Finally, wait for transmitter to become empty
 	 *	and restore the IER
 	 */
-	wait_for_xmitr(up, UART_LSR_BOTH_EMPTY);
+	//wait_for_xmitr(up, UART_LSR_BOTH_EMPTY);
 
 	if (em485) {
 		mdelay(port->rs485.delay_rts_after_send);
@@ -3489,20 +3567,23 @@ void serial8250_console_write(struct uart_8250_port *up, const char *s,
 	if (up->msr_saved_flags)
 		serial8250_modem_status(up);
 
-	if (locked)
-		spin_unlock_irqrestore(&port->lock, flags);
+	// if (locked)
+	// 	spin_unlock_irqrestore(&port->lock, flags);
 }
 
 static unsigned int probe_baud(struct uart_port *port)
 {
 	unsigned char lcr, dll, dlm;
 	unsigned int quot;
+	unsigned long flags;
 
+	spin_lock_irqsave(&early_uart_spin_lock,flags);
 	lcr = serial_port_in(port, UART_LCR);
 	serial_port_out(port, UART_LCR, lcr | UART_LCR_DLAB);
 	dll = serial_port_in(port, UART_DLL);
 	dlm = serial_port_in(port, UART_DLM);
 	serial_port_out(port, UART_LCR, lcr);
+	spin_unlock_irqrestore(&early_uart_spin_lock, flags);
 
 	quot = (dlm << 8) | dll;
 	return (port->uartclk / 16) / quot;

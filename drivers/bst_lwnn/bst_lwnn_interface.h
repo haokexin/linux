@@ -1,4 +1,5 @@
-/* SPDX-License-Identifier: GPL-2.0+
+// SPDX-License-Identifier: GPL-2.0+
+/*
  *
  * Copyright (c) 2024 Black Sesame Technologies
  */
@@ -16,7 +17,7 @@
 #define BST_LWNN_USER_H
 
 /******************************************************************************/
-#define BST_LWNN_DRIVER_HDRNAME         "/dev/bst_lwnn"	//without index
+#define BST_LWNN_DRIVER_HDRNAME "/dev/bst_lwnn" //without index
 
 #include <linux/types.h>
 
@@ -24,43 +25,43 @@ typedef uint32_t dsp_ptr;
 
 /******************************************************************************/
 //user-space use struct or definition
-#define BST_LWNN_IOCTL_BUF              'B'
-#define BST_LWNN_IOCTL_BUF_ALLOC        _IO(BST_LWNN_IOCTL_BUF, 1)
-#define BST_LWNN_IOCTL_BUF_FREE         _IO(BST_LWNN_IOCTL_BUF, 2)
-#define BST_LWNN_IOCTL_BUF_FLUSH        _IO(BST_LWNN_IOCTL_BUF, 3)
-#define BST_LWNN_IOCTL_BUF_INVALIDATE   _IO(BST_LWNN_IOCTL_BUF, 4)
+#define BST_LWNN_IOCTL_BUF 'B'
+#define BST_LWNN_IOCTL_BUF_ALLOC _IO(BST_LWNN_IOCTL_BUF, 1)
+#define BST_LWNN_IOCTL_BUF_FREE _IO(BST_LWNN_IOCTL_BUF, 2)
+#define BST_LWNN_IOCTL_BUF_FLUSH _IO(BST_LWNN_IOCTL_BUF, 3)
+#define BST_LWNN_IOCTL_BUF_INVALIDATE _IO(BST_LWNN_IOCTL_BUF, 4)
 
-#define BST_LWNN_IOCTL_MSG              'M'
-#define BST_LWNN_IOCTL_MSG_XCHG         _IO(BST_LWNN_IOCTL_MSG, 1)
+#define BST_LWNN_IOCTL_MSG 'M'
+#define BST_LWNN_IOCTL_MSG_XCHG _IO(BST_LWNN_IOCTL_MSG, 1)
 
 // #define BST_LWNN_IOCTL_VER              'V'
 // #define BST_LWNN_IOCTL_VER_GET          _IO(BST_LWNN_IOCTL_VER, 1)
 
-#define RT_STATUS_SUCCESS           0
-#define RT_STATUS_FAILURE           1
+#define RT_STATUS_SUCCESS 0
+#define RT_STATUS_FAILURE 1
 
 /******************************************************************************/
-#pragma pack(push)		/* push current alignment to stack */
-#pragma pack(4)			/* set alignment to 4 byte boundary */
+#pragma pack(push) /* push current alignment to stack */
+#pragma pack(4) /* set alignment to 4 byte boundary */
 
 /******************************************************************************/
 //BST_LWNN_IOCTL_MEM_ALLOC, BST_LWNN_IOCTL_MEM_FREE
 struct bst_lwnn_user_buffer {
 	unsigned int size;
 	unsigned int align;
-	void *uaddr;		//user address
-	dsp_ptr baddr;		//bus address
+	void *uaddr; //user address
+	dsp_ptr baddr; //bus address
 };
 
 /******************************************************************************/
 //BST_LWNN_IOCTL_MSG_SEND
 struct bst_lwnn_req {
-	uint32_t opcode;	//opcode, BST_LWNN_CMD_OPCODE
+	uint32_t opcode; //opcode, BST_LWNN_CMD_OPCODE
 	dsp_ptr pdata;
 };
 
 struct bst_lwnn_rsp {
-	uint32_t status;	//message return result, BST_LWNN_CMD_STATUS
+	uint32_t status; //message return result, BST_LWNN_CMD_STATUS
 };
 
 struct bst_lwnn_msg_xchg {
@@ -84,7 +85,7 @@ struct bst_lwnn_ver_info {
 	uint16_t fw_release_year;
 };
 
-#pragma pack(pop)		/* restore original alignment from stack */
+#pragma pack(pop) /* restore original alignment from stack */
 //user-land use struct or definition end
 
 #endif

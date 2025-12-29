@@ -57,8 +57,15 @@ static int tc_dwc_g210_pltfm_probe(struct platform_device *pdev)
 	struct ufs_hba_variant_ops *vops;
 	struct device *dev = &pdev->dev;
 
+//	dev_err(dev, "ufs init start !!!\n");
+
 	of_id = of_match_node(tc_dwc_g210_pltfm_match, dev->of_node);
-	vops = (struct ufs_hba_variant_ops *)of_id->data;
+	if (of_id->data) {
+		vops = (struct ufs_hba_variant_ops *)of_id->data;
+	} else {
+		dev_err(dev, "of_match_node() failed\n");
+		return 1;
+	}
 
 	/* Perform generic probe */
 	err = ufshcd_pltfrm_init(pdev, vops);

@@ -37,6 +37,14 @@
 
 #define SGES_PER_PAGE	(NVME_CTRL_PAGE_SIZE / sizeof(struct nvme_sgl_desc))
 
+#ifdef CONFIG_HAVE_DBI_MUTEX
+extern struct mutex dbi_mutex;
+#define BST_PCIE_DBI_MUTEX_LOCK() 			mutex_lock(&dbi_mutex)
+#define BST_PCIE_DBI_MUTEX_UNLOCK() 		mutex_unlock(&dbi_mutex)
+#else
+#define BST_PCIE_DBI_MUTEX_LOCK()
+#define BST_PCIE_DBI_MUTEX_UNLOCK()
+#endif
 /*
  * These can be higher, but we need to ensure that any command doesn't
  * require an sg allocation that needs more than a page of data.
@@ -471,28 +479,36 @@ static void nvme_pci_map_queues(struct blk_mq_tag_set *set)
  */
 static inline void nvme_write_sq_db(struct nvme_queue *nvmeq, bool write_sq)
 {
+BST_PCIE_DBI_MUTEX_LOCK();
 	if (!write_sq) {
 		u16 next_tail = nvmeq->sq_tail + 1;
 
 		if (next_tail == nvmeq->q_depth)
 			next_tail = 0;
 		if (next_tail != nvmeq->last_sq_tail)
+		{
+			BST_PCIE_DBI_MUTEX_UNLOCK();
 			return;
+		}
 	}
 
 	if (nvme_dbbuf_update_and_check_event(nvmeq->sq_tail,
 			nvmeq->dbbuf_sq_db, nvmeq->dbbuf_sq_ei))
 		writel(nvmeq->sq_tail, nvmeq->q_db);
 	nvmeq->last_sq_tail = nvmeq->sq_tail;
+BST_PCIE_DBI_MUTEX_UNLOCK();
 }
 
 static inline void nvme_sq_copy_cmd(struct nvme_queue *nvmeq,
 				    struct nvme_command *cmd)
 {
+BST_PCIE_DBI_MUTEX_LOCK();
 	memcpy(nvmeq->sq_cmds + (nvmeq->sq_tail << nvmeq->sqes),
 		absolute_pointer(cmd), sizeof(*cmd));
 	if (++nvmeq->sq_tail == nvmeq->q_depth)
 		nvmeq->sq_tail = 0;
+BST_PCIE_DBI_MUTEX_UNLOCK();
+
 }
 
 static void nvme_commit_rqs(struct blk_mq_hw_ctx *hctx)
@@ -713,9 +729,11 @@ static void nvme_pci_sgl_set_seg(struct nvme_sgl_desc *sge,
 static blk_status_t nvme_pci_setup_sgls(struct nvme_dev *dev,
 		struct request *req, struct nvme_rw_command *cmd)
 {
+
 	struct nvme_iod *iod = blk_mq_rq_to_pdu(req);
 	struct dma_pool *pool;
 	struct nvme_sgl_desc *sg_list;
+
 	struct scatterlist *sg = iod->sgt.sgl;
 	unsigned int entries = iod->sgt.nents;
 	dma_addr_t sgl_dma;
@@ -944,11 +962,13 @@ static blk_status_t nvme_queue_rq(struct blk_mq_hw_ctx *hctx,
 	nvme_sq_copy_cmd(nvmeq, &iod->cmd);
 	nvme_write_sq_db(nvmeq, bd->last);
 	spin_unlock(&nvmeq->sq_lock);
+
 	return BLK_STS_OK;
 }
 
 static void nvme_submit_cmds(struct nvme_queue *nvmeq, struct request **rqlist)
 {
+	//BST_PCIE_DBI_MUTEX_LOCK();
 	spin_lock(&nvmeq->sq_lock);
 	while (!rq_list_empty(*rqlist)) {
 		struct request *req = rq_list_pop(rqlist);
@@ -958,6 +978,7 @@ static void nvme_submit_cmds(struct nvme_queue *nvmeq, struct request **rqlist)
 	}
 	nvme_write_sq_db(nvmeq, true);
 	spin_unlock(&nvmeq->sq_lock);
+	//BST_PCIE_DBI_MUTEX_UNLOCK();
 }
 
 static bool nvme_prep_rq_batch(struct nvme_queue *nvmeq, struct request *req)
@@ -1088,6 +1109,7 @@ static inline void nvme_handle_cqe(struct nvme_queue *nvmeq,
 	    !blk_mq_add_to_batch(req, iob, nvme_req(req)->status,
 					nvme_pci_complete_batch))
 		nvme_pci_complete_rq(req);
+
 }
 
 static inline void nvme_update_cq_head(struct nvme_queue *nvmeq)
@@ -1120,6 +1142,7 @@ static inline int nvme_poll_cq(struct nvme_queue *nvmeq,
 
 	if (found)
 		nvme_ring_cq_doorbell(nvmeq);
+
 	return found;
 }
 
@@ -1188,6 +1211,7 @@ static void nvme_pci_submit_async_event(struct nvme_ctrl *ctrl)
 	nvme_sq_copy_cmd(nvmeq, &c);
 	nvme_write_sq_db(nvmeq, true);
 	spin_unlock(&nvmeq->sq_lock);
+
 }
 
 static int adapter_delete_queue(struct nvme_dev *dev, u8 opcode, u16 id)
@@ -1813,7 +1837,10 @@ static int nvme_pci_configure_admin_queue(struct nvme_dev *dev)
 
 	result = nvme_remap_bar(dev, db_bar_size(dev, 0));
 	if (result < 0)
+	{
+
 		return result;
+	}
 
 	dev->subsystem = readl(dev->bar + NVME_REG_VS) >= NVME_VS(1, 1, 0) ?
 				NVME_CAP_NSSRC(dev->ctrl.cap) : 0;
@@ -1824,11 +1851,18 @@ static int nvme_pci_configure_admin_queue(struct nvme_dev *dev)
 
 	result = nvme_disable_ctrl(&dev->ctrl);
 	if (result < 0)
+	{
+
 		return result;
+	}
 
 	result = nvme_alloc_queue(dev, 0, NVME_AQ_DEPTH);
 	if (result)
+	{
+
 		return result;
+	}
+
 
 	dev->ctrl.numa_node = dev_to_node(dev->dev);
 
@@ -1844,6 +1878,7 @@ static int nvme_pci_configure_admin_queue(struct nvme_dev *dev)
 	if (result)
 		return result;
 
+
 	nvmeq->cq_vector = 0;
 	nvme_init_queue(nvmeq, 0);
 	result = queue_request_irq(nvmeq);
@@ -1853,6 +1888,7 @@ static int nvme_pci_configure_admin_queue(struct nvme_dev *dev)
 	}
 
 	set_bit(NVMEQ_ENABLED, &nvmeq->flags);
+
 	return result;
 }
 
@@ -2653,6 +2689,7 @@ static int nvme_pci_enable(struct nvme_dev *dev)
 
 	pci_enable_pcie_error_reporting(pdev);
 	pci_save_state(pdev);
+
 	return 0;
 
  disable:
@@ -2981,19 +3018,25 @@ static void nvme_remove_dead_ctrl_work(struct work_struct *work)
 
 static int nvme_pci_reg_read32(struct nvme_ctrl *ctrl, u32 off, u32 *val)
 {
+	BST_PCIE_DBI_MUTEX_LOCK();
 	*val = readl(to_nvme_dev(ctrl)->bar + off);
+	BST_PCIE_DBI_MUTEX_UNLOCK();
 	return 0;
 }
 
 static int nvme_pci_reg_write32(struct nvme_ctrl *ctrl, u32 off, u32 val)
 {
+	BST_PCIE_DBI_MUTEX_LOCK();
 	writel(val, to_nvme_dev(ctrl)->bar + off);
+	BST_PCIE_DBI_MUTEX_UNLOCK();
 	return 0;
 }
 
 static int nvme_pci_reg_read64(struct nvme_ctrl *ctrl, u32 off, u64 *val)
 {
+	BST_PCIE_DBI_MUTEX_LOCK();
 	*val = lo_hi_readq(to_nvme_dev(ctrl)->bar + off);
+	BST_PCIE_DBI_MUTEX_UNLOCK();	
 	return 0;
 }
 

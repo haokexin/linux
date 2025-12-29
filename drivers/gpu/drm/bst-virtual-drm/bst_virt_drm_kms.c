@@ -50,20 +50,29 @@ static void bst_kms_atomic_wait_commit_hw_done_split(struct drm_atomic_state *st
 	struct drm_device *dev = state->dev;
 	struct bst_kms_dev *kms = to_kms_dev(dev);
 	int i;
+	unsigned long flags;
+	int wait_flag = 0;
 
 	for (i = 0; i < kms->n_crtcs; i++) {
 		struct bst_crtc *bcrtc = &kms->crtcs[i];
-		if (bcrtc->base.state->active && bcrtc->base.state->event) {
+		if (bcrtc->base.state->active && bcrtc->base.state->event && state->crtcs[i].commit) {
 			bst_crtc_hw_flush(bcrtc);
 		}
 	}
 
 	for (i = 0; i < kms->n_crtcs; i++) {
 		struct bst_crtc *bcrtc = &kms->crtcs[i];
-		if (bcrtc->base.state->active) {
+		if (bcrtc->base.state->active && state->crtcs[i].commit) {
 			struct completion *flip_done = NULL;
+			wait_flag = 0;
+			spin_lock_irqsave(&dev->event_lock, flags);
 			if (bcrtc->base.state->event) {
 				flip_done = bcrtc->base.state->event->base.completion;
+				wait_flag = 1;
+			}
+			spin_unlock_irqrestore(&dev->event_lock, flags);
+
+			if (1 == wait_flag) {
 				bst_crtc_wait_for_hw_flip_done(bcrtc, flip_done);
 			}
 		}
@@ -275,9 +284,6 @@ struct bst_kms_dev *bst_kms_attach(struct bst_super_device *super_dev)
 
 	drm_mode_config_reset(drm);
 
-	if (err)
-		goto free_component_binding;
-
 #ifdef __DISPLAY_EVENTS_MGR__
 	err = bst_virt_dev_request_irq(super_dev);
 	if (err) {
@@ -296,7 +302,6 @@ struct bst_kms_dev *bst_kms_attach(struct bst_super_device *super_dev)
 
 free_interrupts:
 	drm_kms_helper_poll_fini(drm);
-free_component_binding:
 	component_unbind_all(super_dev->dev, drm);
 cleanup_mode_config:
 	drm_mode_config_cleanup(drm);

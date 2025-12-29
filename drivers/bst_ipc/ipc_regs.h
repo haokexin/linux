@@ -74,6 +74,7 @@
 #define EVENT_BIT_DSP_3					19
 #define EVENT_BIT_NET					20
 #define EVENT_BIT_HIFI					21
+#define EVENT_BIT_MAX                   22
 
 /**
  * Semaphore base addr is ipc_mbox:sem_base

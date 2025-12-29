@@ -175,6 +175,31 @@ struct mve_response *mve_command_execute(struct mve_base_command_header *header,
         return NULL;
     }
 
+    /* begin 20241022
+    * fix: Coverity check issue CID:3772669
+    */
+    if (NULL == data)
+    {
+        // cmd: MVE_BASE_READ_HW_INFO / MVE_BASE_REQUEST_MAX_FREQUENCY / MVE_BASE_DESTROY_SESSION / MVE_BASE_DEBUG_INTERRUPT_COUNT not use 'data'.
+        // MVE_BASE_ACTIVATE_SESSION case use 'data' but 'data' can NULL for non secure fw.
+        // other cmd process need 'data', if 'data' is NULL will crash
+        if (MVE_BASE_READ_HW_INFO != header->cmd && 
+            MVE_BASE_REQUEST_MAX_FREQUENCY != header->cmd && 
+            MVE_BASE_DESTROY_SESSION != header->cmd &&
+            MVE_BASE_ACTIVATE_SESSION != header->cmd
+#ifdef UNIT
+            && MVE_BASE_DEBUG_INTERRUPT_COUNT != header->cmd
+#endif    
+            )
+        {
+            MVE_LOG_PRINT(&mve_rsrc_log, MVE_LOG_ERROR, " data is NULL.");
+            MVE_RSRC_MEM_CACHE_FREE(ret, sizeof(struct mve_response));
+            ret = NULL;
+            return NULL;
+        }
+    }
+    /*end 20241022*/
+
     ret->error = MVE_BASE_ERROR_NONE;
     ret->firmware_error = 0;
     ret->size = 0;

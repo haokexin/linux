@@ -24,7 +24,6 @@
 #include <linux/reset.h>
 #include <linux/slab.h>
 #include <linux/workqueue.h>
-
 #include <asm/byteorder.h>
 
 #include <linux/serial_8250.h>
@@ -511,6 +510,68 @@ static void dw8250_reset_control_assert(void *data)
 	reset_control_assert(data);
 }
 
+#define UART_NR_PORT	CONFIG_SERIAL_8250_NR_UARTS
+
+static int serial8250_reboot_notify(struct notifier_block *this,unsigned long action, void *data)
+{
+
+	struct uart_8250_port *up;
+	struct uart_port *port ;
+	int i;
+
+
+	for(i=0;i<UART_NR_PORT;i++) {
+
+		up =serial8250_get_port(i);
+		if(up != NULL) {
+			port = &up->port;
+
+			if(port && uart_console(port)) {
+
+				break;
+			}
+		}
+
+	}
+
+	if(i == UART_NR_PORT)
+		return NOTIFY_DONE;
+
+		
+
+
+	switch(action) {
+
+		case SYS_DOWN: { //reboot
+
+			if(up && up->dma && up->dma->fifo_pages)
+				serial8250_release_dma(up);
+
+			break;
+		}
+		case SYS_POWER_OFF: { //str
+			
+			if(up && up->dma && up->dma->fifo_pages)
+				serial8250_release_dma(up);
+
+			break;
+		}
+	}
+
+	return NOTIFY_DONE;
+}
+
+
+
+
+
+
+static struct notifier_block serial8250_reboot_notifier = {
+	.notifier_call = serial8250_reboot_notify,
+};
+
+
+
 static int dw8250_probe(struct platform_device *pdev)
 {
 	struct uart_8250_port uart = {}, *up = &uart;
@@ -518,9 +579,11 @@ static int dw8250_probe(struct platform_device *pdev)
 	struct device *dev = &pdev->dev;
 	struct dw8250_data *data;
 	struct resource *regs;
+	
 	int irq;
 	int err;
 	u32 val;
+
 
 	regs = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 	if (!regs)
@@ -687,6 +750,19 @@ static int dw8250_probe(struct platform_device *pdev)
 		queue_work(system_unbound_wq, &data->clk_work);
 	}
 
+
+	if(data->data.line == 0) {
+		//dev_err(dev, "%s %d\n", __func__,__LINE__);
+
+		err = devm_register_reboot_notifier(&pdev->dev,&serial8250_reboot_notifier);
+		if (err) {
+			dev_err(&pdev->dev, "unable to register reboot notifier, %d\n",err);
+			return err;
+		}
+
+	}
+
+
 	platform_set_drvdata(pdev, data);
 
 	pm_runtime_set_active(dev);
@@ -720,6 +796,28 @@ static int dw8250_suspend(struct device *dev)
 {
 	struct dw8250_data *data = dev_get_drvdata(dev);
 
+	struct uart_8250_port *up;
+	struct uart_port *port ;
+
+
+	//dev_err(dev, "%s %d\n", __func__,__LINE__);
+
+
+
+
+	up =serial8250_get_port(data->data.line);
+	if(up != NULL) {
+
+		port = &up->port;
+
+		if(port && uart_console(port)) {
+
+			if (up->dma && up->dma->fifo_pages)
+				serial8250_release_dma(up);
+		}
+
+	}
+
 	serial8250_suspend_port(data->data.line);
 
 	return 0;
@@ -728,6 +826,36 @@ static int dw8250_suspend(struct device *dev)
 static int dw8250_resume(struct device *dev)
 {
 	struct dw8250_data *data = dev_get_drvdata(dev);
+
+	struct uart_8250_port *up;
+	struct uart_port *port ;
+
+
+	//dev_err(dev, "%s %d\n", __func__,__LINE__);
+
+
+	up =serial8250_get_port(data->data.line);
+	if(up != NULL) {
+
+		port = &up->port;
+
+		if(port && uart_console(port)) {
+
+			if (up->dma&& !up->dma->fifo_pages) 
+			{
+				const char *msg = NULL;
+
+				if (serial8250_request_dma(up)) {
+					msg = "failed to request DMA";
+				}
+				if (msg) {
+					dev_warn_ratelimited(port->dev, "%s\n", msg);
+					up->dma = NULL;
+				};
+			}
+		}
+		
+	}
 
 	serial8250_resume_port(data->data.line);
 
@@ -822,6 +950,7 @@ static struct platform_driver dw8250_platform_driver = {
 	},
 	.probe			= dw8250_probe,
 	.remove			= dw8250_remove,
+
 };
 
 module_platform_driver(dw8250_platform_driver);

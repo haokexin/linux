@@ -592,13 +592,16 @@ disable:
 			      priv->plat->clk_ptp_rate);
 	mutex_unlock(&priv->plat->est->lock);
 
-	priv->plat->fpe_cfg->enable = false;
-	bstgmac_fpe_configure(priv, priv->ioaddr,
-			      priv->fpe_tx_queue_mask,
-			      priv->plat->rx_queues_to_use,
-				  priv->fpe_min_frag_size,
-			      false);
-	netdev_info(priv->dev, "disabled FPE\n");
+	if (priv->plat->fpe_cfg->enable){
+		priv->plat->fpe_cfg->enable = false;
+		bstgmac_fpe_configure(priv, priv->ioaddr,
+					priv->fpe_tx_queue_mask,
+					priv->plat->rx_queues_to_use,
+					priv->fpe_min_frag_size,
+					false);
+		netdev_info(priv->dev, "disabled FPE\n");
+	}
+	
 	if (priv->fpe_hs) {
 		bstgmac_fpe_handshake(priv, false);
 		netdev_info(priv->dev, "stop FPE handshake\n");

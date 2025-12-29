@@ -1,0 +1,57 @@
+/dts-v1/;
+/plugin/;
+
+#include "../common/isp-csi-map.dtsi"
+#include "base-isp.dtsi"
+#include "base-csi-deser-camera.dtsi"
+#include "base-desers-3max96724.dtsi"
+
+&isp {
+	slab = "bev/slab-1x8b-4x3c-1x3c_view0_qHD.bin";
+	usage = "[BEV APP] Front, Rear, Side, 6V model with hybrid cameras, view0: 960*540";
+};
+&fsync0 {
+	pulse-width = <5000>;
+};
+&fsync1 {
+	pulse-width = <5000>;
+};
+&fsync2 {
+	pulse-width = <5000>;
+};
+&csi2 {
+	status = "disabled";
+};
+&deser2 {
+	status = "disabled";
+};
+&camera0 {
+	#include "../cameras/ox08b_raw14_hk_1920x1080.dtsi"
+	sensor-fps = <20>;
+	status = "okay";
+};
+&camera1 {
+	#include "../cameras/ox03c_raw14_hk_1920x1080.dtsi"
+	sensor-fps = <20>;
+	status = "okay";
+};
+&camera4 {
+	#include "../cameras/ox03c_raw14_hk_1920x1080.dtsi"
+	sensor-fps = <20>;
+	status = "okay";
+};
+&camera5 {
+	#include "../cameras/ox03c_raw14_hk_1920x1080.dtsi"
+	sensor-fps = <20>;
+	status = "okay";
+};
+&camera6 {
+	#include "../cameras/ox03c_raw14_hk_1920x1080.dtsi"
+	sensor-fps = <20>;
+	status = "okay";
+};
+&camera7 {
+	#include "../cameras/ox03c_raw14_hk_1920x1080.dtsi"
+	sensor-fps = <20>;
+	status = "okay";
+};

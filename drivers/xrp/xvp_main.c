@@ -70,7 +70,7 @@
 #include "xrp_kernel_dsp_interface.h"
 #include "xrp_private_alloc.h"
 #ifdef ipc_en
-#include "sample_client.h"
+#include "audio_msgbox_client.h"
 #endif
 #include "test_data_user.h"
 #define DRIVER_NAME "xrp"
@@ -80,7 +80,7 @@
 #define __io_virt(a) ((void __force *)(a))
 #endif
 
-static sample_client_data_t soc_data = {0};
+static audio_msgbox_client_data_t soc_data = {0};
 
 struct xrp_shared_allocation {
 	unsigned long flags;
@@ -159,7 +159,7 @@ enum xrp_opcode{
 	XRP_OPCODE_CMD_ALLOC_DRAM = 5,
 	XRP_OPCODE_CMD_USER_DEFINE1 = 6,
 	XRP_OPCODE_CMD_INVALID = 0xFF,
-};	
+};
 
 struct xrp_dsp_data
 {
@@ -169,7 +169,7 @@ struct xrp_dsp_data
 struct pcm_cmd {
 	struct xrp_dsp_data in_data;
 	struct xrp_dsp_data ref_data;
-	struct xrp_dsp_data out_data;		
+	struct xrp_dsp_data out_data;
 };
 typedef struct
 {
@@ -315,7 +315,7 @@ static void xrp_dma_sync_for_device(struct xvp *xvp,
 		pr_debug("%s: xrp_default_dma_sync_for_device \n",__func__);
 		xrp_default_dma_sync_for_device(xvp, phys, size, flags);
 	}
-		
+
 }
 
 static void xrp_default_dma_sync_for_cpu(struct xvp *xvp,
@@ -700,7 +700,7 @@ static void bst_xrp_phys_cpy(u32 phys_addr, void* p,u32 size)
 
 	if (mem_mapped != NULL) {
 		memcpy_toio(mem_mapped+ phys_offset, p, ALIGN(size, 4));
-		//memcpy(mem_mapped,p,size);		
+		//memcpy(mem_mapped,p,size);
 		iounmap(mem_mapped);
 	}
 	else
@@ -720,7 +720,7 @@ static void bst_xrp_phys_get(u32 phys_addr, void* p,u32 size)
 
 	if (mem_mapped != NULL) {
 		memcpy_fromio(p,mem_mapped+ phys_offset, ALIGN(size, 4));
-		//memcpy(mem_mapped,p,size);		
+		//memcpy(mem_mapped,p,size);
 		iounmap(mem_mapped);
 	}
 	else
@@ -734,7 +734,7 @@ static int xrp_sharememory_alg_test(struct xvp *xvp)
 {
 	size_t sz;
 	void *hw_sync_data;
-	
+
 	struct pcm_cmd *pcm = NULL;
 //	uint8_t __iomem *shared_sync = (uint8_t __iomem *)xvp->comm;
 //	phys_addr_t comm_phys = xvp->comm_phys; 
@@ -745,8 +745,8 @@ static int xrp_sharememory_alg_test(struct xvp *xvp)
 	hw_sync_data = xvp->hw_ops->get_hw_sync_data(xvp->hw_arg, &sz);
 	if (!hw_sync_data) {
 		pr_err("%s: %d hw_sync_data failed  \r\n", __func__,__LINE__);
-		ret = -ENOMEM;	
-		return ret;	
+		ret = -ENOMEM;
+		return ret;
 	}
 	xrp_msg = kmalloc(sizeof(hifi_a78_shm_t),GFP_KERNEL);
 	if(!xrp_msg)
@@ -754,16 +754,16 @@ static int xrp_sharememory_alg_test(struct xvp *xvp)
 		pr_err("%s: %d kmalloc failed  \r\n", __func__,__LINE__);
 		kfree(xrp_msg);
 		xrp_msg = NULL;
-		ret = -ENOMEM;	
-		return ret;	
+		ret = -ENOMEM;
+		return ret;
 	}
-	
+
 	while(1) //hifi ready
 	{
 		if(bst_xrp_read_phys_bst(HIFI_STATE_PADDR) == HIFI_STATE_READY)
 			break;
 	}
-	bst_xrp_write_phys_bst(HIFI_XRP_HEAD_PADDR,HIFI_XRP_HEAD_START_0);//head 	
+	bst_xrp_write_phys_bst(HIFI_XRP_HEAD_PADDR,HIFI_XRP_HEAD_START_0);//head 
 	xrp_msg->opcode =XRP_OPCODE_CMD_PCM_DATA;
 	xrp_msg->i_name_space_id.data_addr = HIFI_XRP_PCM_MSG_PADDR;
 	xrp_msg->i_name_space_id.size = 16;
@@ -773,8 +773,8 @@ static int xrp_sharememory_alg_test(struct xvp *xvp)
 		pr_err("%s: %d kmalloc failed  \r\n", __func__,__LINE__);
 		kfree(pcm);
 		pcm = NULL;
-		ret = -ENOMEM;	
-		return ret;	
+		ret = -ENOMEM;
+		return ret;
 	}
 	pcm->in_data.data_addr = HIFI_XRP_IN_DATA_PADDR;
 	pcm->in_data.data_size = sizeof(mic_in);
@@ -782,10 +782,10 @@ static int xrp_sharememory_alg_test(struct xvp *xvp)
 	pcm->ref_data.data_size = sizeof(spk_in);
 	pcm->out_data.data_addr = HIFI_XRP_OUT_DATA_PADDR;
 	pcm->out_data.data_size = sizeof(out_aec_ns);
-	bst_xrp_phys_cpy(HIFI_XRP_PCM_MSG_PADDR,(void*)pcm,sizeof(struct pcm_cmd));	
+	bst_xrp_phys_cpy(HIFI_XRP_PCM_MSG_PADDR,(void*)pcm,sizeof(struct pcm_cmd));
 	xrp_msg->user_data.data_addr = HIFI_XRP_PCM_MSG_PADDR;
 	xrp_msg->user_data.size = sizeof(struct pcm_cmd)/sizeof(uint8_t);
-	bst_xrp_phys_cpy(HIFI_XRP_IN_DATA_PADDR,(void*)mic_in,sizeof(mic_in));	
+	bst_xrp_phys_cpy(HIFI_XRP_IN_DATA_PADDR,(void*)mic_in,sizeof(mic_in));
 
 	bst_xrp_phys_cpy(HIFI_XRP_REF_DATA_PADDR,(void*)spk_in,sizeof(spk_in));
 	bst_xrp_phys_cpy(HIFI_XRP_MSG_PADDR,(void*)xrp_msg,sizeof(hifi_a78_shm_t));
@@ -871,7 +871,7 @@ static int xrp_synchronize(struct xvp *xvp)
 												dev_err(xvp->dev, "XRP_DSP_SYNC_DSP_TO_HOST\n");
 												break;
 											}
-												
+
 											if (xrp_panic_check(xvp))
 												goto err;
 											schedule();
@@ -1004,7 +1004,7 @@ static long xrp_ioctl_alloc_sync_cmd(struct file *filp,
 	tmp_cmd.cmd_size = sizeof(test_xrp_msg_t);
 	pr_debug("%s: cmd_addr: 0x%x \n", __func__, tmp_cmd.cmd_addr);
 	if (copy_to_user(p, &tmp_cmd, sizeof(*p))) {
-		
+
 		return -EFAULT;
 	}
 	#endif
@@ -1014,20 +1014,20 @@ static long xrp_ioctl_alloc_sync_cmd(struct file *filp,
 }
 #ifdef ipc_en
 #if 0
-static void xrp_complex_method_reply(const uint8_t response, const test_Array_Uint8_t resp_data, const test_ErrorEnum_t err, void *ext)
+static void xrp_complex_method_reply(const uint8_t response, const test_Array_Uint8_t resp_data, const audio_ipc_ErrorEnum_t err, void *ext)
 {
    	struct xvp *xvp = (struct xvp *)ext;
 	uint32_t i =0;
  	printf("Receive complex_method reply.\n");
 	switch (response)
 	{
-		case 0x01:		
-		for (i = 0; i < xvp->n_queues; ++i) {		
+		case 0x01:
+		for (i = 0; i < xvp->n_queues; ++i) {
 			dev_dbg(xvp->dev, "  completing queue %d\n", i);
-			complete(&xvp->queue[i].completion);			
+			complete(&xvp->queue[i].completion);
 		}
 		break;
-	
+
 		default:
 			break;
 	}
@@ -1040,54 +1040,58 @@ static long xrp_ioctl_sync_cmd(struct file *filp,
 {
 	struct xvp_file *xvp_file = filp->private_data;
 	struct xvp *xvp = xvp_file->xvp;
-	
+
 #ifdef ipc_en
 
-	struct _sample_client_t *xrp_ipc =xvp->xrp_ipc;
+	audio_msgbox_client_t *xrp_ipc =xvp->xrp_ipc;
 	struct xrp_sync_cmd tmp_cmd;
 //	test_xrp_msg_t *xrp_msg;
-	test_ErrorEnum_t err = TEST_NO_ERROR;
+	audio_ipc_ErrorEnum_t err = AUDIO_IPC_NO_ERROR;
 	char *message = NULL;
 	des_buf_t *ext_buf =kzalloc(sizeof(des_buf_t),GFP_KERNEL);
 
 	pr_debug("%s: \n", __func__);
-	
-	if (copy_from_user(&tmp_cmd, p, sizeof(*p))) {		
+
+	if (copy_from_user(&tmp_cmd, p, sizeof(*p))) {
+		kfree(ext_buf);
 		return -EFAULT;
 	}
 
 	pr_debug("%s: input_str: %s \n", __func__, tmp_cmd.input_str);
 
 	if(!pio_flag)
-	{	
+	{
 		int32_t ret;
 		pr_debug("%s: call hello_sync \n", __func__);
-		ret =xrp_ipc->test_client.hello_sync(tmp_cmd.input_str, &message, &err, 0, ext_buf);
+		ret =xrp_ipc->audio_ipc_client.hello_sync(tmp_cmd.input_str, &message, &err, 0, ext_buf);
 
 		if (ret < 0)
 		{
+			kfree(ext_buf);
 			pr_debug("%s: send hello failed \n", __func__);
 			return -EIO;
 		}
 		if (message != NULL) {
 			pr_debug("%s: message: %s \n", __func__, message);
 			pr_debug("%s: err: %d \n", __func__, err);
-			strcpy(tmp_cmd.out_str,message);
+			strlcpy(tmp_cmd.out_str, message, sizeof(tmp_cmd.out_str));
 
 			if (copy_to_user(p, &tmp_cmd, sizeof(*p))) {
-		
+				kfree(ext_buf);
 				return -EFAULT;
 			}
 		}
 
 //		xrp_synchronize(xvp);
-		
+
 	}
 	else
 	{
-		bst_xrp_write_phys_bst(0xa0000100,0x55555555);	
+		bst_xrp_write_phys_bst(0xa0000100,0x55555555);
 //		bst_xrp_phys_cpy(0xA0000200,(void*)xrp_msg,sizeof(test_xrp_msg_t));
 	}
+
+	kfree(ext_buf);
 #endif
 	return 0;
 }
@@ -1098,12 +1102,12 @@ static long xrp_ioctl_nsid_get(struct file *filp,
 #ifdef ipc_en
 	#if 0
 	test_hifi_dsp_client *xrp_ipc =xvp->xrp_ipc;
-	
+
 	test_xrp_msg_t *xrp_msg;
 	struct xrp_nsid tmp_cmd;
 	uint8_t name_id[16] ={0};
 	uint32_t nsid_count;
-	if (copy_from_user(&tmp_cmd, p, sizeof(*p))) {		
+	if (copy_from_user(&tmp_cmd, p, sizeof(*p))) {
 		return -EFAULT;
 	}
 	if(tmp_cmd.nsid_size<16)
@@ -1118,20 +1122,20 @@ static long xrp_ioctl_nsid_get(struct file *filp,
 		xrp_msg = (test_xrp_msg_t *)&tmp_cmd;
 		//get ns id from hifi firmware
 		if(!pio_flag)//ipc mode 
-		{		
-			
+		{
+
 			int32_t ret =xrp_ipc->hifi_a78_msg_sync(*xrp_msg,xrp_complex_method_reply,NULL);
 			if (ret < 0)
 			{
 				printf("send method complex_method failed. ret is %u\n", ret);
 				return -EIO;
 			}
-			
+
 		}
 		else// share memory mode
 		{
 			bst_xrp_write_phys_bst(0xa0000100,0x55555555);
-			bst_xrp_phys_cpy(0xA0000200,(void*)&tmp_cmd,sizeof(test_xrp_msg_t));			
+			bst_xrp_phys_cpy(0xA0000200,(void*)&tmp_cmd,sizeof(test_xrp_msg_t));
 		}
 		if(copy_to_user(p,&tmp_cmd,sizeof(tmp_cmd)))
 		{
@@ -1150,12 +1154,12 @@ static long xrp_ioctl_def_alg_set(struct file *filp,
 #ifdef ipc_en
 	#if 0
 	test_hifi_dsp_client *xrp_ipc =xvp->xrp_ipc;
-	
+
 	test_xrp_msg_t *xrp_msg;
 	struct xrp_alg_param tmp_para;    
     uint8_t in4_data[16] = {0x11,0x22,0x33,0x44,0x55,0x66,0x77,0x88,0x99,0xaa,0xbb,0xcc,0xdd,0xee,0xff,0x00};    
 
-	if (copy_from_user(&tmp_para, p, sizeof(*p))) {		
+	if (copy_from_user(&tmp_para, p, sizeof(*p))) {
 		return -EFAULT;
 	}
 	xrp_ipc->def_xrp_msg->i_name_space_id.data = in4_data;
@@ -1165,14 +1169,14 @@ static long xrp_ioctl_def_alg_set(struct file *filp,
 	xrp_ipc->def_xrp_msg->user_data.size = 15;
 	if(!pio_flag)
 	{
-		
+
 		int32_t ret =xrp_ipc->hifi_a78_msg_sync(*(xrp_ipc->def_xrp_msg),xrp_complex_method_reply,xvp);
 		if (ret < 0)
 		{
 			printf("send method complex_method failed. ret is %u\n", ret);
 			return -EIO;
-		}	
-		
+		}
+
 	}
 	else
 	{
@@ -1192,18 +1196,18 @@ static long xrp_ioctl_def_alg_dataset(struct file *filp,
 	struct xvp *xvp = xvp_file->xvp;
 	#ifdef ipc_en
 	test_hifi_dsp_client *xrp_ipc =xvp->xrp_ipc;
-	
+
 	test_xrp_msg_t *xrp_msg;
 	struct xrp_data_param tmp_para;    
     uint8_t in4_data[16] = {0x11,0x22,0x33,0x44,0x55,0x66,0x77,0x88,0x99,0xaa,0xbb,0xcc,0xdd,0xee,0xff,0x00};    
 
-	if (copy_from_user(&tmp_para, p, sizeof( tmp_para))) {		
+	if (copy_from_user(&tmp_para, p, sizeof( tmp_para))) {
 		return -EFAULT;
 	}
 
 	if(!pio_flag)
 	{
-		
+
 		xrp_ipc->def_xrp_msg->i_name_space_id.data = in4_data;
 		xrp_ipc->def_xrp_msg->i_name_space_id.size = 16;
 		xrp_ipc->def_xrp_msg->opcode = 0x10;
@@ -1214,8 +1218,8 @@ static long xrp_ioctl_def_alg_dataset(struct file *filp,
 		{
 			printf("send method complex_method failed. ret is %u\n", ret);
 			return -EIO;
-		}	
-		
+		}
+
 	}
 	else
 	{
@@ -1223,7 +1227,7 @@ static long xrp_ioctl_def_alg_dataset(struct file *filp,
 		bst_xrp_write_phys_bst(0xa0000100,0x55555555);
 		bst_xrp_phys_cpy(0xA0000200,(void*)xrp_msg,sizeof(test_xrp_msg_t));
 	}
-	#endif	
+	#endif
 	return 0;
 }
 #endif
@@ -1236,14 +1240,14 @@ static long xrp_ioctl_alg_result_get(struct file *filp,
 	unsigned long deadline =jiffies + firmware_command_timeout * HZ;
 	struct xvp_file *xvp_file = filp->private_data;
 	struct xvp *xvp = xvp_file->xvp;
-	
+
 	test_hifi_dsp_client *xrp_ipc =xvp->xrp_ipc;
-	
+
 	test_xrp_msg_t *xrp_msg;
 	   
     uint8_t in4_data[16] = {0x11,0x22,0x33,0x44,0x55,0x66,0x77,0x88,0x99,0xaa,0xbb,0xcc,0xdd,0xee,0xff,0x00};    
 	uint32_t in5_data[4] = {0x00};  
-	if (copy_from_user(&tmp_para, p, sizeof(*p))) {		
+	if (copy_from_user(&tmp_para, p, sizeof(*p))) {
 		return -EFAULT;
 	}
 	memcpy(in5_data,&tmp_para,sizeof(tmp_para));
@@ -1253,18 +1257,18 @@ static long xrp_ioctl_alg_result_get(struct file *filp,
 	xrp_ipc->def_xrp_msg->user_data.data = (uint8_t *)in5_data;
 	xrp_ipc->def_xrp_msg->user_data.size = 4; 
 	if(!pio_flag){
-		
+
 		int32_t ret =xrp_ipc->hifi_a78_msg_sync(*(xrp_ipc->def_xrp_msg),xrp_complex_method_reply,NULL);
 		if (ret < 0)
 		{
 			printf("send method complex_method failed. ret is %u\n", ret);
 			return -EIO;
-		}	
+		}
 		int res = wait_for_completion_timeout(&xvp->queue[0].completion,
 								firmware_command_timeout * HZ);
 		if(res) 
 			return -EBUSY;
-		
+
 	}
 	else
 	{
@@ -1284,12 +1288,12 @@ static long xrp_ioctl_alg_result_get(struct file *filp,
 	}
 	#endif
 	#endif
-//copy:	
+//copy:
 	tmp_para.output_addr = bst_xrp_read_phys_bst(0xa0000010);
 	tmp_para.outsize = bst_xrp_read_phys_bst(0xa0000014);
 	pr_err("output_addr = 0x%x outsize =%d \r\n",tmp_para.output_addr,tmp_para.outsize);
 	if (copy_to_user(p, &tmp_para, sizeof(*p))) {
-		
+
 		return -EFAULT;
 	}
 	return 0;
@@ -1553,70 +1557,28 @@ static long _xrp_copy_user_phys(struct xvp *xvp,
 				phys_addr_t paddr, unsigned long flags,
 				bool to_phys, bool user)
 {
-	bool pfn_mode = 0;
-//	if (pfn_valid(__phys_to_pfn(paddr))) {
-	if (pfn_mode) {
-		struct page *page = pfn_to_page(__phys_to_pfn(paddr));
-		size_t page_offs = paddr & ~PAGE_MASK;
-		size_t offs;
-		pr_debug("%s: pfn_to_page \n",__func__);
-		if (!to_phys)
-			xrp_default_dma_sync_for_cpu(xvp, paddr, size, flags);
-		for (offs = 0; offs < size; ++page) {
-			void *p = kmap(page);
-			size_t sz = PAGE_SIZE - page_offs;
-			size_t copy_sz = sz;
-			unsigned long rc;
-
-			if (!p)
-				return -ENOMEM;
-
-			if (size - offs < copy_sz)
-				copy_sz = size - offs;
-
-			if (to_phys) {
-				rc = copy_from_x(p + page_offs,
-				(void *)(vaddr + offs),
-				copy_sz, user);
-			}
-			else {
-				rc = copy_to_x((void *)(vaddr + offs),
-				p + page_offs, copy_sz, user);
-			}
-
-			page_offs = 0;
-			offs += copy_sz;
-
-			kunmap(page);
-			if (rc)
-				return -EFAULT;
-		}
-		if (to_phys)
-			xrp_default_dma_sync_for_device(xvp, paddr, size, flags);
-	} else {
-		void __iomem *p = ioremap(paddr, size);
-		unsigned long rc;
+	void __iomem *p = ioremap(paddr, size);
+	unsigned long rc;
 
 #ifdef CONFIG_HIFI_XRP_LOG_EN
-		pr_debug("%s: ioremap \n",__func__);
+	pr_debug("%s: ioremap \n",__func__);
 #endif
 
-		if (!p) {
-			dev_err(xvp->dev,
-				"couldn't ioremap %pap x 0x%08x\n",
-				&paddr, (u32)size);
-			return -EINVAL;
-		}
-		if (to_phys)
-			rc = copy_from_x(__io_virt(p),
-					 (void *)vaddr, size, user);
-		else
-			rc = copy_to_x((void *)vaddr,
-				       __io_virt(p), size, user);
-		iounmap(p);
-		if (rc)
-			return -EFAULT;
+	if (!p) {
+		dev_err(xvp->dev,
+			"couldn't ioremap %pap x 0x%08x\n",
+			&paddr, (u32)size);
+		return -EINVAL;
 	}
+	if (to_phys)
+		rc = copy_from_x(__io_virt(p),
+				 (void *)vaddr, size, user);
+	else
+		rc = copy_to_x((void *)vaddr,
+			       __io_virt(p), size, user);
+	iounmap(p);
+	if (rc)
+		return -EFAULT;
 	return 0;
 }
 
@@ -1880,7 +1842,7 @@ static long __xrp_share_block(struct file *filp,
 		 * Check if it is.
 		 */
 		if (vma->vm_file != filp) {
-			
+
 			const struct xrp_address_map_entry *address_map;
 			pr_debug("%s: vma->vm_file != filp \n",__func__);
 			address_map=xrp_get_address_mapping(&xvp->address_map,
@@ -1986,7 +1948,7 @@ no_direct_mapping:
 
 	if (do_cache) {
 
-		pr_debug("%s: do_cache = %d \n", __func__, do_cache);	
+		pr_debug("%s: do_cache = %d \n", __func__, do_cache);
 		xrp_dma_sync_for_device(xvp,
 					virt, phys, size,
 					flags);
@@ -1999,28 +1961,28 @@ no_direct_mapping:
 		pr_debug("\n ");
 		 
 
-		pr_debug("%s: 0.5 \n", __func__);	
+		pr_debug("%s: 0.5 \n", __func__);
 		void __iomem *pcm_config = ioremap(0x81900000, 0x1000);
 //		void __iomem *pcm_config = ioremap(0x20003014, 0x1000);
 		void __iomem *sh_config = ioremap(phys, 0x1000);
 		u32 *ori = (u32 *)pcm_config;
 		u32 *cp  = (u32 *)sh_config;
-		pr_debug("%s: 1 \n", __func__);	
+		pr_debug("%s: 1 \n", __func__);
 		for (u32 k = 0; k < (0xf0/4); k++){
 			pr_debug("0x%08x ",*(ori+k));
 		}
-		pr_debug("%s: 1 \n", __func__);	
+		pr_debug("%s: 1 \n", __func__);
 		xrp_comm_read(pcm_config, (void *)sh_config,0xf0);
 // 		copy_to_user((void __user *)(unsigned long)virt,pcm_config,0xf0);
-		pr_debug("%s: 1.5 \n", __func__);	
+		pr_debug("%s: 1.5 \n", __func__);
 		*cp = 0xff;
-		pr_debug("%s: 2 \n", __func__);	
-		
-		
+		pr_debug("%s: 2 \n", __func__);
+
+
 		for (u32 j = 0; j < (0xf0/4); j++){
 			pr_debug("0x%04x-0x%04x \n",*(ori+j), *(cp+j));
 		}
-		pr_debug("%s: 3 \n", __func__);	
+		pr_debug("%s: 3 \n", __func__);
 
 		#endif
 
@@ -2503,7 +2465,7 @@ static void xrp_fill_hw_request(struct xvp *xvp,
 		xrp_comm_write32(&cmd->out_data_addr,
 				 xrp_translate_to_dsp(map, rq->out_data_phys));
 
-#ifdef CONFIG_HIFI_XRP_LOG_EN	
+#ifdef CONFIG_HIFI_XRP_LOG_EN
 	pr_debug("%s: out_data_addr= 0x%x \n", __func__, cmd->out_data_addr);
 #endif
 
@@ -2513,7 +2475,7 @@ static void xrp_fill_hw_request(struct xvp *xvp,
 	else
 		xrp_comm_write(&cmd->buffer_data, rq->dsp_buffer,
 			       rq->n_buffers * sizeof(struct xrp_dsp_buffer));
-#ifdef CONFIG_HIFI_XRP_LOG_EN	
+#ifdef CONFIG_HIFI_XRP_LOG_EN
 	pr_debug("%s: buffer_addr= 0x%x \n", __func__, cmd->buffer_addr);
 #endif
 
@@ -2530,7 +2492,7 @@ static void xrp_fill_hw_request(struct xvp *xvp,
 
 	xrp_comm_read(cmd, &dsp_cmd, sizeof(dsp_cmd));
 
-#ifdef CONFIG_HIFI_XRP_LOG_EN	
+#ifdef CONFIG_HIFI_XRP_LOG_EN
 	pr_debug("%s: cmd for DSP: %p: %*ph\n",__func__, cmd,(int)sizeof(dsp_cmd), &dsp_cmd);
 #endif
 
@@ -2599,7 +2561,7 @@ static long xrp_ioctl_submit_sync(struct file *filp,
 //	loopback = 0;
 //	if (loopback < LOOPBACK_NOIO) {
 	if (loopback == LOOPBACK_BSTONLY) {
-	
+
 		int reboot_cycle;
 retry:
 		mutex_lock(&queue->lock);
@@ -2617,9 +2579,9 @@ retry:
 			ret = -ENODEV;
 		} else {
 
-			test_XrpDspCmd_t in_cmd = {0};
-			test_XrpDspCmd_t out_cmd = {0};
-			test_ErrorEnum_t err = TEST_NO_ERROR;
+			audio_ipc_XrpDspCmd_t in_cmd = {0};
+			audio_ipc_XrpDspCmd_t out_cmd = {0};
+			audio_ipc_ErrorEnum_t err = AUDIO_IPC_NO_ERROR;
 			des_buf_t *ext_buf;
 			struct xrp_dsp_cmd *dsp_cmd;
 			uint8_t in_data[1] = {1};
@@ -2669,7 +2631,7 @@ retry:
 #ifdef CONFIG_HIFI_XRP_LOG_EN
 			pr_debug("%s: call xrp_shmem_addr_method_sync \n", __func__);
 #endif
-			ret =xvp->xrp_ipc->test_client.xrp_shmem_addr_method_sync(in_cmd, &out_cmd, &err, 0, ext_buf);
+			ret =xvp->xrp_ipc->audio_ipc_client.xrp_shmem_addr_method_sync(in_cmd, &out_cmd, &err, 0, ext_buf);
 
 			if (ret < 0)
 			{
@@ -2694,7 +2656,12 @@ retry:
 							    xrp_cmd_complete);
 			}
 
-			xrp_panic_check(xvp);
+			if (xrp_panic_check(xvp) != 0) {
+				mutex_unlock(&queue->lock);
+				xrp_unmap_request_nowb(filp, rq);
+				ret = -EBUSY;
+				goto err;
+			}
 
 			/* copy back inline data */
 			if (ret == 0) {
@@ -2756,7 +2723,7 @@ err:
 
 static long xvp_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 {
-	long retval;
+	long retval = 0;
 
 #ifdef CONFIG_HIFI_XRP_LOG_EN
 	pr_debug("%s: %x\n", __func__, cmd);
@@ -2793,33 +2760,33 @@ static long xvp_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 	case XRP_IOCTL_DEF_ALG_SET:
 	case XRP_IOCTL_USERDEF_ALG_SET:
 		retval = xrp_ioctl_def_alg_set(filp,
-					       (struct xrp_alg_param __user *)arg,0);		
+					       (struct xrp_alg_param __user *)arg,0);
 		break;
 	case XRP_IOCTL_ALG_RESULT_GET:
 	case XRP_IOCTL_ALG_FLUSH:
 		retval = xrp_ioctl_alg_result_get(filp,
-					       (struct xrp_output __user *)arg,0);	
-		break;	
-	case XRP_IOCTL_ALLOC_NSID:	
+					       (struct xrp_output __user *)arg,0);
+		break;
+	case XRP_IOCTL_ALLOC_NSID:
 		retval = xrp_ioctl_nsid_get(filp,
 					       (struct xrp_nsid __user *)arg,0);
 		break;
-	case XRP_IOCTL_SYNC_CMD_PIO:	
+	case XRP_IOCTL_SYNC_CMD_PIO:
 		retval = xrp_ioctl_sync_cmd(filp,
 					       (struct xrp_sync_cmd __user *)arg,1);
 		break;
 	case XRP_IOCTL_DEF_ALG_SET_PIO:
 		retval = xrp_ioctl_def_alg_set(filp,
-					    (struct xrp_alg_param __user *)arg,1);		
+					    (struct xrp_alg_param __user *)arg,1);
 		break;
-	case XRP_IOCTL_ALG_RESULT_GET_PIO:	
+	case XRP_IOCTL_ALG_RESULT_GET_PIO:
 		retval = xrp_ioctl_alg_result_get(filp,
-					       (struct xrp_output __user *)arg,1);		
+					       (struct xrp_output __user *)arg,1);
 		break;
-	case XRP_IOCTL_ALG_FLUSH_PIO:	
+	case XRP_IOCTL_ALG_FLUSH_PIO:
 		retval = xrp_ioctl_alg_result_get(filp,
-					       (struct xrp_output __user *)arg,1);	
-		break;								
+					       (struct xrp_output __user *)arg,1);
+		break;
 	default:
 		retval = -EINVAL;
 		break;
@@ -2908,7 +2875,7 @@ static int xvp_open(struct inode *inode, struct file *filp)
 	rc = pm_runtime_get_sync(xvp->dev);
 	if (rc < 0)
 		return rc;
-		
+
 	xvp_file = devm_kzalloc(xvp->dev, sizeof(*xvp_file), GFP_KERNEL);
 	if (!xvp_file) {
 		pr_debug("%s 2\n", __func__);
@@ -2946,7 +2913,7 @@ static inline int xvp_enable_dsp(struct xvp *xvp)
 	{
 		return xvp->hw_ops->enable(xvp->hw_arg);
 	}
-	else		
+	else
 		return 0;
 }
 
@@ -2959,19 +2926,19 @@ static inline void xvp_disable_dsp(struct xvp *xvp)
 	else if(loopback == LOOPBACK_BSTONLY &&xvp->hw_ops->disable)
 	{
 		xvp->hw_ops->disable(xvp->hw_arg);
-	}			
+	}
 }
 
 static inline void xrp_reset_dsp(struct xvp *xvp)
 {
 	if (loopback < LOOPBACK_NOMMIO &&xvp->hw_ops->reset)
 	{
-		xvp->hw_ops->reset(xvp->hw_arg);	
+		xvp->hw_ops->reset(xvp->hw_arg);
 	}
 	else if(loopback == LOOPBACK_BSTONLY &&xvp->hw_ops->reset)
 	{
 		xvp->hw_ops->reset(xvp->hw_arg);
-	}			
+	}
 }
 
 static inline void xrp_halt_dsp(struct xvp *xvp)
@@ -2983,7 +2950,7 @@ static inline void xrp_halt_dsp(struct xvp *xvp)
 	else if(loopback == LOOPBACK_BSTONLY &&xvp->hw_ops->halt)
 	{
 		xvp->hw_ops->halt(xvp->hw_arg);
-	}	
+	}
 }
 
 static inline void xrp_release_dsp(struct xvp *xvp)
@@ -3010,7 +2977,7 @@ static int xrp_boot_firmware(struct xvp *xvp)
 		xrp_halt_dsp(xvp);
 		xrp_reset_dsp(xvp);
 	}
-	
+
 
 	if (xvp->firmware_name) {
 		if (loopback < LOOPBACK_NOFIRMWARE) {
@@ -3018,7 +2985,7 @@ static int xrp_boot_firmware(struct xvp *xvp)
 			if (ret < 0){
 				dev_err(xvp->dev, "xrp_request_firmware failed\n");
 				return ret;
-			}				
+			}
 		}
 
 		if (loopback < LOOPBACK_NOIO) {
@@ -3033,7 +3000,7 @@ static int xrp_boot_firmware(struct xvp *xvp)
 
 //	if (loopback < LOOPBACK_NOIO) {
 	if (loopback == LOOPBACK_BSTONLY) {
-		
+
 		pr_debug("%s: go to xrp_synchronize\n", __func__);
 		ret = xrp_synchronize(xvp);
 		if (ret < 0) {
@@ -3116,7 +3083,7 @@ int xrp_runtime_resume(struct device *dev)
 	if (xvp->off){
 		dev_err(xvp->dev, "off\n");
 		goto out;
-	}		
+	}
 	ret = xvp_enable_dsp(xvp);
 	if (ret < 0) {
 		dev_err(xvp->dev, "couldn't enable DSP\n");
@@ -3138,7 +3105,7 @@ out:
 EXPORT_SYMBOL(xrp_runtime_resume);
 //static uint32_t s_index = 0;
 
-// static void on_hello_reply(const char *message, const test_ErrorEnum_t err, void *ext)
+// static void on_hello_reply(const char *message, const audio_ipc_ErrorEnum_t err, void *ext)
 // {
 //     if (message)
 //         printf("Receive hello reply : %s.\n", message);
@@ -3156,7 +3123,7 @@ EXPORT_SYMBOL(xrp_runtime_resume);
 // }
 #ifdef ipc_en
 #if 0
-static void on_complex_method_reply(const uint8_t response, const test_Array_Uint8_t resp_data, const test_ErrorEnum_t err, void *ext)
+static void on_complex_method_reply(const uint8_t response, const test_Array_Uint8_t resp_data, const audio_ipc_ErrorEnum_t err, void *ext)
 {
     printf("Receive complex_method reply.\n");
 #if 0
@@ -3191,7 +3158,7 @@ static inline void call_a78_msg_sync(test_hifi_dsp_client* client)
 	fs_msg.user_data.data=(uint32_t)in3_data;
 	fs_msg.user_data.size=4;
 	fs_msg.opcode =0x02;
-	
+
     int32_t ret = client->hifi_a78_msg_sync(  fs_msg, on_complex_method_reply, NULL);
     if (ret < 0)
         printf("send method complex_method failed. ret is %u\n", ret);
@@ -3221,7 +3188,7 @@ static inline void call_a78_msg_sync(test_hifi_dsp_client* client)
 //         printf("Unsubscribe heartbeat fail. ret is %u.\n", err);
 // }
 
-// int test_client_main_loop(void *arg)
+// int audio_ipc_client_main_loop(void *arg)
 // {
 //     test_hifi_dsp_client *client = test_hifi_dsp_client_init();
 //     if (!client)
@@ -3313,7 +3280,7 @@ static int xrp_init_regs_v1(struct platform_device *pdev, struct xvp *xvp)
 			__func__);
 		return -ENOMEM;
 	}
-	
+
 	xvp->comm_phys = mem->start;
 	xvp->pmem = mem->start + PAGE_SIZE;
 	xvp->shared_size = resource_size(mem) - PAGE_SIZE;
@@ -3329,9 +3296,9 @@ static int xrp_init_regs_v1(struct platform_device *pdev, struct xvp *xvp)
 	else {
 		xvp->comm = xrp_alloc_host(xvp, PAGE_SIZE);
 	}
-		
-	//kthread_create(test_client_main_loop, NULL, "ipc-client-msgbox-%u", smp_processor_id());	
-	//xvp->xrp_ipc = test_hifi_dsp_client_init();	
+
+	//kthread_create(audio_ipc_client_main_loop, NULL, "ipc-client-msgbox-%u", smp_processor_id());
+	//xvp->xrp_ipc = test_hifi_dsp_client_init();
 
 	return xrp_init_private_pool(&xvp->pool, xvp->pmem,
 				     xvp->shared_size);
@@ -3409,7 +3376,7 @@ static long xrp_init_common(struct platform_device *pdev,
 		pr_err("%s: check 111\n", __func__);
 		goto err;
 	}
-		
+
 	#else
 	if (ret < 0)
 		goto err;
@@ -3425,7 +3392,7 @@ static long xrp_init_common(struct platform_device *pdev,
 		pr_err("%s: check 2222\n", __func__);
 		goto err_free_pool;
 	}
-		
+
 	#else
 	if (ret < 0)
 		goto err_free_pool;
@@ -3493,12 +3460,12 @@ static long xrp_init_common(struct platform_device *pdev,
 	}
 
 	//init xrp msgbox client
-	xvp->xrp_ipc = sample_client_init(&soc_data);
+	xvp->xrp_ipc = audio_msgbox_client_init(&soc_data);
 	if(xvp->xrp_ipc == NULL){
 		return -ENOMEM;
 	}
 	xvp->xrp_ipc->start();
-	version = xvp->xrp_ipc->test_client.version();
+	version = xvp->xrp_ipc->audio_ipc_client.version();
 	pr_debug("%s:  major %d, minor %d.\n",  __func__, version.major, version.minor);
 
 

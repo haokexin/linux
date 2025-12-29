@@ -1,0 +1,25 @@
+/dts-v1/;
+/plugin/;
+
+&isp {
+	usage = "Disable all ISP related devices";
+	status = "disabled";
+};
+&csi0 {
+	status = "disabled";
+};
+&csi1 {
+	status = "disabled";
+};
+&csi2 {
+	status = "disabled";
+};
+&i2cq0 {
+	status = "disabled";
+};
+&i2cq1 {
+	status = "disabled";
+};
+&i2cq2 {
+	status = "disabled";
+};

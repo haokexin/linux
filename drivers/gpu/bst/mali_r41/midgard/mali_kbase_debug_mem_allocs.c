@@ -125,7 +125,7 @@ void kbase_debug_mem_allocs_init(struct kbase_context *const kctx)
 	if (WARN_ON(!kctx) || WARN_ON(IS_ERR_OR_NULL(kctx->kctx_dentry)))
 		return;
 
-	debugfs_create_file("mem_allocs", 0400, kctx->kctx_dentry, kctx,
+	debugfs_create_file("mem_allocs", 0444, kctx->kctx_dentry, kctx,
 			    &kbase_debug_mem_allocs_fops);
 }
 #else

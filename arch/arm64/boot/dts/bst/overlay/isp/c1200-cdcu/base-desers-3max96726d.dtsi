@@ -1,0 +1,90 @@
+#include <dt-bindings/gpio/gpio.h>
+
+&portb {
+	phy_switch-hog {
+		gpio-hog;
+		gpios = <25 GPIO_ACTIVE_HIGH>;
+		output-high;
+		line-name = "csi-rx-dphy";
+	};
+};
+
+&deser0 {
+	compatible = "bst,max96726";
+	reg = <0x32>;
+	csi-mode = <CSI_MODE_2X4>;
+	i2c-port = <0>;
+
+	fsync-mode = <FSYNC_OUTER>;
+	fsync-fps = <20>;
+	fsync-rx-pin = <4>;
+
+	lock-gpio = <&portd 28 0>;
+	check-lock-period = <500>;
+
+	err-gpio = <&portd 29 0>;
+	check-err-period = <100>;
+
+	status = "okay";
+};
+&deser1 {
+	compatible = "bst,max96726";
+	reg = <0x22>;
+	csi-mode = <CSI_MODE_2X4>;
+	i2c-port = <0>;
+
+	fsync-mode = <FSYNC_OUTER>;
+	fsync-fps = <20>;
+	fsync-rx-pin = <4>;
+
+	lock-gpio = <&portd 30 0>;
+	check-lock-period = <500>;
+
+	err-gpio = <&portd 31 0>;
+	check-err-period = <100>;
+
+	status = "okay";
+};
+&deser2 {
+	compatible = "bst,max96726";
+	reg = <0x30>;
+	csi-mode = <CSI_MODE_2X4>;
+	i2c-port = <0>;
+
+	fsync-mode = <FSYNC_OUTER>;
+	fsync-fps = <20>;
+	fsync-rx-pin = <4>;
+
+	lock-gpio = <&porte 0 0>;
+	check-lock-period = <500>;
+
+	err-gpio = <&porte 1 0>;
+	check-err-period = <100>;
+
+	status = "okay";
+};
+
+&deser0_tx1 {
+	phy-if = <IF_DPHY>;
+	lane-num = <4>;
+	lane-speed = <4500>;
+};
+&deser1_tx1 {
+	phy-if = <IF_DPHY>;
+	lane-num = <4>;
+	lane-speed = <4500>;
+};
+&deser2_tx1 {
+	phy-if = <IF_DPHY>;
+	lane-num = <4>;
+	lane-speed = <4500>;
+};
+&csi0 {
+	lane-speed = <4500>;
+};
+&csi1 {
+	lane-speed = <4500>;
+};
+&csi2 {
+	lane-speed = <4500>;
+};

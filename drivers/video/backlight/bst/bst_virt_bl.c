@@ -12,7 +12,6 @@
 #include <linux/kthread.h>
 #include "virtual-backlight/virt_backlight.h"
 
-
 struct virt_backlight_data {
     struct platform_device *pdev;
     struct task_struct *init_task;
@@ -103,30 +102,33 @@ static int virt_backlight_request_screen(struct virt_backlight_data *bl_data)
     bl_data->res = res;
     dev_info(&pdev->dev, "screen id:%d name:%s\n", bl_data->screen_id, res->hw_name);
 
-    /* get or set default brightness */
+    /* get default brightness */
+    if (bl_data->default_brightness == -1) {
+        bl_data->default_brightness = res->max_brightness / 2 + (res->max_brightness % 2);
+        dev_info(&pdev->dev,
+                "No default-brightness-level specified in DT, "
+                "using %u (max_brightness/2) as default\n",
+                bl_data->default_brightness);
+    }
+
     if (bl_data->default_brightness >= 0) {
         if (bl_data->default_brightness > res->max_brightness) {
+            dev_warn(&pdev->dev,
+                    "invalid default brightness level: %u, using %u\n",
+                    bl_data->default_brightness, res->max_brightness);
             bl_data->default_brightness = res->max_brightness;
         }
-        ret = bst_bl_set_brightness(bl_data->res,
-                                    bl_data->default_brightness);
-        if (ret) {
-            dev_err(&pdev->dev, "init screen:%d brightness:%d failed:%d\n",
-                    bl_data->screen_id, bl_data->default_brightness, ret);
-            ret = -EINVAL;
-            goto out;
-        }
-        bl_data->curr_brightness = bl_data->default_brightness;
-    } else {
-        ret = bst_bl_get_brightness(bl_data->res,
-                                    &bl_data->curr_brightness);
-        if (ret) {
-            dev_err(&pdev->dev, "get screen:%d brightness failed:%d\n",
-                    bl_data->screen_id, ret);
-            ret = -EINVAL;
-            goto out;
-        }
     }
+
+    ret = bst_bl_get_brightness(bl_data->res,
+            &bl_data->curr_brightness);
+    if (ret) {
+        dev_err(&pdev->dev, "get screen:%d brightness failed:%d\n",
+                bl_data->screen_id, ret);
+        ret = -EINVAL;
+        goto out;
+    }
+
     return 0;
 out:
     if (res) {
@@ -169,7 +171,13 @@ static int virt_backlight_create_dev(struct virt_backlight_data *bl_data)
 		return PTR_ERR(bl);
     }
 
-    bl->props.brightness = bl_data->curr_brightness;
+    if (bl_data->curr_brightness == 0) {
+        bl->props.brightness = bl_data->default_brightness;
+        bl->props.power = FB_BLANK_POWERDOWN;
+    } else {
+        bl->props.brightness = bl_data->curr_brightness;
+        bl->props.power = FB_BLANK_UNBLANK;
+    }
     bl_data->bd = bl;
 
     dev_info(&pdev->dev, "backlight dev:%s created.\n", name);
@@ -306,19 +314,6 @@ static int bst_virt_bl_drv_remove(struct platform_device *pdev)
 #ifdef CONFIG_PM_SLEEP
 static int bst_virt_bl_suspend(struct device *dev)
 {
-    struct virt_backlight_data *data = dev_get_drvdata(dev);
-    int ret;
-
-    if (!data || !data->res) {
-        return 0;
-    }
-
-    ret = bst_bl_suspend(data->res);
-    if (ret) {
-        dev_err(&data->pdev->dev, "suspend screen:%d backlight failed:%d.",
-                data->screen_id, ret);
-    }
-
     return 0;
 }
 
@@ -331,13 +326,12 @@ static int bst_virt_bl_resume(struct device *dev)
         return 0;
     }
 
-    ret = bst_bl_resume(data->res);
+    ret = bst_bl_declare_resource(data->res);
     if (ret) {
         dev_err(&data->pdev->dev, "resume screen:%d backlight failed:%d.",
                 data->screen_id, ret);
     }
 
-    backlight_update_status(data->bd);
     return 0;
 }
 #endif
@@ -355,7 +349,7 @@ static struct platform_driver bst_virt_backlight_driver = {
     .driver = {
         .name = "bst-virt-backlight",
         .of_match_table = of_match_ptr(bst_virt_bl_of_match),
-        //.pm = &bst_virt_bl_pm_ops,
+        .pm = &bst_virt_bl_pm_ops,
     },
     .probe = bst_virt_bl_drv_probe,
     .remove = bst_virt_bl_drv_remove,

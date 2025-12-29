@@ -127,7 +127,8 @@ static int dptx_param_update_from_dt_info(struct drm_dptx *drm_handle)
 			dt_info->lane_speed);
 		return -1;
 	}
-
+	dptx->max_lanes = link->lanes;
+	dptx->max_rate = link->rate;
 	if (dt_info->video_bpc) {
 		params->bpc = dt_info->video_bpc;
 		params->pix_enc = dt_info->pixel_encode;
@@ -158,6 +159,7 @@ static int dptx_parse_dt_params(struct drm_dptx *drm_handle)
 	u32 lane_speed;
 	u32 bypass_train;
 	u32 hpd;
+	u32 ssc_en;
 	int ret = 0;
 
 	ret = of_property_read_u32(np, "lane-num", &lane_num);
@@ -198,6 +200,10 @@ static int dptx_parse_dt_params(struct drm_dptx *drm_handle)
 	ret = of_property_read_u32(np, "force-hpd", &hpd);
 	if (!ret)
 		dptx->force_hpd = hpd;
+
+	ret = of_property_read_u32(np, "ssc-enable", &ssc_en);
+	if (!ret)
+		dptx->ssc_en = ssc_en ? true : false;
 
 	return 0;
 }

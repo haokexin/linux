@@ -82,6 +82,9 @@
 #define DW_IC_SDA_HOLD_MIN_VERS	0x3131312A
 #define DW_IC_COMP_TYPE		0xfc
 #define DW_IC_COMP_TYPE_VALUE	0x44570140
+#define DW_IC_FS_SPKLEN  0xa0
+#define DW_IC_HS_SPKLEN  0xa4
+#define FILTR_THRES_MAX 50
 
 #define DW_IC_INTR_RX_UNDER	BIT(0)
 #define DW_IC_INTR_RX_OVER	BIT(1)
@@ -121,6 +124,16 @@
 
 #define DW_IC_COMP_PARAM_1_SPEED_MODE_HIGH	(BIT(2) | BIT(3))
 #define DW_IC_COMP_PARAM_1_SPEED_MODE_MASK	GENMASK(3, 2)
+
+
+
+
+#define REALTIME_INTERRUPT_POST    0x69036268
+#define REALTIME_I2C_BASE_1        0x68022000
+#define REALTIME_I2C_BASE_2        0x68021000
+#define REALTIME_I2C_BASE_3        0x68002000
+#define REALTIME_I2C_BASE_4        0x68001000
+
 
 /*
  * status codes
@@ -246,6 +259,7 @@ struct dw_i2c_dev {
 	struct device		*dev;
 	struct regmap		*map;
 	struct regmap		*sysmap;
+	resource_size_t     phy_base;
 	void __iomem		*base;
 	void __iomem		*ext;
 	struct completion	cmd_complete;
@@ -295,6 +309,13 @@ struct dw_i2c_dev {
 	int			(*set_sda_hold_time)(struct dw_i2c_dev *dev);
 	int			mode;
 	struct i2c_bus_recovery_info rinfo;
+	bool  broken_runtime;
+#if IS_ENABLED(CONFIG_I2C_DESIGNWARE_BST_HWLOCK)
+	int			(*acquire_hw_lock)(struct dw_i2c_dev *dev);
+	void			(*release_hw_lock)(struct dw_i2c_dev *dev);
+	struct bst_samphore *i2c_hw_lock;
+	int hw_lock_cnt;
+#endif
 };
 
 #define ACCESS_INTR_MASK	BIT(0)
@@ -322,6 +343,7 @@ int i2c_dw_init_regmap(struct dw_i2c_dev *dev);
 u32 i2c_dw_scl_hcnt(u32 ic_clk, u32 tSYMBOL, u32 tf, int cond, int offset);
 u32 i2c_dw_scl_lcnt(u32 ic_clk, u32 tLOW, u32 tf, int offset);
 int i2c_dw_set_sda_hold(struct dw_i2c_dev *dev);
+int i2c_dw_set_skplen(struct dw_i2c_dev *dev);
 u32 i2c_dw_clk_rate(struct dw_i2c_dev *dev);
 int i2c_dw_prepare_clk(struct dw_i2c_dev *dev, bool prepare);
 int i2c_dw_acquire_lock(struct dw_i2c_dev *dev);
@@ -332,6 +354,8 @@ int i2c_dw_set_fifo_size(struct dw_i2c_dev *dev);
 u32 i2c_dw_func(struct i2c_adapter *adap);
 void i2c_dw_disable(struct dw_i2c_dev *dev);
 void i2c_dw_disable_int(struct dw_i2c_dev *dev);
+
+
 
 static inline void __i2c_dw_enable(struct dw_i2c_dev *dev)
 {
@@ -388,6 +412,11 @@ int i2c_dw_amdpsp_probe_lock_support(struct dw_i2c_dev *dev);
 void i2c_dw_amdpsp_remove_lock_support(struct dw_i2c_dev *dev);
 #endif
 
+#if IS_ENABLED(CONFIG_I2C_DESIGNWARE_BST_HWLOCK)
+int i2c_dw_bst_probe_lock_support(struct dw_i2c_dev *dev);
+#endif
+
+
 int i2c_dw_validate_speed(struct dw_i2c_dev *dev);
 void i2c_dw_adjust_bus_speed(struct dw_i2c_dev *dev);
 
@@ -395,4 +424,7 @@ void i2c_dw_adjust_bus_speed(struct dw_i2c_dev *dev);
 int i2c_dw_acpi_configure(struct device *device);
 #else
 static inline int i2c_dw_acpi_configure(struct device *device) { return -ENODEV; }
+
+
+
 #endif

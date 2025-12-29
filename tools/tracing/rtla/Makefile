@@ -14,6 +14,9 @@ define allow-override
     $(eval $(1) = $(2)))
 endef
 
+PKG_CONFIG_PATH=$(O)/tools/tracing/libtraceevent/usr/local/lib/x86_64-linux-gnu/pkgconfig/:$(O)/tools/tracing/libtracefs/usr/local/lib/x86_64-linux-gnu/pkgconfig/
+export PKG_CONFIG_PATH
+
 # Allow setting CC and AR, or setting CROSS_COMPILE as a prefix.
 $(call allow-override,CC,$(CROSS_COMPILE)gcc)
 $(call allow-override,AR,$(CROSS_COMPILE)ar)
@@ -21,6 +24,8 @@ $(call allow-override,STRIP,$(CROSS_COMPILE)strip)
 $(call allow-override,PKG_CONFIG,pkg-config)
 $(call allow-override,LD_SO_CONF_PATH,/etc/ld.so.conf.d/)
 $(call allow-override,LDCONFIG,ldconfig)
+DESTDIR := $(O)/tools/tracing/rtla/
+export DESTDIR
 
 INSTALL	=	install
 MKDIR	=	mkdir
@@ -48,6 +53,12 @@ DOCDIR	:=	$(DATADIR)/doc
 MANDIR	:=	$(DATADIR)/man
 LICDIR	:=	$(DATADIR)/licenses
 SRCTREE	:=	$(or $(BUILD_SRC),$(CURDIR))
+
+CFLAGS += -I$(objtree)/tools/tracing/libtraceevent/usr/local/include/traceevent/ \
+	  -I$(objtree)/tools/tracing/libtracefs/usr/local/include/tracefs/ \
+	  -I$(objtree)/tools/tracing/libtraceevent/usr/local/include/ \
+	  -I$(objtree)/tools/tracing/libtracefs/usr/local/include/
+LDFLAGS += -L$(objtree)/tools/tracing/libtraceevent/usr/local/lib64/ -L$(objtree)/tools/tracing/libtracefs/usr/local/lib64/ -ltraceevent -ltracefs
 
 # If running from the tarball, man pages are stored in the Documentation
 # dir. If running from the kernel source, man pages are stored in
@@ -100,7 +111,7 @@ show_warnings:
 	$(call show_dependencies);
 
 ifneq ("$(WARNINGS)", "")
-ERROR_OUT = $(error Please add the necessary dependencies)
+ERROR_OUT = $(warning Please add the necessary dependencies)
 
 warnings: $(WARNINGS)
 	$(ERROR_OUT)
@@ -113,7 +124,7 @@ static: $(OBJ)
 	$(CC) -o rtla-static $(LDFLAGS) --static $(OBJ) $(LIBS) -lpthread -ldl
 
 .PHONY: install
-install: doc_install
+install: #doc_install
 	$(MKDIR) -p $(DESTDIR)$(BINDIR)
 	$(INSTALL) rtla -m 755 $(DESTDIR)$(BINDIR)
 	$(STRIP) $(DESTDIR)$(BINDIR)/rtla
@@ -123,7 +134,7 @@ install: doc_install
 	ln -s rtla $(DESTDIR)$(BINDIR)/timerlat
 
 .PHONY: clean tarball
-clean: doc_clean
+clean: #doc_clean
 	@test ! -f rtla || rm rtla
 	@test ! -f rtla-static || rm rtla-static
 	@test ! -f src/rtla.o || rm src/rtla.o
@@ -139,7 +150,7 @@ tarball: clean
 	tar $(TAROPTS) --exclude='*~' $(NAME)-$(VERSION)
 	rm -rf $(NAME)-$(VERSION)
 
-.PHONY: doc doc_clean doc_install
+.PHONY: #doc doc_clean doc_install
 doc:
 	$(MAKE) -C $(DOCSRC)
 

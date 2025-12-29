@@ -835,6 +835,8 @@ static void dw_mipi_dsi_dphy_enable(struct dw_mipi_dsi *dsi)
 				 PHY_STATUS_TIMEOUT_US);
 	if (ret)
 		DRM_DEBUG_DRIVER("failed to wait phy clk lane stop state\n");
+
+	msleep(2);
 }
 
 static void dw_mipi_dsi_clear_err(struct dw_mipi_dsi *dsi)

@@ -1,30 +1,37 @@
 #include <dt-bindings/media/bst-isp.h>
+#include <generated/autoconf.h>
+
 &isp {
 	memory-region = <&isp_fw_msg_rsv>,	// Required to exchange message
 			<&isp_fw_buf_rsv>,	// Required for ISP firmware
-			<&bst_ipc_reserved>;	// When IOMMU and IPC mode is used, must map IPC memory
-	dma-coherent;
-	use-ipc;
-	iommus = <&mmu600_coreip 5>;
+			<&bst_ipc_reserved>;	// When IPC mode is used, this must be third region, not used by MsgBox
+#if defined(CONFIG_VIDEO_BST_ISP_MULTI_OS)
+	fw-bin = "isp/core_isp.exe.msgbox";	// Enable it and remove use-ipc to use MsgBox mode
+#else
+	use-ipc;				// Enable it to use IPC mode
+#endif
+	iommus = <&mmu600_coreip 5>;		// Remove it to disable SMMU
 	status = "okay";
 
-	isp-fsync@0 {
+	fsync0: fsync@0 {
 		source = <FSYNC_INNER0>;
 		tx-pin = <5>;
 		tx-fps = <20>;
+		map-to-outer = <FSYNC_OUTER2>;
+		rx-pin = <3>;
 	};
-	isp-fsync@1 {
+	fsync1: fsync@1 {
 		source = <FSYNC_INNER0>;
 		tx-pin = <6>;
 		tx-fps = <20>;
+		map-to-outer = <FSYNC_OUTER2>;
+		rx-pin = <3>;
 	};
-	isp-fsync@2 {
+	fsync2: fsync@2 {
 		source = <FSYNC_INNER0>;
 		tx-pin = <7>;
 		tx-fps = <20>;
+		map-to-outer = <FSYNC_OUTER2>;
+		rx-pin = <3>;
 	};
-};
-
-&mmu600_coreip {
-	status = "okay";
 };

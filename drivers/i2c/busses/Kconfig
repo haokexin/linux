@@ -564,6 +564,15 @@ config I2C_DESIGNWARE_PLATFORM
 	  This driver can also be built as a module.  If so, the module
 	  will be called i2c-designware-platform.
 
+config I2C_DESIGNWARE_BST_HWLOCK
+	bool "BSP I2C semaphore support"
+	depends on I2C_DESIGNWARE_PLATFORM
+	help
+	  This driver enables managed host access to the selected I2C bus shared
+	  between ARM CPU and RSIV ISP.
+
+	  You should say Y if running on an BST system equipped with the ISP.
+
 config I2C_DESIGNWARE_AMDPSP
 	bool "AMD PSP I2C semaphore support"
 	depends on X86_MSR

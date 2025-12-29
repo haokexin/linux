@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0+
 /dts-v1/;
 #include "bstc1200.dtsi"
+#include "bstc1200-db-cluster.dtsi"
 
 / {
 	compatible = "bst,c1200";
@@ -50,9 +51,9 @@
 
 		bst_ipc_reserved: bst_ipc@800300000 {
 			compatible = "shared-dma-pool";
-			reg = <0x8 0x00300000 0x0 0x100000>;
-			no-map;
-		};
+			reg = <0x8 0x00300000 0x0 0x400000>;
+ 			no-map;
+ 		};
 
 
 
@@ -61,40 +62,6 @@
 			reg = <0x8 0x3400000 0x0 0x1000000>;
 			no-map;
 		};
-	};
-//
-
-	cpus {
-		#address-cells = <1>;
-		#size-cells = <0>;
-
-		cpu_l0: cpu@0 {
-			compatible = "arm,cortex-a78", "arm,armv8";
-			device_type = "cpu";
-			enable-method = "psci";
-			next-level-cache = <&l2_0>;
-			reg = <0x0>;
-		};
-		cpu_l1: cpu@1 {
-			compatible = "arm,cortex-a78", "arm,armv8";
-			device_type = "cpu";
-			enable-method = "psci";
-			next-level-cache = <&l2_0>;
-			reg = <0x100>;
-		};
-
-		l2_0: l2-cache-0 {
-			compatible = "cache";
-		};
-	};
-
-
-	psci {
-		compatible	= "arm,psci-1.0";
-		method		= "smc";
-		cpu_on		= <0xC4000003>;
-		cpu_off		= <0x84000002>;
-		cpu_suspend	= <0xC4000001>;
 	};
 
 	firmware {
@@ -345,6 +312,9 @@
 };
 
 &ufs {
+	interrupts = <GIC_SPI 81 IRQ_TYPE_LEVEL_HIGH
+				  GIC_SPI 88 IRQ_TYPE_LEVEL_HIGH>; 
+	ufs-timer = <0x4>;
 	status = "okay";
 };
 
@@ -376,10 +346,6 @@
 	status = "disable";
 };
 
-&hif {
-	status = "disable";
-};
-
 &gic600 {
 	status = "okay";
 	reg = <0x0 0x33200000 0 0x10000>,	// GICD
@@ -394,6 +360,7 @@
 
 &mbox {
 	status = "okay";
+	ipc-cpus = <4 5>;
 	memory-region = <&bst_ipc_reserved>;
 };
 
@@ -413,4 +380,14 @@
 
 &arm_pmu {
 	status = "disable";
+};
+
+&timer0 {
+       status = "disable";
+};
+
+&timer1 {
+    interrupts = <GIC_SPI 88 IRQ_TYPE_LEVEL_HIGH>;
+       timer-chan = <0x4>;
+    status = "okay";
 };

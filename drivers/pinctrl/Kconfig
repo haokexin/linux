@@ -13,9 +13,10 @@ config GENERIC_PINCTRL_GROUPS
 
 config PINMUX
 	bool "Support pin multiplexing controllers" if COMPILE_TEST
+	default y
 
 config GENERIC_PINMUX_FUNCTIONS
-	bool
+        bool
 	select PINMUX
 
 config PINCONF
@@ -23,6 +24,7 @@ config PINCONF
 
 config GENERIC_PINCONF
 	bool
+	default y
 	select PINCONF
 
 config DEBUG_PINCTRL

@@ -47,6 +47,8 @@
 static bool probed = false;
 static int mve_dev_major;
 struct mve_rsrc_driver_data mve_rsrc_data;
+static BLOCKING_NOTIFIER_HEAD(mve_rsrc_notifier_chain);
+static bool mve_rsrc_ready = false;
 
 extern struct mve_config_attribute *mve_device_get_config(void);
 
@@ -141,6 +143,53 @@ static void reset_soft(int reset)
 }
 #endif
 
+/**
+ * @brief notify the mve base driver that the mve src driver is ready
+ *
+ */
+static void notify_mve_rsrc_ready(void)
+{
+    WRITE_ONCE(mve_rsrc_ready, true);
+    blocking_notifier_call_chain(&mve_rsrc_notifier_chain, 0, NULL);
+
+    return;
+}
+
+/**
+ * @brief regiser the driver notifier block
+ *
+ * @param nb the notifier block to be registered
+ * @return int 0 on success, negative error code on failure
+ */
+int register_driver_mve_rsrc_notifier(struct notifier_block *nb)
+{
+    int ret;
+
+    if (READ_ONCE(mve_rsrc_ready)) {
+        ret = -EPERM;
+        goto out;
+    }
+    ret = blocking_notifier_chain_register(&mve_rsrc_notifier_chain, nb);
+    if (ret)
+        return ret;
+
+out:
+    return ret;
+}
+EXPORT_SYMBOL(register_driver_mve_rsrc_notifier);
+
+/**
+ * @brief  unregister the driver notifier block
+ *
+ * @param nb the notifier block to be unregistered
+ * @return int 0 on success, negative error code on failure
+ */
+int unregister_driver_mve_rsrc_notifier(struct notifier_block *nb)
+{
+    return blocking_notifier_chain_unregister(&mve_rsrc_notifier_chain, nb);
+}
+EXPORT_SYMBOL(unregister_driver_mve_rsrc_notifier);
+
 static void reset_hw(void)
 {
     tCS *regs;
@@ -183,14 +232,14 @@ static int mver_driver_probe(struct platform_device *pdev)
     if (NULL == of_match)
     {
         /* Driver doesn't support this device */
-        printk(KERN_ERR "MVE: No matching device to Mali-MVE of_node: %p.\n", pdev->dev.of_node);
+        dev_err(&pdev->dev, "MVE: No matching device to Mali-MVE of_node: %p.\n", pdev->dev.of_node);
         return -EINVAL;
     }
 
     mve_dev_major = register_chrdev(0, MVE_RSRC_DRIVER_NAME, &rsrc_fops);
     if (0 > mve_dev_major)
     {
-        printk(KERN_ERR "MVE: Failed to register the driver \'%s\'.\n", MVE_RSRC_DRIVER_NAME);
+        dev_err(&pdev->dev, "MVE: Failed to register the driver \'%s\'.\n", MVE_RSRC_DRIVER_NAME);
         ret = mve_dev_major;
         goto error;
     }
@@ -198,7 +247,7 @@ static int mver_driver_probe(struct platform_device *pdev)
     /* Get resource. */
     ret = of_address_to_resource(pdev->dev.of_node, 0, &res);
     if (ret != 0) {
-        printk(KERN_ERR "MVE: No Mali-MVE I/O registers defined.\n");
+        dev_err(&pdev->dev, "MVE: No Mali-MVE I/O registers defined.\n");
         ret = -ENXIO;
         goto error;
     }
@@ -206,7 +255,7 @@ static int mver_driver_probe(struct platform_device *pdev)
     /* Get IRQ resource. */
     irq = of_irq_to_resource(pdev->dev.of_node, 0, &irq_res);
     if (irq == 0) {
-        printk(KERN_ERR "MVE: No IRQ defined for Mali-MVE.\n");
+        dev_err(&pdev->dev, "MVE: No IRQ defined for Mali-MVE.\n");
         ret = -ENODEV;
         goto error;
     }
@@ -217,7 +266,7 @@ static int mver_driver_probe(struct platform_device *pdev)
     private->mem_res = request_mem_region(res.start, resource_size(&res), MVE_RSRC_DRIVER_NAME);
     if (!private->mem_res)
     {
-        printk(KERN_ERR "MVE: Failed to request Mali-MVE memory region.\n");
+        dev_err(&pdev->dev, "MVE: Failed to request Mali-MVE memory region.\n");
         ret = -EBUSY;
         goto error;
     }
@@ -229,7 +278,7 @@ static int mver_driver_probe(struct platform_device *pdev)
 #endif
     if (NULL == private->regs)
     {
-        printk(KERN_ERR "MVE: Failed to map Mali-MVE registers.\n");
+        dev_err(&pdev->dev, "MVE: Failed to map Mali-MVE registers.\n");
         ret = -ENXIO;
         goto error;
     }
@@ -247,7 +296,7 @@ static int mver_driver_probe(struct platform_device *pdev)
     private->config = mve_device_get_config();
     if (NULL == private->config)
     {
-        printk(KERN_ERR "MVE: Failed to request Mali-MVE driver configuration.\n");
+        dev_err(&pdev->dev, "MVE: Failed to request Mali-MVE driver configuration.\n");
         ret = -ENXIO;
         goto error;
     }
@@ -256,7 +305,7 @@ static int mver_driver_probe(struct platform_device *pdev)
                 mve_config_get_value(private->config, MVE_CONFIG_DEVICE_ATTR_BUS_ATTRIBUTES);
     if (NULL == attr_fptr)
     {
-        printk(KERN_ERR "MVE: Failed to request MVE_CONFIG_DEVICE_ATTR_BUS_ATTRIBUTES.\n");
+        dev_err(&pdev->dev, "MVE: Failed to request MVE_CONFIG_DEVICE_ATTR_BUS_ATTRIBUTES.\n");
         ret = -ENXIO;
         goto error;
     }
@@ -301,13 +350,14 @@ static int mver_driver_probe(struct platform_device *pdev)
     pm_runtime_put_sync(&pdev->dev);
     platform_set_drvdata(pdev, private);
 
-    printk("MVE resource driver loaded successfully (nlsid=%u, cores=%u, version=0x%X).\n",
+    dev_info(&pdev->dev, "MVE resource driver loaded successfully (nlsid=%u, cores=%u, version=0x%X).\n",
            private->nlsid, private->ncore, private->hw_version);
+    notify_mve_rsrc_ready();
 
     return ret;
 
 error:
-    printk(KERN_ERR "Failed to load the driver \'%s\'.\n", MVE_RSRC_DRIVER_NAME);
+    dev_err(&pdev->dev, "Failed to load the driver \'%s\'.\n", MVE_RSRC_DRIVER_NAME);
     if (NULL != private->regs)
     {
         iounmap(private->regs);
@@ -334,7 +384,7 @@ static int mver_driver_remove(struct platform_device *pdev)
     release_mem_region(mve_rsrc_data.mem_res->start, resource_size(mve_rsrc_data.mem_res));
     unregister_chrdev(mve_dev_major, MVE_RSRC_DRIVER_NAME);
 
-    printk("MVE resource driver unloaded successfully.\n");
+    dev_info(&pdev->dev, "MVE resource driver unloaded successfully.\n");
     return 0;
 }
 

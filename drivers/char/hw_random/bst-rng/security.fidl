@@ -1,0 +1,359 @@
+//security.fidl
+
+package com.bst.ipc.security
+
+interface service{
+    version {major 1  minor 0}
+    enumeration ErrorEnum {
+        NO_ERROR = 0
+        SERVER_FAIL = -1
+        ERROR_TRNG = -2
+		ERROR_HASH = -3
+        ERROR_HMAC = -4
+        ERROR_SM3 = -5
+        ERROR_CRC32 = -6
+        ERROR_AES = -7
+        ERROR_SM4 = -8
+        ERROR_RSA_SIGN_OR_VERIFY = -9
+        ERROR_ECC_SIGN_OR_VERIFY = -10
+        ERROR_SM2_SIGN_OR_VERIFY = -11
+		ERROR_SEIP_KEY_SET = -12
+		ERROR_SEIP_KEY_STATUS = -13
+		ERROR_LIFE_CYCLE_SET = -14
+		ERROR_SRAM_KEY_SET = -15
+		ERROR_KEY_EX_OP = -16
+		ERROR_RSA_EN = -17
+		ERROR_RSA_DE = -18
+		ERROR_PUB_KEY = -19
+		ERROR_KEY_NOT_SET = -20
+		ERROR_OTP_SET = -21
+		ERROR_KEY_ID = -22
+		ERROR_MALLOC = -23
+		ERROR_CBC_MAC = -24
+		ERROR_CMAC = -25
+		ERROR_OTP_INFO_INVALID = -26
+		ERROR_AUTH_FAIL = -27
+		ERROR_CONDITION = -28
+		ERROR_SEQUENCE = -29
+		ERROR_OUT_OF_RANGE = -30
+		ERROR_SRV_NOT_SUPPORT = -31
+		ERROR_TIMEOUT = -32
+		ERROR_CARRY_INFO = -33
+		ERROR_GEN_KEY = -34
+    }
+    enumeration AesEnum {
+		AES_128_ECB = 48
+		AES_128_CBC = 49
+		AES_128_CFB = 50
+		AES_128_OFB = 51
+		AES_128_CTR = 52
+		AES_128_XTS = 53
+		AES_192_ECB = 56
+		AES_192_CBC = 57
+		AES_192_CFB = 58
+		AES_192_OFB = 59
+		AES_192_CTR = 60
+		AES_192_XTS = 61
+		AES_256_ECB = 64
+		AES_256_CBC = 65
+		AES_256_CFB = 66
+		AES_256_OFB = 67
+		AES_256_CTR = 68
+		AES_256_XTS = 69
+    }
+    enumeration Sm4Enum {
+		SM4_ECB = 72
+		SM4_CBC = 73
+		SM4_CFB = 74
+		SM4_OFB = 75
+		SM4_CTR = 76
+		SM4_XTS = 77
+    }
+
+    enumeration GcmEnum {
+		AES_128_GCM = 54
+		AES_192_GCM = 62
+		AES_256_GCM = 70
+		SM4_GCM = 78
+    }
+    enumeration CcmEnum {
+		AES_128_CCM = 55
+		AES_192_CCM = 63
+		AES_256_CCM = 71
+		SM4_CCM = 79
+    }
+
+    enumeration HashEnum {
+		HASH_SHA256 = 1
+		HASH_SHA224 = 4
+		HASH_SHA1 =7
+    }
+    enumeration HmacEnum {
+		HMAC_SHA256 = 14
+		HMAC_SHA224 = 17
+		HMAC_SHA1 = 20
+    }
+    enumeration CmacEnum {
+		AES_128_CMAC = 29
+		AES_192_CMAC = 30
+		AES_256_CMAC = 31
+		SM4_CMAC = 32
+    }
+    enumeration CbcMacEnum {
+		AES_128_CBC_MAC = 25
+		AES_192_CBC_MAC = 26
+		AES_256_CBC_MAC = 27
+		SM4_CBC_MAC = 28
+    }
+    enumeration CryptoEnum {
+		ENCRYPT = 0
+		DECRYPT = 1
+    }
+    enumeration SignEnum {
+		SIGN = 0
+		VERIFY = 1
+    }
+    enumeration OtpStatus {
+		OTP_STATUS_INIT = 0
+		OTP_STATUS_SET = 1
+    }
+    enumeration SramKeyId {
+		SRAM_KEY_0 = 0x12340000
+		SRAM_KEY_1
+		SRAM_KEY_2
+		SRAM_KEY_3
+		SRAM_KEY_4
+		SRAM_KEY_5
+		SRAM_KEY_6
+		SRAM_KEY_7
+		SRAM_KEY_8
+		SRAM_KEY_9
+		SRAM_KEY_10
+		SRAM_KEY_11
+		SRAM_KEY_12
+		SRAM_KEY_13
+		SRAM_KEY_14
+		SRAM_KEY_15
+		SRAM_KEY_16 = 0xABCD0001
+		SRAM_KEY_17
+    }
+    enumeration LifeCycleEnum {
+		LC_CHIP_TEST = 0
+		LC_CHIP_DEV = 1
+		LC_DEVICE_DESIGN = 2
+		LC_DEVICE_USING = 3	
+		LC_CHIP_FAIL = 4
+		LC_CHIP_END = 5
+    }
+    enumeration OtpUseOptionEnum {
+		OTP_USE_REQUEST_RB = 0
+		OTP_USE_HANDLE_TOKEN = 1
+    }
+    enumeration OtpInfoEnum {
+		OTP_INFO_CHIP_ID_DERIVATIVE = 0
+		OTP_INFO_ROLLBACK_DATA = 1
+		OTP_INFO_VER_CTRL_INFO = 2
+		OTP_INFO_IC_TYPE_INFO = 3
+		OTP_INFO_PARTIAL_GOOD_INFO = 4
+    }
+    enumeration BinVerifyOpEnum {
+		BVO_VERIFY_PUB_KEY = 0
+		BVO_VERIFY_BIN = 1
+		BVO_UPDATE_HMAC_KEY = 2
+    }     
+    method hello {
+        in {
+            String name
+        }
+        out {
+            String message
+        }
+        error ErrorEnum
+    }
+    method otp_info {
+		in {
+            OtpInfoEnum infoType
+            UInt32 outBuf
+        }
+		error ErrorEnum
+    }
+    method trng {
+        in {
+            UInt32 trngLen
+			UInt32 outBuf
+        }
+		error ErrorEnum
+    }
+    method hash {
+        in {
+			UInt32 msgBuf
+			UInt32 msgLen
+			HashEnum mode
+			UInt32 outBuf
+        }
+		error ErrorEnum
+    }
+    method hmac {
+        in {
+			UInt32 msgBuf
+			UInt32 msgLen
+			UInt32 keyPara
+			UInt32 keyLen
+			HmacEnum mode
+			UInt32 outBuf
+        }
+		error ErrorEnum
+    }
+    method crc32 {
+        in {
+			UInt32 msgBuf
+			UInt32 msgLen
+			UInt32 outBuf
+        }
+		error ErrorEnum
+    }
+    method sm3 {
+        in {
+			UInt32 msgBuf
+			UInt32 msgLen
+			UInt32 outBuf
+        }
+		error ErrorEnum
+    }
+    method aes {
+        in {
+			UInt32 msgBuf
+			UInt32 ivBuf
+			UInt32 keyPara
+			UInt32 msgLen
+			CryptoEnum isDecrypt
+			AesEnum mode
+			UInt32 outBuf
+        }
+		error ErrorEnum
+    }
+    method sm4 {
+        in {
+			UInt32 msgBuf
+			UInt32 ivBuf
+			UInt32 keyPara
+			UInt32 msgLen
+			CryptoEnum isDecrypt
+			Sm4Enum mode
+			UInt32 outBuf
+        }
+		error ErrorEnum
+    }
+    method rsa_sign_or_verify {
+        in {
+			SignEnum isVerify
+			UInt32 msgBuf
+			UInt32 eBuf
+			UInt32 nBuf
+			UInt32 dBuf
+			UInt32 nBitLen
+			UInt32 signBuf
+        }
+		error ErrorEnum
+    }
+    method ecc_sign_or_verify {
+        in {
+			SignEnum isVerify
+			UInt32 eBuf
+			UInt32 eBitlen
+			UInt32 keyBuf
+			UInt32 signBuf
+        }
+		error ErrorEnum
+    }
+    method sm2_sign_or_verify {
+        in {
+			SignEnum isVerify
+			UInt32 eBuf
+			UInt32 keyBuf
+			UInt32 signBuf
+        }
+		error ErrorEnum
+    }
+    method seip_key_status {
+        in {
+			UInt32 keyId
+        }
+		out {
+            OtpStatus keyStatus
+        }
+		error ErrorEnum
+    }
+    method life_cycle_status {
+		out {
+            LifeCycleEnum lifeCycle
+        }
+		error ErrorEnum
+    }
+    method otp_use_with_auth {
+        in {
+			OtpUseOptionEnum op
+			UInt32 cmdWordBuf
+			UInt32 tokenBuf
+			UInt32 rbBuf
+        }
+		error ErrorEnum
+    }
+    method bin_verify {
+        in {
+            BinVerifyOpEnum op
+			UInt32 inBuff
+			UInt32 length
+			UInt32 signBuf
+			UInt32 resultBuf
+        }
+		error ErrorEnum
+    }
+    method cbc_mac {
+        in {
+			UInt32 msgBuf
+			UInt32 msgLen
+			UInt32 keyPara
+			UInt32 keyLen
+			CbcMacEnum mode
+			UInt32 outBuf
+        }
+		error ErrorEnum
+    }
+    method cmac {
+        in {
+			UInt32 msgBuf
+			UInt32 msgLen
+			UInt32 keyPara
+			UInt32 keyLen
+			CmacEnum mode
+			UInt32 outBuf
+        }
+		error ErrorEnum
+    }
+    method slt_method {
+        in {
+            UInt32 bin_index
+        }
+        out {
+            UInt32 reply_result
+            UInt32 recv_bin_index
+	        ByteBuffer result_descrption
+        }
+        error ErrorEnum
+    }
+	method config_tzc400 {
+        in {
+            UInt64 client_id
+            UInt8[] master_name
+            UInt8 status        // open or close
+        }
+        error ErrorEnum
+    }
+    broadcast heartbeat {
+        out {
+            UInt8 status
+        }
+    } 
+}
+

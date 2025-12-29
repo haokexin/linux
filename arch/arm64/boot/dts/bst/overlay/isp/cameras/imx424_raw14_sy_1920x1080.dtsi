@@ -1,9 +1,0 @@
-compatible = "bst,imx424";
-sensor-id = <0x1a>;
-data-type = <0x2d>;
-fv-polarity-low = <0>;
-fpd3-mode = "csi-2";
-serializer = "ti953";
-
-algo-bin = "imx424/imx424_raw14_sy_h60_AlgoParam.bin";
-iq-bin = "imx424/imx424_raw14_sy_h60_IqParam.bin";

@@ -35,4 +35,16 @@ config PCIE_BST_EP_USE_OUTBOUND
 	default n
 	select PCIE_BST_PLAT_EP
 
+config PCIE_BST_DIAGNOSTIC
+	bool "C1200 PCIE DIAGNOSTIC"
+	default y
+
+config PCIE_BST_RESET
+	bool "C1200 PCIE BST RESET"
+	default y
+
+config HAVE_DBI_MUTEX
+	bool "BST C1200 PCIe Shared DBI Lock"
+	default n
+
 endmenu

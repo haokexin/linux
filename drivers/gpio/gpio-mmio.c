@@ -59,6 +59,10 @@ o        `                     ~~~~\___/~~~~    ` controller in FPGA is ,.`
 #include <linux/mod_devicetable.h>
 #include <linux/of.h>
 #include <linux/of_device.h>
+#include <linux/bst_samphore.h>
+
+struct bst_samphore *lock;
+
 
 static void bgpio_write8(void __iomem *reg, unsigned long data)
 {
@@ -164,11 +168,27 @@ static int bgpio_get_set_multiple(struct gpio_chip *gc, unsigned long *mask,
 	return 0;
 }
 
+#if defined(CONFIG_ARCH_BSTC1200)
+
+static int bgpio_get(struct gpio_chip *gc, unsigned int gpio)
+{
+	int value;
+
+	get_sem_lock(lock);
+	value  = !!(gc->read_reg(gc->reg_dat) & bgpio_line2mask(gc, gpio));
+	release_sem_lock(lock);
+	
+	return value;
+}
+
+#else
+
 static int bgpio_get(struct gpio_chip *gc, unsigned int gpio)
 {
 	return !!(gc->read_reg(gc->reg_dat) & bgpio_line2mask(gc, gpio));
 }
 
+#endif
 /*
  * This only works if the bits in the GPIO register are in native endianness.
  */
@@ -243,6 +263,33 @@ static void bgpio_set_with_clear(struct gpio_chip *gc, unsigned int gpio,
 		gc->write_reg(gc->reg_clr, mask);
 }
 
+#if defined(CONFIG_ARCH_BSTC1200)
+static void bgpio_set_set(struct gpio_chip *gc, unsigned int gpio, int val)
+{
+	unsigned long mask = bgpio_line2mask(gc, gpio);
+	unsigned long flags;
+
+
+	raw_spin_lock_irqsave(&gc->bgpio_lock, flags);
+
+	get_sem_lock(lock);
+	
+	gc->bgpio_data = gc->read_reg(gc->reg_set);
+		
+	if (val)
+		gc->bgpio_data |= mask;
+	else
+		gc->bgpio_data &= ~mask;
+
+	gc->write_reg(gc->reg_set, gc->bgpio_data);
+
+	release_sem_lock(lock);
+	
+	raw_spin_unlock_irqrestore(&gc->bgpio_lock, flags);
+	
+}
+#else
+
 static void bgpio_set_set(struct gpio_chip *gc, unsigned int gpio, int val)
 {
 	unsigned long mask = bgpio_line2mask(gc, gpio);
@@ -259,6 +306,8 @@ static void bgpio_set_set(struct gpio_chip *gc, unsigned int gpio, int val)
 
 	raw_spin_unlock_irqrestore(&gc->bgpio_lock, flags);
 }
+
+#endif
 
 static void bgpio_multiple_get_masks(struct gpio_chip *gc,
 				     unsigned long *mask, unsigned long *bits,
@@ -605,7 +654,17 @@ int bgpio_init(struct gpio_chip *gc, struct device *dev,
 
 	if (!is_power_of_2(sz))
 		return -EINVAL;
+#if defined(CONFIG_ARCH_BSTC1200)
+	/* lock just could be inited once. */
+	{
+		static int do_once_flag = 0;
 
+		if (do_once_flag == 0) {
+			lock = samphore_lock_init(1, 5);
+			do_once_flag = 1;
+		}
+	}
+#endif
 	gc->bgpio_bits = sz * 8;
 	if (gc->bgpio_bits > BITS_PER_LONG)
 		return -EINVAL;

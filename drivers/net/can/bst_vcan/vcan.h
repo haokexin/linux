@@ -1,0 +1,8 @@
+#ifndef __VCAN_H__
+#define __VCAN_H__
+
+#define ADAS2CAN_BUFFER_SIZE (32 * 1024)
+#define ADAS2CAN_SQBUFFER_HEADER_RESERVER_SIZE (16*1024)
+#define ADAS_VCAN_BUFFER_SQ_BUFFER_COUNT 15
+
+#endif /* __VCAN_H__ */

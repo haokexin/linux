@@ -20,12 +20,15 @@ struct virt_dc_dev {
 	struct bst_virt_device *base_dev;
 	int num_submodules;
 	int num_rich_layers;
+	u32 enabled_layers_map;
 	u32 max_line_size;
 	u32 max_vsize;
 	u32 support_dual_link : 1;
 	u32 support_smmu_stage_1 : 1;
 	uint8_t min_fw_layer_id;
-	uint8_t max_scaler_num;
+#ifdef DISPLAY_SUPPORT_SCALE
+	uint8_t scaler_num;
+#endif
 	u32 *dou_ft_coeff_addr;
 	u32 *glb_scl_coeff_addr[DC_MAX_GLB_SCL_COEFF];
 #ifndef __DISPLAY_EVENTS_MGR__
@@ -37,6 +40,8 @@ struct virt_dc_dev {
 	struct hrtimer flip_hrtimer;
 	ktime_t framedur_ns;
 	bool timer_inited;
+	u64 flush_count;
+	u64 vsync_count;
 };
 
 struct bst_virt_pipe;

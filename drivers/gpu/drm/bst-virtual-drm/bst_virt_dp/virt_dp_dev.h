@@ -9,7 +9,6 @@
 #include <drm/display/drm_dp_helper.h>
 #include "bst_display_platform.h"
 #include "bst_display_global_api.h"
-#include "bst_display_dp_cmdset.h"
 #include "bst_virt_drm_device.h"
 
 struct virt_dp_dev {

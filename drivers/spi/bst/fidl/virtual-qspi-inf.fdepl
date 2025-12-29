@@ -1,0 +1,25 @@
+//xxx-inf.fdepl
+import "platform:/plugin/com.bst.os.idl/deployment/ipc_spec.fdepl"
+import "virtual-qspi.fidl"
+
+define com.bst.ipc.deployment for interface com.bst.ipc.safety.st_public {
+    MaxMethodNum = 10
+    MaxBroadcastNum = 10
+
+    method timesync_method {
+        MethodID = 1
+    }
+
+    method qspi_method {
+        MethodID = 4
+    }
+
+    method scmi_method {
+        MethodID = 5
+    }
+    
+    method gettemp_method {
+        MethodID = 6
+    }
+
+}

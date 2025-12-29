@@ -1,0 +1,12 @@
+import "r5mem_inf.fdepl"
+
+define com.bst.ipc.deployment for provider as dmabuf_ipc_client {
+    ProviderType = Client
+    RTE = LinuxKernel
+    SrcEndID = CPU_0
+    FID = DEF
+    SID = 15
+    instance com.bst.ipc.dmabuf.r5mem {
+        DstEndID = DMA_0
+    }
+}

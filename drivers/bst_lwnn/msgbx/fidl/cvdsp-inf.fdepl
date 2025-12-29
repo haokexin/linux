@@ -55,3 +55,11 @@ define com.bst.ipc.deployment for interface com.bst.ipc.coreip.cvdsp3 {
         MethodID = 1
     }
 }
+
+define com.bst.ipc.deployment for interface com.bst.ipc.coreip.cvdsp_safety {
+    MaxMethodNum = 100
+
+    method fusaenable_method  {
+        MethodID = 77
+    } 
+}

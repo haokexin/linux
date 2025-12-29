@@ -16,18 +16,96 @@
 #include "ipc.h"
 #include "ipc_common.h"
 
-#define IPC_DRIVER_NAME "ipc_mempool"
 
+
+
+#define IPC_DRIVER_NAME "ipc_mempool"
+//#define IPC_BASE_OFFSET_MEM 0x100000
 /********************* local variables ***************************/
 static DEFINE_MUTEX(memblock_mutex);
 
+#ifdef CONFIG_DMA_DECLARE_COHERENT
+
+struct dma_coherent_mem {
+	void		*virt_base;
+	dma_addr_t	device_base;
+	unsigned long	pfn_base;
+	int		size;
+	unsigned long	*bitmap;
+	spinlock_t	spinlock;
+	bool		use_dev_dma_pfn_offset;
+};
+
+
+static inline struct dma_coherent_mem *get_coherent_memory(struct device *dev)
+{
+	if (dev && dev->dma_mem)
+		return dev->dma_mem;
+	return NULL;
+}
+
+static inline dma_addr_t dma_get_device_base(struct device *dev,
+					     struct dma_coherent_mem * mem)
+{
+	if (mem->use_dev_dma_pfn_offset)
+		return phys_to_dma(dev, PFN_PHYS(mem->pfn_base));
+	return mem->device_base;
+}
+
+
+ static inline void *bst_dma_alloc_coherent(struct device *dev, size_t size,
+		dma_addr_t *dma_handle, gfp_t gfp)
+{
+	unsigned long flags;
+	int pageno;
+	void *ret;
+	int order = get_order(size);
+	struct dma_coherent_mem *mem = get_coherent_memory(dev);
+	if (!mem)
+		return 0;
+
+
+	spin_lock_irqsave(&mem->spinlock, flags);
+
+	if (unlikely(size > ((dma_addr_t)mem->size << PAGE_SHIFT)))
+		goto err;
+
+	pageno = bitmap_find_free_region(mem->bitmap, mem->size, order);
+	if (unlikely(pageno < 0))
+		goto err;
+
+	/*
+	 * Memory was found in the coherent area.
+	 */
+	*dma_handle = dma_get_device_base(dev, mem) +
+			((dma_addr_t)pageno << PAGE_SHIFT);
+	ret = mem->virt_base + ((dma_addr_t)pageno << PAGE_SHIFT);
+	spin_unlock_irqrestore(&mem->spinlock, flags);
+
+	return ret;
+err:
+	spin_unlock_irqrestore(&mem->spinlock, flags);
+	return NULL;
+}
+#else 
+
+static inline void *bst_dma_alloc_coherent(struct device *dev, size_t size,
+		dma_addr_t *dma_handle, gfp_t gfp){
+		
+		IPC_LOG_ERR("CONFIG_DMA_DECLARE_COHERENT no define !!!!!!!!!!!!!!!!!!!\n");
+
+		return NULL;
+}
+#endif
+ 
 static int32_t ipc_cma_alloc(struct ipc_mempool *mempool, u32 size, u32 align,
 			     struct ipc_memblock **memblock)
 {
 	struct ipc_memblock *block;
 	dma_addr_t dma_addr;
 	void *k_addr;
-
+	
+	
 	size = ALIGN(size, PAGE_SIZE);
 
 	block = devm_kzalloc(&g_ipc_platform_dev->dev,
@@ -35,7 +113,7 @@ static int32_t ipc_cma_alloc(struct ipc_mempool *mempool, u32 size, u32 align,
 	if (!block)
 		return -ENOMEM;
 
-	k_addr = dma_alloc_coherent(mempool->dev, size, &dma_addr, GFP_KERNEL);
+	k_addr = bst_dma_alloc_coherent(mempool->dev, size, &dma_addr, GFP_KERNEL);
 	if (!k_addr) {
 		devm_kfree(&g_ipc_platform_dev->dev, block);
 		return -ENOMEM;
@@ -46,7 +124,8 @@ static int32_t ipc_cma_alloc(struct ipc_mempool *mempool, u32 size, u32 align,
 	block->size = size;
 	block->k_addr = k_addr;
 	block->u_addr = 0;
-	memset(block->k_addr, 0, size);
+	//memset(block->k_addr+sys_offset, 0, IPC_BASE_OFFSET_MEM);
+	
 	*memblock = block;
 
 	mutex_lock(&memblock_mutex);

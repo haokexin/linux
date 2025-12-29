@@ -1,0 +1,12 @@
+#include <dt-bindings/media/bst-isp.h>
+
+compatible = "bst,ds_imx623";
+sensor-addr = <0x1a>;
+data-type = <DT_RAW12>;
+sensor-fps = <20>;
+reg-width = <WORD_REG_BYTE_VAL>;
+algo-bin = "isp/algo/imx623/imx623_raw12_SN_h100_AlgoParam.bin";
+iq-bin = "isp/algo/imx623/imx623_raw12_SN_h100_IqParam.bin";
+
+ser-fsync-tx-pin = <2>;
+ser-addr = <0x42>;

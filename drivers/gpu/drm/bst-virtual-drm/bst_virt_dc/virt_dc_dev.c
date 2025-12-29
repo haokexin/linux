@@ -33,14 +33,17 @@ virt_dc_irq_handler(struct bst_virt_device *vdev,
 
 	if (events_type) {
 		DRM_DEBUG_VBL("virt dev(%d) evts:%#x\n", vdev->device_type, events_type);
-		if (events_type & BST_EVENT_VSYNC)
+		if (events_type & BST_EVENT_VSYNC) {
 			evts.pipes |= BST_DRM_EVENT_VSYNC;
+			dc->vsync_count++;
+		}
 		if (events_type & BST_EVENT_EOW)
 			evts.pipes |= BST_DRM_EVENT_EOW;
+		if (events_type & BST_EVENT_FLIP) {
+			evts.pipes |= BST_DRM_EVENT_FLIP;
+			dc->flush_count++;
+		}
 
-		//NOTE: using flip timer instead of fw BST_EVENT_FLIP event
-		//if (events_type & BST_EVENT_FLIP)
-		//	dc->pipes->flush_done = true;
 		bst_crtc_handle_event(bcrtc, &evts);
 	}
 
@@ -79,7 +82,12 @@ static int virt_dc_disable_irq(struct bst_virt_device *vdev)
 static uint8_t get_min_fw_layer_id(struct bst_display_dc_probed_info *info)
 {
 	uint8_t i, min_layer_id = info->submodule_ids[0];
-	uint8_t num_layers = info->num_submodules - FIXED_DC_SUBMODULE_NUM;
+	uint8_t num_layers;
+
+	if (info->num_submodules > SUBMODULE_ID_DC_MAX)
+		return min_layer_id;
+
+	num_layers = info->num_submodules - FIXED_DC_SUBMODULE_NUM;
 
 	for (i = 1; i < num_layers; i++) {
 		if (info->submodule_ids[i] < min_layer_id)
@@ -106,7 +114,7 @@ static int virt_dc_probe(struct bst_virt_device *vdev)
 	struct bst_display_submodule_header submodule_head = { 0 };
 	struct bst_display_submodule_req submodule_req = { 0 };
 	struct bst_display_dc_probed_info *dc_probed_info = vdev->dev_info.private;
-	u32 i = 0, subdev_session, client_id;
+	u32 i = 0, subdev_session;
 	int err;
 
 	dc_dev = devm_kzalloc(vdev->dev, sizeof(*dc_dev), GFP_KERNEL);
@@ -131,15 +139,18 @@ static int virt_dc_probe(struct bst_virt_device *vdev)
 		dc_dev->support_smmu_stage_1 = false;
 
 	dc_dev->min_fw_layer_id = get_min_fw_layer_id(dc_probed_info);
-	dc_dev->max_scaler_num = dc_probed_info->max_scaler_num;
-	vdev->this_pipe->max_scaler_num = dc_probed_info->max_scaler_num;
+#ifdef DISPLAY_SUPPORT_SCALE
+	dc_dev->scaler_num = dc_probed_info->scaler_num;
+	vdev->this_pipe->scaler_num = dc_probed_info->scaler_num;
+#endif
 	subdev_session = vdev->subdev_session;
-	client_id = vdev->dev_info.client_id;
+
+	if (dc_probed_info->num_submodules > SUBMODULE_ID_DC_MAX)
+		return -EINVAL;
 
 	while (i < dc_probed_info->num_submodules) {
 		memset(&submodule_head, 0, sizeof(submodule_head));
 		memset(&submodule_req, 0, sizeof(submodule_req));
-		submodule_req.client_id = client_id;
 		submodule_req.submodule_id = dc_probed_info->submodule_ids[i];
 		err = bst_display_dc_cmd_probe_submodule(subdev_session,
 			&submodule_req, &submodule_head);
@@ -161,6 +172,8 @@ static int virt_dc_probe(struct bst_virt_device *vdev)
 	dc_dev->new_flush = false;
 	dc_dev->timer_inited = false;
 	dc_dev->base_dev->first_flush = true;
+	dc_dev->flush_count = 0;
+	dc_dev->vsync_count = 0;
 
 	return 0;
 
@@ -179,7 +192,6 @@ static void virt_dc_flush(struct bst_virt_device *virt_dev)
 	struct virt_dc_dev *dc = virt_dev->virt_dev_data;
 	struct bst_virt_device_info * info = &dc->base_dev->dev_info;
 	struct bst_display_flush_cfg dc_flush = {
-							.client_id = info->client_id,
 							.test_mode = dc->test_mode,
 							.is_trust  = false};
 	uint32_t subdev_session = info->subdev_session;
@@ -187,11 +199,10 @@ static void virt_dc_flush(struct bst_virt_device *virt_dev)
 	int ret;
 
 	ret = bst_display_dc_cmd_do_flush(subdev_session, &dc_flush, &reply);
-	if (!ret && reply.status == DISP_COMM_REPLAY_OK)
+	if (!ret && reply.base.status == DISP_COMM_REPLAY_OK)
 		DRM_DEBUG("dc do flush ok!!\n");
 	else
 		DRM_ERROR("dc do flush falied!!\n");
-	dc->new_flush = true;
 }
 
 static void virt_dc_debug_dump(struct bst_virt_device *virt_dev,
@@ -199,7 +210,7 @@ static void virt_dc_debug_dump(struct bst_virt_device *virt_dev,
 {
 	struct virt_dc_dev *dc = virt_dev->virt_dev_data;
 	struct bst_virt_device_info * info = &dc->base_dev->dev_info;
-	struct bst_display_dev_dump dump_cfg = { .type = DC_MONITOR, .client_id = info->client_id };
+	struct bst_display_dev_dump dump_cfg = { .type = DC_MONITOR};
 	uint32_t subdev_session = info->subdev_session;
 	struct bst_display_comm_reply reply = { 0 };
 	int ret;
@@ -264,60 +275,72 @@ static void virt_dc_on_off_vblank(struct bst_virt_device *virt_dev, bool on,
 
 #else
 
-static enum hrtimer_restart flip_event_simulate(struct hrtimer *timer)
-{
-	struct virt_dc_dev *dc_dev =
-		container_of(timer, struct virt_dc_dev, flip_hrtimer);
-	int ret_overrun;
-	struct bst_virt_events evts;
-
-	memset(&evts, 0, sizeof(evts));
-
-	if (dc_dev->new_flush) {
-		evts.pipes |= BST_DRM_EVENT_FLIP;
-		bst_crtc_handle_event(dc_dev->bcrtc, &evts);
-		dc_dev->new_flush = false;
-	}
-
-	ret_overrun =
-		hrtimer_forward_now(&dc_dev->flip_hrtimer, dc_dev->framedur_ns);
-
-	return HRTIMER_RESTART;
-}
-
 static void virt_dc_on_off_vblank(struct bst_virt_device *virt_dev,
 	bool on, struct bst_crtc* bcrtc)
 {
 	struct virt_dc_dev *dc_dev = virt_dev->virt_dev_data;
-	struct drm_device *dev = bcrtc->base.dev;
-	struct drm_vblank_crtc *vblank = &dev->vblank[drm_crtc_index(&bcrtc->base)];
 	drm_calc_timestamping_constants(&bcrtc->base, &bcrtc->base.mode);
 
 	dc_dev->bcrtc = bcrtc;
 	if (on) {
-		virt_dev->events_mask &= ~(BST_EVENT_VSYNC | BST_EVENT_EOW);
-		if (!dc_dev->timer_inited) {
-			hrtimer_init(&dc_dev->flip_hrtimer, CLOCK_MONOTONIC, HRTIMER_MODE_REL);
-			dc_dev->flip_hrtimer.function = &flip_event_simulate;
-			dc_dev->framedur_ns =
-				ktime_set(0, vblank->framedur_ns / BST_DRM_HW_FLUSH_DELAY_RAITO);
-			hrtimer_start(&dc_dev->flip_hrtimer, dc_dev->framedur_ns, HRTIMER_MODE_REL);
-			dc_dev->timer_inited = true;
-			DRM_INFO("pipe-%d flip simulate timer started, framedur_ns=%lld\n",
-				bcrtc->master->pipe_id, dc_dev->framedur_ns);
-		}
-
+		if (virt_dev->funcs && virt_dev->funcs->enable_irq)
+			virt_dev->funcs->enable_irq(virt_dev);
+		virt_dev->events_mask &= ~(BST_EVENT_VSYNC | BST_EVENT_EOW | BST_EVENT_FLIP);
 	} else {
-		virt_dev->events_mask |= (BST_EVENT_VSYNC | BST_EVENT_EOW);
-		if (dc_dev->timer_inited) {
-			hrtimer_cancel(&dc_dev->flip_hrtimer);
-			dc_dev->bcrtc = NULL;
-			dc_dev->timer_inited = false;
-			DRM_INFO("pipe-%d flip simulate timer stopped\n", bcrtc->master->pipe_id);
-		}
+		if (virt_dev->funcs && virt_dev->funcs->disable_irq)
+			virt_dev->funcs->disable_irq(virt_dev);
+		virt_dev->events_mask |= (BST_EVENT_VSYNC | BST_EVENT_EOW | BST_EVENT_FLIP);
 	}
 }
 #endif
+
+static int virt_dc_resume(struct bst_virt_device *virt_dev)
+{
+	struct virt_dc_dev *dc = virt_dev->virt_dev_data;
+	struct bst_virt_device_info * info = &dc->base_dev->dev_info;
+	uint32_t subdev_session = info->subdev_session;
+	struct bst_display_submodule_req submodule_req = { 0 };
+	struct bst_display_submodule_header submodule_head = { 0 };
+	int ret;
+
+	DRM_INFO("virt_dc_resume!! subdev_session:0x%x\n",subdev_session);
+	memset(&submodule_req, 0, sizeof(submodule_req));
+	submodule_req.submodule_id = SUBMODULE_ID_DC_PIPE_STR;
+
+	ret = bst_display_dc_cmd_probe_submodule(subdev_session,
+		&submodule_req, &submodule_head);
+	if (ret) {
+		DRM_ERROR("probe virt_dc_resume submodules failed.\n");
+	}
+
+	return 0;
+}
+
+static int virt_dc_suspend(struct bst_virt_device *virt_dev)
+{
+	struct virt_dc_dev *dc = virt_dev->virt_dev_data;
+	struct bst_virt_device_info * info = &dc->base_dev->dev_info;
+	uint32_t subdev_session = info->subdev_session;
+	struct bst_display_submodule_req submodule_req = { 0 };
+	struct bst_display_comm_reply reply = { 0 };
+	int ret;
+
+	DRM_INFO("virt_dc_suspend!! subdev_session:0x%x\n",subdev_session);
+	memset(&submodule_req, 0, sizeof(submodule_req));
+
+	//submodule_req.submodule_type = DC_SUBMODULE_TYPE_PIPE;
+	submodule_req.submodule_id = SUBMODULE_ID_DC_PIPE_STR;
+
+	ret = bst_display_dc_cmd_disable_submodule(subdev_session, &submodule_req, &reply);
+	if (!ret && reply.base.status == DISP_COMM_REPLAY_OK) {
+		DRM_DEBUG_ATOMIC("dc pipe suspend ok!!\n");
+	}
+	else {
+		DRM_ERROR("dc pipe suspend failed!!\n");
+	}
+
+	return 0;
+}
 
 static const struct bst_virt_device_funcs virt_dc_dev_funcs = {
 	.probe = virt_dc_probe,
@@ -329,6 +352,8 @@ static const struct bst_virt_device_funcs virt_dc_dev_funcs = {
 	.flush = virt_dc_flush,
 	.on_off_vblank = virt_dc_on_off_vblank,
 	.debug_dump = virt_dc_debug_dump,
+	.suspend = virt_dc_suspend,
+	.resume = virt_dc_resume,
 };
 
 static const struct bst_virt_device_funcs *
@@ -340,28 +365,30 @@ virt_dc_identify(struct device *dev, struct bst_virt_platform_info *plat_info,
 	struct bst_display_dc_probed_info *probed_info;
 	int ret = 0;
 
+	if (sizeof(*probed_info) > SUBDEV_PROBE_INFO_MAX_SIZE) {
+		DRM_ERROR("err! dc probe info size[%d] > max_size[%d].\n",
+			(int32_t)sizeof(*probed_info), (int32_t)SUBDEV_PROBE_INFO_MAX_SIZE);
+		return NULL;
+	}
+
 	probed_info = devm_kzalloc(dev, sizeof(*probed_info), GFP_KERNEL);
 	if (IS_ERR_OR_NULL(probed_info))
 		return NULL;
 
-	request.client_id = plat_info->client_id;
-	request.platform_id = plat_info->platform_id;
 	request.want_subdev = to_fw_subdev_type(plat_info->device_type);
 	request.want_layer_num = plat_info->want_layer_num;
 
-	request.want_info_size = sizeof(response) + sizeof(*probed_info);
+	request.want_info_size = sizeof(response);
 	ret = bst_display_glb_cmd_probe_subdev(&request, &response);
-	if (!ret && response.status == SUBDEV_PROBE_STATUS_OK) {
+	if (!ret && response.base.status == DISP_COMM_REPLAY_OK) {
 		memcpy(probed_info, &response.probed_info[0],
 		       sizeof(*probed_info));
 		dev_info->subdev_session = response.subdev_session;
 		dev_info->is_owner_device = response.is_owner;
-		dev_info->client_id = response.client_id;
 		dev_info->arch_id = probed_info->arch_id;
 		dev_info->bus_width = probed_info->bus_width;
 		dev_info->private = probed_info;
 		dev_info->device_type = plat_info->device_type;
-		dev_info->platform_id = request.platform_id;
 		return &virt_dc_dev_funcs;
 	}
 
@@ -401,8 +428,8 @@ bst_virt_dc_create(struct device *dev, struct bst_virt_platform_info *plat_info,
 	vdev->this_pipe = pipe;
 	vdev->events_mask = BST_EVENT_VSYNC | BST_EVENT_FLIP | BST_EVENT_EOW;
 
-	DRM_INFO("Found BST-DC-%x, Client ID:0x%x, Device Session:%x, Device Role:%s, device_type=%d\n",
-		 vdev->dev_info.arch_id, vdev->dev_info.client_id,
+	DRM_INFO("Found BST-DC-%x, Device Session:%x, Device Role:%s, device_type=%d\n",
+		 vdev->dev_info.arch_id,
 		 vdev->dev_info.subdev_session,
 		 vdev->dev_info.is_owner_device ? "is_owner" : "not_owner",
 		 vdev->device_type);

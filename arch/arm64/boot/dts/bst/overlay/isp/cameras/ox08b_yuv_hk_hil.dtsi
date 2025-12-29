@@ -1,9 +1,9 @@
-compatible = "bst,ox08b-yuv-hil";
-sensor-id = <0x36>;
-data-type = <0x1e>;
-serializer = "max9295";
+#include <dt-bindings/media/bst-isp.h>
 
-clock-frequency = <24>;
-sensor-fps = <20>;
-trigger-tx-pin = <8>;
-serializer-id = <0x42>;
+compatible = "bst,ox08b-yuv-hil";
+sensor-addr = <0x36>;
+data-type = <DT_YUV422_8B>;
+reg-width = <WORD_REG_BYTE_VAL>;
+
+ser-fsync-tx-pin = <8>;
+ser-addr = <0x42>;

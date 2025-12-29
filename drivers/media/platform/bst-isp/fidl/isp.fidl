@@ -1,0 +1,27 @@
+package com.bst.ipc.isp
+
+interface video {
+    version { major 3 minor 0 }
+
+    enumeration error_e {
+        NO_ERROR = 0
+        SERVER_FAIL = -1
+    }
+
+    method arm2isp {
+        in {
+            UInt32 msgAddr
+        }
+        out {
+            UInt32 result
+        }
+        error error_e
+    }
+
+    broadcast isp2arm selective {
+        out {
+            UInt32 msgAddr
+        }
+    }
+}
+

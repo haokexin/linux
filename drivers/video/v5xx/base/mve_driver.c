@@ -12,6 +12,7 @@
  * Boston, MA  02110-1301, USA.
  *
  */
+#define pr_fmt(fmt)		KBUILD_MODNAME ": " fmt
 
 #include <linux/init.h>
 #include <linux/module.h>
@@ -86,6 +87,7 @@ static long mve_driver_ioctl(struct file *file, unsigned int cmd, unsigned long 
                     return -EFAULT;
                 }
             }
+
             /* Process command */
             result = mve_command_execute(&header, data, file);
 
@@ -227,7 +229,7 @@ static int mve_driver_probe(struct platform_device *pdev)
     /* Initialize firmware module. */
     mve_fw_init();
 
-    printk("0801 MVE base driver loaded successfully\n");
+    dev_info(&pdev->dev, "0801 MVE base driver loaded successfully\n");
 
     return 0;
 }
@@ -252,7 +254,7 @@ static int mve_driver_remove(struct platform_device *pdev)
     /* Free device structure. */
     MVE_RSRC_MEM_FREE(mdev);
 
-    printk("MVE base driver unloaded successfully12\n");
+    dev_info(&pdev->dev, "MVE base driver unloaded successfully12\n");
 
     return 0;
 }
@@ -286,16 +288,37 @@ static struct platform_device mve_platform_device =
     },
 };
 
+extern int register_driver_mve_rsrc_notifier(struct notifier_block *nb);
+extern int unregister_driver_mve_rsrc_notifier(struct notifier_block *nb);
+
+static int mve_notify_event_handler(struct notifier_block *nb, unsigned long event, void *data)
+{
+    pr_info("%s.%d: Received event prepare to register mve base driver\n",  mve_platform_device.name, mve_platform_device.id);
+    platform_device_register(&mve_platform_device);
+
+    return NOTIFY_OK;
+}
+
+static struct notifier_block mve_notifier = {
+    .notifier_call = mve_notify_event_handler,
+};
+
 static int __init mve_driver_init(void)
 {
+    int ret;
+
     platform_driver_register(&mv500_driver);
-    platform_device_register(&mve_platform_device);
+    ret = register_driver_mve_rsrc_notifier(&mve_notifier);
+    if (ret) {
+        return platform_device_register(&mve_platform_device);
+    }
 
     return 0;
 }
 
 static void __exit mve_driver_exit(void)
 {
+    unregister_driver_mve_rsrc_notifier(&mve_notifier);
     platform_driver_unregister(&mv500_driver);
     platform_device_unregister(&mve_platform_device);
 
@@ -312,3 +335,4 @@ MODULE_DESCRIPTION("Mali-V500 video engine driver");
 
 module_init(mve_driver_init);
 module_exit(mve_driver_exit);
+MODULE_IMPORT_NS(DMA_BUF);

@@ -17,6 +17,7 @@ struct bulk_out_node *alloc_bulk_out_node(void)
 		return NULL;
 
 	memset(node, 0, sizeof(*node));
+	usb_init_urb(&node->urb);
 	INIT_LIST_HEAD(&node->list);
 	return node;
 }
@@ -35,7 +36,8 @@ struct bulk_out_node *get_bulk_out_node(struct usb_virtual_device *vdev)
 	} else {
 		spin_unlock_irq(&vdev->bulk_out_lock);
 		node = alloc_bulk_out_node();
-		node->vdev = vdev;
+		if (node)
+			node->vdev = vdev;
 		return node;
 	}
 
@@ -65,8 +67,6 @@ int init_bulk_out_node(struct bulk_out_node *node, usb_bst_virsual_msg_t *pdu)
 	//ensure buf data ok
 	smp_rmb();
 	__aarch64_inval_dcache_range(buf, buf + buf_len);
-
-	usb_init_urb(&node->urb);
 
 	node->urb.transfer_dma = phys_addr;
 

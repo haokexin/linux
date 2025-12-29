@@ -22,6 +22,7 @@ bst-native-drm-y := \
 	bst_dpu_csr.o
 
 #obj-$(CONFIG_DRM_BST_DC) += bst-dc/
+obj-$(CONFIG_DRM_BST_VOUT) += bst-vout/
 obj-$(CONFIG_DRM_BST_LVDS) += bst-lvds/
 obj-$(CONFIG_DRM_BST_MIPI_DSI) += bst-mipi-dsi/
 obj-$(CONFIG_DRM_BST_DPTX) += bst-dptx/
