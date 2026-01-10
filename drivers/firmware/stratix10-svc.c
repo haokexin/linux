@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0
 /*
  * Copyright (C) 2017-2024, Intel Corporation
+ * Copyright (C) 2025, Altera Corporation
  */
 
 #include <linux/atomic.h>
