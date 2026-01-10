@@ -460,13 +460,6 @@ targets += $(call intermediate_targets, .asn1.o, .asn1.c .asn1.h) \
 	   $(call intermediate_targets, .lex.o, .lex.c) \
 	   $(call intermediate_targets, .tab.o, .tab.c .tab.h)
 
-# Build
-# ---------------------------------------------------------------------------
-
-$(obj)/: $(if $(KBUILD_BUILTIN), $(targets-for-builtin)) \
-	 $(if $(KBUILD_MODULES), $(targets-for-modules)) \
-	 $(subdir-ym) $(always-y)
-	@:
 
 # Single targets
 # ---------------------------------------------------------------------------
@@ -496,6 +489,15 @@ FORCE:
 
 targets += $(filter-out $(single-subdir-goals), $(MAKECMDGOALS))
 targets := $(filter-out $(PHONY), $(targets))
+
+# Build
+# Needs to be after the include of Makefile.dtbs, which updates always-y
+# ---------------------------------------------------------------------------
+
+$(obj)/: $(if $(KBUILD_BUILTIN), $(targets-for-builtin)) \
+	 $(if $(KBUILD_MODULES), $(targets-for-modules)) \
+	 $(subdir-ym) $(always-y)
+	@:
 
 # Read all saved command lines and dependencies for the $(targets) we
 # may be building above, using $(if_changed{,_dep}). As an
