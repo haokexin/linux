@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0
 /*
  * Copyright (C) 2017-2018, Intel Corporation
+ * Copyright (C) 2025, Altera Corporation
  */
 
 #include <linux/completion.h>
@@ -66,6 +67,7 @@ struct stratix10_svc_chan;
 /**
  * struct stratix10_svc - svc private data
  * @stratix10_svc_rsu: pointer to stratix10 RSU device
+ * @intel_svc_fcs: pointer to the FCS device
  */
 struct stratix10_svc {
 	struct platform_device *stratix10_svc_rsu;
@@ -200,6 +202,12 @@ static LIST_HEAD(svc_ctrl);
 static LIST_HEAD(svc_data_mem);
 
 /**
+ * svc_mem_lock protects access to the svc_data_mem list for
+ * concurrent multi-client operations
+ */
+static DEFINE_MUTEX(svc_mem_lock);
+
+/**
  * svc_pa_to_va() - translate physical address to virtual address
  * @addr: to be translated physical address
  *
@@ -211,6 +219,7 @@ static void *svc_pa_to_va(unsigned long addr)
 	struct stratix10_svc_data_mem *pmem;
 
 	pr_debug("claim back P-addr=0x%016x\n", (unsigned int)addr);
+	guard(mutex)(&svc_mem_lock);
 	list_for_each_entry(pmem, &svc_data_mem, node)
 		if (pmem->paddr == addr)
 			return pmem->vaddr;
@@ -1649,6 +1658,7 @@ int stratix10_svc_send(struct stratix10_svc_chan *chan, void *msg)
 			src_addr = (phys_addr_t *)p_msg->payload;
 			p_data->paddr = *src_addr;
 			p_data->size = p_msg->payload_length;
+			guard(mutex)(&svc_mem_lock);
 			list_for_each_entry(p_mem, &svc_data_mem, node)
 				if (p_mem->vaddr == p_msg->payload_output) {
 					p_data->paddr_output = p_mem->paddr;
@@ -1656,6 +1666,7 @@ int stratix10_svc_send(struct stratix10_svc_chan *chan, void *msg)
 					break;
 				}
 		} else {
+			guard(mutex)(&svc_mem_lock);
 			list_for_each_entry(p_mem, &svc_data_mem, node)
 				if (p_mem->vaddr == p_msg->payload) {
 					p_data->paddr = p_mem->paddr;
@@ -1760,6 +1771,7 @@ void *stratix10_svc_allocate_memory(struct stratix10_svc_chan *chan,
 	if (!pmem)
 		return ERR_PTR(-ENOMEM);
 
+	guard(mutex)(&svc_mem_lock);
 	if(chan->ctrl->is_smmu_enabled == true) {
 		s = PAGE_ALIGN(size);
 		va = (void *)__get_free_pages(GFP_KERNEL | __GFP_ZERO, get_order(s));
@@ -1818,6 +1830,7 @@ EXPORT_SYMBOL_GPL(stratix10_svc_allocate_memory);
 void stratix10_svc_free_memory(struct stratix10_svc_chan *chan, void *kaddr)
 {
 	struct stratix10_svc_data_mem *pmem;
+	guard(mutex)(&svc_mem_lock);
 
 	list_for_each_entry(pmem, &svc_data_mem, node)
 		if (pmem->vaddr == kaddr) {
