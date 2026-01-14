@@ -1843,7 +1843,8 @@ int enetc_xdp_xmit(struct net_device *ndev, int num_frames,
 	int max_txbd_num;
 	int ring_index;
 
-	if (unlikely(test_bit(ENETC_TX_DOWN, &priv->flags)))
+	if (unlikely(test_bit(ENETC_TX_DOWN, &priv->flags) ||
+		     !netif_carrier_ok(ndev)))
 		return -ENETDOWN;
 
 	max_txbd_num = ENETC_TXBDS_NEEDED(priv->max_frags_bd);
