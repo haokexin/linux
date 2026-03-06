@@ -393,7 +393,7 @@ struct wiz {
 	struct clk		*output_clks[WIZ_MAX_OUTPUT_CLOCKS];
 	struct clk_onecell_data	clk_data;
 	const struct wiz_data	*data;
-	int                     mux_sel_val[WIZ_MUX_NUM_CLOCKS];
+	int			mux_sel_status[WIZ_MUX_NUM_CLOCKS];
 };
 
 static int wiz_reset(struct wiz *wiz)
@@ -1658,13 +1658,13 @@ static void wiz_remove(struct platform_device *pdev)
 
 static int wiz_suspend_noirq(struct device *dev)
 {
-       struct wiz *wiz = dev_get_drvdata(dev);
-       int i;
+	struct wiz *wiz = dev_get_drvdata(dev);
+	int i;
 
-       for (i = 0; i < WIZ_MUX_NUM_CLOCKS; i++)
-               regmap_field_read(wiz->mux_sel_field[i], &wiz->mux_sel_val[i]);
+	for (i = 0; i < WIZ_MUX_NUM_CLOCKS; i++)
+		regmap_field_read(wiz->mux_sel_field[i], &wiz->mux_sel_status[i]);
 
-       return 0;
+	return 0;
 }
 
 static int wiz_resume_noirq(struct device *dev)
@@ -1674,7 +1674,7 @@ static int wiz_resume_noirq(struct device *dev)
 	int ret, i;
 
 	for (i = 0; i < WIZ_MUX_NUM_CLOCKS; i++)
-		regmap_field_write(wiz->mux_sel_field[i], wiz->mux_sel_val[i]);
+		regmap_field_write(wiz->mux_sel_field[i], wiz->mux_sel_status[i]);
 
 	/* Enable supplemental Control override if available */
 	if (wiz->sup_legacy_clk_override)
