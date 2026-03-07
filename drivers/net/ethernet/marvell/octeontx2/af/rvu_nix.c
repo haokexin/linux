@@ -5194,7 +5194,7 @@ static int rvu_nix_block_init(struct rvu *rvu, struct nix_hw *nix_hw)
 	/* Disable SQ manager's sticky mode operation (set TM6 = 0, TM11 = 0)
 	 * This sticky mode is known to cause SQ stalls when multiple
 	 * SQs are mapped to same SMQ and transmitting pkts simultaneously.
-	 * NIX PSE may dead lock when therea are any sticky to non-sticky
+	 * NIX PSE may deadlock when there are any sticky to non-sticky
 	 * transmission. Hence disable it (TM5 = 0).
 	 */
 	cfg = rvu_read64(rvu, blkaddr, NIX_AF_SQM_DBG_CTL_STATUS);
