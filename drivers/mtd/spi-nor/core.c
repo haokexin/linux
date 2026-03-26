@@ -2058,10 +2058,9 @@ static const struct flash_info *spi_nor_detect(struct spi_nor *nor)
 }
 
 /*
- * On Octal DTR capable flashes like Micron Xcella reads cannot start or
- * end at an odd address in Octal DTR mode. Extra bytes need to be read
- * at the start or end to make sure both the start address and length
- * remain even.
+ * On Octal DTR capable flashes, reads cannot start or end at an odd
+ * address in Octal DTR mode. Extra bytes need to be read at the start
+ * or end to make sure both the start address and length remain even.
  */
 static int spi_nor_octal_dtr_read(struct spi_nor *nor, loff_t from, size_t len,
 				  u_char *buf)
@@ -2122,11 +2121,6 @@ static int spi_nor_octal_dtr_read(struct spi_nor *nor, loff_t from, size_t len,
 	if (start + bytes_read == end)
 		ret -= end - (from + len);
 
-	if (ret < 0) {
-		ret = -EIO;
-		goto out;
-	}
-
 	memcpy(buf, tmp_buf + (from - start), ret);
 out:
 	kfree(tmp_buf);
@@ -2178,11 +2172,11 @@ read_err:
 }
 
 /*
- * On Octal DTR capable flashes like Micron Xcella the writes cannot start or
- * end at an odd address in Octal DTR mode. Extra 0xff bytes need to be appended
- * or prepended to make sure the start address and end address are even. 0xff is
- * used because on NOR flashes a program operation can only flip bits from 1 to
- * 0, not the other way round. 0 to 1 flip needs to happen via erases.
+ * On Octal DTR capable flashes, writes cannot start or end at an odd address
+ * in Octal DTR mode. Extra 0xff bytes need to be appended or prepended to
+ * make sure the start address and end address are even. 0xff is used because
+ * on NOR flashes a program operation can only flip bits from 1 to 0, not the
+ * other way round. 0 to 1 flip needs to happen via erases.
  */
 static int spi_nor_octal_dtr_write(struct spi_nor *nor, loff_t to, size_t len,
 				   const u8 *buf)
@@ -2233,9 +2227,6 @@ static int spi_nor_octal_dtr_write(struct spi_nor *nor, loff_t to, size_t len,
 	 */
 	if (start + bytes_written == end)
 		ret -= end - (to + len);
-
-	if (ret < 0)
-		ret = -EIO;
 
 out:
 	kfree(tmp_buf);
