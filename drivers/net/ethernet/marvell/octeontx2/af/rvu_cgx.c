@@ -1330,6 +1330,9 @@ int rvu_mbox_handler_cgx_set_link_mode(struct rvu *rvu,
 	void *cgxd;
 	int err;
 
+	if (!rvu->fwdata)
+		return LMAC_AF_ERR_FIRMWARE_DATA_NOT_MAPPED;
+
 	if (!is_cgx_config_permitted(rvu, req->hdr.pcifunc))
 		return LMAC_AF_ERR_PERM_DENIED;
 
