@@ -647,6 +647,8 @@
 
 /* Bitfields in queue pointer registers */
 #define GEM_RBQP_DISABLE	0x1
+#define MACB_QUEUE_DISABLE_OFFSET		0 /* disable queue */
+#define MACB_QUEUE_DISABLE_SIZE			1
 
 /* Offset for screener type 2 compare values (T2CMPOFST).
  * Note the offset is applied after the specified point,
