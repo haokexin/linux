@@ -1456,19 +1456,13 @@ static int enetc_set_rxfh(struct net_device *ndev,
 	int err = 0;
 
 	if (rxfh->hfunc != ETH_RSS_HASH_NO_CHANGE &&
-	    rxfh->hfunc != ETH_RSS_HASH_TOP) {
-		netdev_err(ndev, "Only toeplitz hash function is supported\n");
-
+	    rxfh->hfunc != ETH_RSS_HASH_TOP)
 		return -EOPNOTSUPP;
-	}
 
 	/* set hash key, if PF */
 	if (rxfh->key) {
-		if (!enetc_si_is_pf(si)) {
-			netdev_err(ndev, "VF does not support setting key\n");
-
+		if (!enetc_si_is_pf(si))
 			return -EOPNOTSUPP;
-		}
 
 		enetc_set_rss_key(si, rxfh->key);
 	}
