@@ -1536,10 +1536,8 @@ static int enetc_set_rxfh(struct net_device *ndev,
 	int err = 0;
 
 	if (rxfh->hfunc != ETH_RSS_HASH_NO_CHANGE &&
-	    rxfh->hfunc != ETH_RSS_HASH_TOP) {
-		netdev_err(ndev, "unsupported hash function\n");
+	    rxfh->hfunc != ETH_RSS_HASH_TOP)
 		return -EOPNOTSUPP;
-	}
 
 	/* set hash key, if PF */
 	if (rxfh->key && enetc_si_is_pf(si))
