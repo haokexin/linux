@@ -1651,6 +1651,7 @@ static vm_fault_t vfio_pci_mmap_fault(struct vm_fault *vmf)
 	struct vm_area_struct *vma = vmf->vma;
 	struct vfio_pci_core_device *vdev = vma->vm_private_data;
 	unsigned long pfn, pgoff = vmf->pgoff - vma->vm_pgoff;
+	unsigned long addr = vma->vm_start;
 	vm_fault_t ret = VM_FAULT_SIGBUS;
 
 	pfn = vma_to_pfn(vma);
@@ -1658,11 +1659,25 @@ static vm_fault_t vfio_pci_mmap_fault(struct vm_fault *vmf)
 	down_read(&vdev->memory_lock);
 
 	if (vdev->pm_runtime_engaged || !__vfio_pci_memory_enabled(vdev))
-		goto out_disabled;
+		goto out_unlock;
 
 	ret = vmf_insert_pfn(vma, vmf->address, pfn + pgoff);
+	if (ret & VM_FAULT_ERROR)
+		goto out_unlock;
 
-out_disabled:
+	/*
+	 * Pre-fault the remainder of the vma, abort further insertions and
+	 * supress error if fault is encountered during pre-fault.
+	 */
+	for (; addr < vma->vm_end; addr += PAGE_SIZE, pfn++) {
+		if (addr == vmf->address)
+			continue;
+
+		if (vmf_insert_pfn(vma, addr, pfn) & VM_FAULT_ERROR)
+			break;
+	}
+
+out_unlock:
 	up_read(&vdev->memory_lock);
 
 	return ret;
@@ -1737,22 +1752,6 @@ int vfio_pci_core_mmap(struct vfio_device *core_vdev, struct vm_area_struct *vma
 	 * Set vm_flags now, they should not be changed in the fault handler.
 	 * We want the same flags and page protection (decrypted above) as
 	 * io_remap_pfn_range() would set.
-	 *
-	 * VM_ALLOW_ANY_UNCACHED: The VMA flag is implemented for ARM64,
-	 * allowing KVM stage 2 device mapping attributes to use Normal-NC
-	 * rather than DEVICE_nGnRE, which allows guest mappings
-	 * supporting write-combining attributes (WC). ARM does not
-	 * architecturally guarantee this is safe, and indeed some MMIO
-	 * regions like the GICv2 VCPU interface can trigger uncontained
-	 * faults if Normal-NC is used.
-	 *
-	 * To safely use VFIO in KVM the platform must guarantee full
-	 * safety in the guest where no action taken against a MMIO
-	 * mapping can trigger an uncontained failure. The assumption is
-	 * that most VFIO PCI platforms support this for both mapping types,
-	 * at least in common flows, based on some expectations of how
-	 * PCI IP is integrated. Hence VM_ALLOW_ANY_UNCACHED is set in
-	 * the VMA flags.
 	 */
 	vm_flags_set(vma, VM_ALLOW_ANY_UNCACHED | VM_IO | VM_PFNMAP |
 			VM_DONTEXPAND | VM_DONTDUMP);
