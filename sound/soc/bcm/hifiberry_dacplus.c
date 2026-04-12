@@ -533,10 +533,10 @@ static int snd_rpi_hifiberry_dacplus_probe(struct platform_device *pdev)
 	if (!ret) {
 		if (snd_mute_gpio)
 			dev_info(&pdev->dev, "GPIO%i for HW-MUTE selected",
-					gpio_chip_hwgpio(snd_mute_gpio));
+					gpiod_hwgpio(snd_mute_gpio));
 		if (snd_reset_gpio)
 			dev_info(&pdev->dev, "GPIO%i for HW-RESET selected",
-					gpio_chip_hwgpio(snd_reset_gpio));
+					gpiod_hwgpio(snd_reset_gpio));
 	}
 	return ret;
 }
