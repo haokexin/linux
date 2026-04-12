@@ -1927,12 +1927,6 @@ static int cqspi_exec_mem_op(struct spi_mem *mem, const struct spi_mem_op *op)
 	if (refcount_read(&cqspi->inflight_ops) == 0)
 		return -ENODEV;
 
-	ret = pm_runtime_resume_and_get(dev);
-	if (ret) {
-		dev_err(&mem->spi->dev, "resume failed with %d\n", ret);
-		return ret;
-	}
-
 	if (!refcount_read(&cqspi->refcount))
 		return -EBUSY;
 
@@ -1942,6 +1936,12 @@ static int cqspi_exec_mem_op(struct spi_mem *mem, const struct spi_mem_op *op)
 		if (refcount_read(&cqspi->inflight_ops))
 			refcount_dec(&cqspi->inflight_ops);
 		return -EBUSY;
+	}
+
+	ret = pm_runtime_resume_and_get(dev);
+	if (ret) {
+		dev_err(&mem->spi->dev, "resume failed with %d\n", ret);
+		goto dec_inflight_refcount;
 	}
 
 	f_pdata = &cqspi->f_pdata[spi_get_chipselect(mem->spi, 0)];
@@ -1956,7 +1956,7 @@ static int cqspi_exec_mem_op(struct spi_mem *mem, const struct spi_mem_op *op)
 	    (!op->data.nbytes || op->data.dtr)) {
 		ret = cqspi_setup_edgemode(mem, op);
 		if (ret)
-			return ret;
+			goto put_runtime_pm;
 	} else if ((mem->spi->controller->flags & SPI_CONTROLLER_SDR_PHY) &&
 			(mem->spi->max_speed_hz >= CQSPI_SDR_MAX_FREQ)) {
 		ret = cqspi_setup_phymode(mem, op);
@@ -1973,17 +1973,20 @@ static int cqspi_exec_mem_op(struct spi_mem *mem, const struct spi_mem_op *op)
 	if (f_pdata->dtr && !cqspi->tuning_complete.done &&
 	    !wait_for_completion_timeout(&cqspi->tuning_complete,
 		msecs_to_jiffies(CQSPI_TUNING_TIMEOUT_MS))) {
-		return -ETIMEDOUT;
+		ret = -ETIMEDOUT;
+		goto put_runtime_pm;
 	}
 
 	ret = cqspi_mem_process(mem, op);
 
+put_runtime_pm:
 	pm_runtime_mark_last_busy(dev);
 	pm_runtime_put_autosuspend(dev);
 
 	if (ret)
 		dev_err(&mem->spi->dev, "operation failed with %d\n", ret);
 
+dec_inflight_refcount:
 	if (refcount_read(&cqspi->inflight_ops) > 1)
 		refcount_dec(&cqspi->inflight_ops);
 
