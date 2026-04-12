@@ -1289,7 +1289,7 @@ static int evb_probe(struct fsl_mc_device *evb_dev)
 				goto err_takedown;
 			}
 			rtmsg_ifinfo(RTM_NEWLINK, port_netdev,
-				     IFF_SLAVE, GFP_KERNEL);
+				     IFF_SLAVE, GFP_KERNEL, 0, NULL);
 			rtnl_unlock();
 
 			list_add(&port_priv->list, &priv->port_list);
