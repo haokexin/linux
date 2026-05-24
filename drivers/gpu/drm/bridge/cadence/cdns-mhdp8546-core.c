@@ -1851,12 +1851,12 @@ static void cdns_mhdp_atomic_enable(struct drm_bridge *bridge,
 
 	mutex_lock(&mhdp->link_mutex);
 
-	mhdp->connector = drm_atomic_get_new_connector_for_encoder(state,
-								   bridge->encoder);
-	if (WARN_ON(!mhdp->connector))
+	mhdp->connector_ptr = drm_atomic_get_new_connector_for_encoder(state,
+								       bridge->encoder);
+	if (WARN_ON(!mhdp->connector_ptr))
 		goto out;
 
-	conn_state = drm_atomic_get_new_connector_state(state, mhdp->connector);
+	conn_state = drm_atomic_get_new_connector_state(state, mhdp->connector_ptr);
 	if (WARN_ON(!conn_state))
 		goto out;
 
@@ -1940,7 +1940,6 @@ static void cdns_mhdp_atomic_disable(struct drm_bridge *bridge,
 		cdns_mhdp_hdcp_disable(mhdp);
 
 	mhdp->bridge_enabled = false;
-	mhdp->connector = NULL;
 	cdns_mhdp_reg_read(mhdp, CDNS_DP_FRAMER_GLOBAL_CONFIG, &resp);
 	resp &= ~CDNS_DP_FRAMER_EN;
 	resp |= CDNS_DP_NO_VIDEO_MODE;
@@ -1956,6 +1955,7 @@ static void cdns_mhdp_atomic_disable(struct drm_bridge *bridge,
 	if (mhdp->info && mhdp->info->ops && mhdp->info->ops->disable)
 		mhdp->info->ops->disable(mhdp);
 
+	mhdp->connector_ptr = NULL;
 	mutex_unlock(&mhdp->link_mutex);
 }
 
@@ -2050,7 +2050,7 @@ static int cdns_mhdp_atomic_check(struct drm_bridge *bridge,
 	const struct drm_display_mode *mode = &crtc_state->adjusted_mode;
 	struct drm_connector_state *old_state, *new_state;
 	struct drm_atomic_state *state = crtc_state->state;
-	struct drm_connector *conn = mhdp->connector;
+	struct drm_connector *conn = mhdp->connector_ptr;
 	u64 old_cp, new_cp;
 
 	mutex_lock(&mhdp->link_mutex);
@@ -2273,8 +2273,8 @@ static void cdns_mhdp_modeset_retry_fn(struct work_struct *work)
 
 	mhdp = container_of(work, typeof(*mhdp), modeset_retry_work);
 
-	if (mhdp->connector && mhdp->connector->dev) {
-		conn = mhdp->connector;
+	if (mhdp->connector_ptr && mhdp->connector_ptr->dev) {
+		conn = mhdp->connector_ptr;
 		/* Grab the locks before changing connector property */
 		mutex_lock(&conn->dev->mode_config.mutex);
 
