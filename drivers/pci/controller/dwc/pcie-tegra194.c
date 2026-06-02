@@ -302,10 +302,10 @@
 #define CAP_SPCIE_CAP_OFF_USP_TX_PRESET0_SHIFT	8
 
 #define PME_ACK_DELAY		100   /* 100 us */
-#define PME_ACK_TIMEOUT		10000 /* 10 ms */
 
 #define LTSSM_DELAY		10000	/* 10 ms */
-#define LTSSM_TIMEOUT		120000	/* 120 ms */
+#define LTSSM_DELAY_US		10000	/* 10 ms */
+#define LTSSM_TIMEOUT_US	120000	/* 120 ms */
 
 #define GEN3_GEN4_EQ_PRESET_INIT	5
 
@@ -2076,7 +2076,8 @@ static int tegra_pcie_try_link_l2(struct tegra_pcie_dw *pcie)
 
 	return readl_poll_timeout(pcie->appl_base + APPL_DEBUG, val,
 				  val & APPL_DEBUG_PM_LINKST_IN_L2_LAT,
-				  PME_ACK_DELAY, PME_ACK_TIMEOUT);
+				  PCIE_PME_TO_L2_TIMEOUT_US/10,
+				  PCIE_PME_TO_L2_TIMEOUT_US);
 }
 
 static void tegra_pcie_dw_pme_turnoff(struct tegra_pcie_dw *pcie)
@@ -2116,13 +2117,13 @@ static void tegra_pcie_dw_pme_turnoff(struct tegra_pcie_dw *pcie)
 			((data & APPL_DEBUG_LTSSM_STATE_MASK) == LTSSM_STATE_DETECT_ACT) ||
 			((data & APPL_DEBUG_LTSSM_STATE_MASK) == LTSSM_STATE_PRE_DETECT_QUIET) ||
 			((data & APPL_DEBUG_LTSSM_STATE_MASK) == LTSSM_STATE_DETECT_WAIT),
-			LTSSM_DELAY, LTSSM_TIMEOUT);
+			LTSSM_DELAY_US, LTSSM_TIMEOUT_US);
 		if (err)
-			dev_info(pcie->dev, "Link didn't go to detect state\n");
+			dev_info(pcie->dev, "LTSSM state: 0x%x detect timeout: %d\n", data, err);
 
 		/*
 		 * Deassert LTSSM state to stop the state toggling between
-		 * polling and detect.
+		 * Polling and Detect.
 		 */
 		data = readl(pcie->appl_base + APPL_CTRL);
 		data &= ~APPL_CTRL_LTSSM_EN;
@@ -2244,13 +2245,13 @@ static void pex_ep_event_pex_rst_assert(struct tegra_pcie_dw *pcie)
 		((val & APPL_DEBUG_LTSSM_STATE_MASK) == LTSSM_STATE_PRE_DETECT_QUIET) ||
 		((val & APPL_DEBUG_LTSSM_STATE_MASK) == LTSSM_STATE_DETECT_WAIT) ||
 		((val & APPL_DEBUG_LTSSM_STATE_MASK) == LTSSM_STATE_L2_IDLE),
-		LTSSM_DELAY, LTSSM_TIMEOUT);
+		LTSSM_DELAY_US, LTSSM_TIMEOUT_US);
 	if (ret)
-		dev_err(pcie->dev, "LTSSM state: 0x%x timeout: %d\n", val, ret);
+		dev_info(pcie->dev, "LTSSM state: 0x%x detect timeout: %d\n", val, ret);
 
 	/*
 	 * Deassert LTSSM state to stop the state toggling between
-	 * polling and detect.
+	 * Polling and Detect.
 	 */
 	val = appl_readl(pcie, APPL_CTRL);
 	val &= ~APPL_CTRL_LTSSM_EN;
