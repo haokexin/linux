@@ -17,6 +17,7 @@
 #include <sound/sof/info.h>
 #include <sound/sof/pm.h>
 #include <sound/sof/trace.h>
+#include <sound/compress_params.h>
 #include <uapi/sound/sof/fw.h>
 #include <sound/sof/ext_manifest.h>
 
@@ -112,6 +113,7 @@ struct sof_compr_stream {
 	u32 sampling_rate;
 	u16 channels;
 	u16 sample_container_bytes;
+	struct snd_codec codec_params;
 	size_t posn_offset;
 };
 
@@ -248,7 +250,7 @@ struct snd_sof_dsp_ops {
 
 	/* host side configuration of the stream's data offset in stream mailbox area */
 	int (*set_stream_data_offset)(struct snd_sof_dev *sdev,
-				      struct snd_pcm_substream *substream,
+				      struct snd_sof_pcm_stream *sps,
 				      size_t posn_offset); /* optional */
 
 	/* pre/post firmware run */
@@ -749,7 +751,7 @@ int sof_ipc_msg_data(struct snd_sof_dev *sdev,
 		     struct snd_sof_pcm_stream *sps,
 		     void *p, size_t sz);
 int sof_set_stream_data_offset(struct snd_sof_dev *sdev,
-			       struct snd_pcm_substream *substream,
+			       struct snd_sof_pcm_stream *sps,
 			       size_t posn_offset);
 
 int sof_stream_pcm_open(struct snd_sof_dev *sdev,
