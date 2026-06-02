@@ -102,11 +102,11 @@ mx25uw51245g_post_bfpt_fixup(struct spi_nor *nor,
 	return 0;
 }
 
-static void mx25uw51245g_post_sfdp_fixup(struct spi_nor *nor)
+static int mx25uw51245g_post_sfdp_fixup(struct spi_nor *nor)
 {
 	/* Identify (free) samples with empty SFDP table */
 	if (nor->cmd_ext_type != SPI_NOR_EXT_NONE)
-		return;
+		return 0;
 
 	nor->cmd_ext_type = SPI_NOR_EXT_INVERT;
 
@@ -125,13 +125,19 @@ static void mx25uw51245g_post_sfdp_fixup(struct spi_nor *nor)
 
 	nor->params->rdsr_addr_nbytes = 4;
 	nor->params->rdsr_dummy = 4;
+	return 0;
+}
+
+static void mx25uw51245g_late_init_fixup(struct spi_nor *nor)
+{
+	mx25uw51245g_post_sfdp_fixup(nor);
 }
 
 static struct spi_nor_fixups mx25uw51245g_fixups = {
 	.default_init = mx25uw51245g_default_init,
 	.post_bfpt = mx25uw51245g_post_bfpt_fixup,
 	.post_sfdp = mx25uw51245g_post_sfdp_fixup,
-	.late_init = mx25uw51245g_post_sfdp_fixup,
+	.late_init = mx25uw51245g_late_init_fixup,
 };
 
 static const struct flash_info macronix_nor_parts[] = {
