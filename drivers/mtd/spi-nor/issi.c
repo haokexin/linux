@@ -114,7 +114,7 @@ static void is25wx256_default_init(struct spi_nor *nor)
 	params->set_4byte_addr_mode = is25wx256_set_4byte_addr_mode;
 }
 
-static void is25wx256_post_sfdp_fixup(struct spi_nor *nor)
+static int is25wx256_post_sfdp_fixup(struct spi_nor *nor)
 {
 	struct spi_nor_flash_parameter *params = spi_nor_get_params(nor, 0);
 
@@ -134,6 +134,7 @@ static void is25wx256_post_sfdp_fixup(struct spi_nor *nor)
 	 * disable it.
 	 */
 	params->quad_enable = NULL;
+	return 0;
 }
 
 static struct spi_nor_fixups is25wx256_fixups = {

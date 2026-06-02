@@ -114,7 +114,7 @@ static void gd25lx256e_default_init(struct spi_nor *nor)
 	params->set_4byte_addr_mode = gd25lx256e_set_4byte_addr_mode;
 }
 
-static void gd25lx256e_post_sfdp_fixup(struct spi_nor *nor)
+static int gd25lx256e_post_sfdp_fixup(struct spi_nor *nor)
 {
 	struct spi_nor_flash_parameter *params = spi_nor_get_params(nor, 0);
 
@@ -134,6 +134,7 @@ static void gd25lx256e_post_sfdp_fixup(struct spi_nor *nor)
 	 * disable it.
 	 */
 	params->quad_enable = NULL;
+	return 0;
 }
 
 static void gd25b512_default_init(struct spi_nor *nor)

@@ -107,7 +107,7 @@ static void mx25um51345g_default_init_fixups(struct spi_nor *nor)
 	params->octal_dtr_enable = spi_nor_macronix_octal_dtr_enable;
 }
 
-static void mx25um51345g_post_sfdp_fixup(struct spi_nor *nor)
+static int mx25um51345g_post_sfdp_fixup(struct spi_nor *nor)
 {
 	struct spi_nor_flash_parameter *params = spi_nor_get_params(nor, 0);
 
@@ -127,6 +127,7 @@ static void mx25um51345g_post_sfdp_fixup(struct spi_nor *nor)
 	 * disable it.
 	 */
 	params->quad_enable = NULL;
+	return 0;
 }
 
 static struct spi_nor_fixups mx25um51345g_fixups = {
