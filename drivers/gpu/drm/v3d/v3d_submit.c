@@ -159,14 +159,6 @@ v3d_job_free(struct kref *ref)
 }
 
 static void
-v3d_cpu_job_free(struct kref *ref)
-{
-	struct v3d_job *job = container_of(ref, struct v3d_job, refcount);
-
-	v3d_job_free_common(job, false);
-}
-
-static void
 v3d_render_job_free(struct kref *ref)
 {
 	struct v3d_render_job *job = container_of(ref, struct v3d_render_job,
@@ -176,6 +168,24 @@ v3d_render_job_free(struct kref *ref)
 	list_for_each_entry_safe(bo, save, &job->unref_list, unref_head) {
 		drm_gem_object_put(&bo->base.base);
 	}
+
+	v3d_job_free(ref);
+}
+
+static void
+v3d_cpu_job_free(struct kref *ref)
+{
+	struct v3d_cpu_job *job = container_of(ref, struct v3d_cpu_job,
+					       base.refcount);
+
+	v3d_timestamp_query_info_free(&job->timestamp_query,
+				      job->timestamp_query.count);
+
+	v3d_performance_query_info_free(&job->performance_query,
+					job->performance_query.count);
+
+	if (job->indirect_csd.indirect)
+		drm_gem_object_put(job->indirect_csd.indirect);
 
 	v3d_job_free(ref);
 }
@@ -1467,8 +1477,6 @@ fail:
 	v3d_job_cleanup((void *)csd_job);
 	v3d_job_cleanup(clean_job);
 	v3d_put_multisync_post_deps(&se);
-	kvfree(cpu_job->timestamp_query.queries);
-	kvfree(cpu_job->performance_query.queries);
 
 	return ret;
 }
