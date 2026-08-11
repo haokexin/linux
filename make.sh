@@ -1,6 +1,6 @@
 #!/bin/sh
 
-CROSS_COMPILETOOL=aarch64-linux-gnu-
+CROSS_COMPILETOOL=aarch64-bst-linux-
 #CROSS_COMPILETOOL=aarch64-bst-linux-
 
 export LOCALVERSION=""

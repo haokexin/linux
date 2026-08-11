@@ -148,3 +148,5 @@ a maintainer tree)
     - tag the patch subject with `ANDROID:`
     - add a `Bug:` tag with the Android bug (required for android-specific features)
 
+
+Source code is based on branch: HEAD, commit: bb91e50e0

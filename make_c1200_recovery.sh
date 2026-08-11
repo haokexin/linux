@@ -1,6 +1,6 @@
 #!/bin/sh
 
-CROSS_COMPILETOOL=aarch64-linux-gnu-
+CROSS_COMPILETOOL=aarch64-bst-linux-
 
 file_path=`${CROSS_COMPILETOOL}gcc -print-file-name=plugin`/include/plugin-version.h
 if [ -f "$file_path" ]
