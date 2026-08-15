@@ -57,14 +57,14 @@
 
 #if defined(__clang__)
 // Clang atomic function macros
-#define ATOMIC_LOAD(ptr, order) __c11_atomic_load((ptr), (order))
-#define ATOMIC_STORE(ptr, val, order) __c11_atomic_store((ptr), (val), (order))
+#define ATOMIC_LOAD(ptr, order) __atomic_load_n((ptr), (order))
+#define ATOMIC_STORE(ptr, val, order) __atomic_store_n((ptr), (val), (order))
 #define ATOMIC_FETCH_ADD(ptr, val, order)                                      \
-	__c11_atomic_fetch_add((ptr), (val), (order))
+	__atomic_fetch_add((ptr), (val), (order))
 #define ATOMIC_FETCH_OR(ptr, val, order)                                       \
-	__c11_atomic_fetch_or((ptr), (val), (order))
+	__atomic_fetch_or((ptr), (val), (order))
 #define ATOMIC_FETCH_XOR(ptr, val, order)                                      \
-	__c11_atomic_fetch_xor((ptr), (val), (order))
+	__atomic_fetch_xor((ptr), (val), (order))
 #elif defined(__GNUC__) || defined(__GNUG__)
 // GCC atomic function macros
 #define ATOMIC_LOAD(ptr, order) __atomic_load_n((ptr), ((order)))
